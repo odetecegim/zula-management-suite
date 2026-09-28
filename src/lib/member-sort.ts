@@ -37,8 +37,14 @@ export function naturalCompare(a: string, b: string): number {
  *
  * Onceki alanlar esit oldugunda siradaki alana gecilir; boylece
  * "ZULA-002" ile "ZULA-010" dogru sirada gosterilir.
+ *
+ * `getScore` verilirse 4. alan o puan kullanilir (or. performans
+ * tablosunda donemin yonetici puani). Verilmezse uyenin genel
+ * katilim puani kullanilir.
  */
-export function sortMembers(list: Member[]): Member[] {
+export function sortMembers<T extends Member>(list: T[], getScore?: (m: T) => number): T[] {
+  const scoreOf = (m: T) => (getScore ? getScore(m) : m.participationScore) ?? 0;
+
   return [...list].sort((a, b) => {
     const byTag = naturalCompare(a.tagId || '', b.tagId || '');
     if (byTag !== 0) return byTag;
@@ -50,6 +56,6 @@ export function sortMembers(list: Member[]): Member[] {
     if (byName !== 0) return byName;
 
     // Puanlama: yuksek puan one
-    return (b.participationScore ?? 0) - (a.participationScore ?? 0);
+    return scoreOf(b) - scoreOf(a);
   });
 }

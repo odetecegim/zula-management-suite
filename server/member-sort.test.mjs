@@ -52,5 +52,33 @@ t('orijinal dizi degistirilmez', () => {
   sortMembers(src);
   assert.equal(src[0].tagId, 'ZULA-009');
 });
+t('getScore ile performans puani kullanilir (katilim puani degil)', () => {
+  // Ayni uye kodu + kullanici adi + isim: puan belirleyici olmali
+  const base = { tagId: 'Z', username: 'u', fullName: 'n' };
+  const out = sortMembers(
+    [
+      m({ ...base, id: 'dusuk', participationScore: 99 }),
+      m({ ...base, id: 'yuksek', participationScore: 1 }),
+    ],
+    (x) => (x.id === 'yuksek' ? 80 : 10)
+  );
+  // katilim puani 99 olan "dusuk" geri gondermemeli
+  assert.deepEqual(out.map((x) => x.id), ['yuksek', 'dusuk']);
+});
+t('getScore: farkli uye kodunda kod yine oncelikli', () => {
+  const out = sortMembers(
+    [m({ tagId: 'ZULA-001' }), m({ tagId: 'ZULA-002' })],
+    (x) => (x.tagId === 'ZULA-001' ? 10 : 80)
+  );
+  assert.deepEqual(out.map((x) => x.tagId), ['ZULA-001', 'ZULA-002']);
+});
+t('getScore: ayni kod/ada/kullanici/isimde puan belirleyici', () => {
+  const base = { tagId: 'Z', username: 'u', fullName: 'n' };
+  const out = sortMembers(
+    [m({ ...base, id: 'a' }), m({ ...base, id: 'b' })],
+    (x) => (x.id === 'a' ? 30 : 70)
+  );
+  assert.deepEqual(out.map((x) => x.id), ['b', 'a']);
+});
 
 console.log('\n' + d + ' test gecti.\n');

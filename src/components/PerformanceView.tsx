@@ -6,6 +6,7 @@ import {
 } from 'lucide-react';
 import { currentPeriod, lastPeriods, daysInPeriod, periodLabel, calculateScore, scoreBreakdown, qaBaseTotal, QA_BASE_MULTIPLIER } from '../lib/time';
 import { canManageMember } from '../lib/roles';
+import { sortMembers } from '../lib/member-sort';
 import type { Member, Performance, PerfEntry, RefPerfEntry } from '../types';
 
 export type LogFn = (
@@ -158,6 +159,10 @@ export const PerformanceView: React.FC<PerformanceProps> = ({
     const found = performances.find((p) => p.memberId === memberId && p.period === period);
     return found ? normalizePerf(found) : EMPTY_PERF(memberId, period);
   };
+
+  // Oyuncu siralamasi: uye kodu > kullanici adi > isim soyisim > puanlama
+  // Bu tabloda puan, secili donemin YONETICI PUANI'dir.
+  const sorted = sortMembers(filtered, (m) => perfFor(m.id).managerScore ?? 0);
 
   const openEditor = (m: Member) => {
     const current = perfFor(m.id);
@@ -409,7 +414,7 @@ export const PerformanceView: React.FC<PerformanceProps> = ({
             Bu filtreye uygun üye bulunamadı.
           </div>
         )}
-        {filtered.map((m) => {
+        {sorted.map((m) => {
           const perf = perfFor(m.id);
           const score = calculateScore(perf);
           return (
