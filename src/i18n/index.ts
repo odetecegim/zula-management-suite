@@ -3,30 +3,30 @@ import { initReactI18next } from 'react-i18next';
 import LanguageDetector from 'i18next-browser-languagedetector';
 import tr from './tr';
 import en from './en';
+import pt from './pt';
+import es from './es';
 
 /**
  * Aktif diller.
  *
- * Eskiden kullanilan panel 7 dilliydi; burada yalnizca Turkce ve
- * Ingilizce gercekten cevrildi. Diger diller bilerek pasif birakildi:
- * yari ceviri gostermek yerine Turkce'ye (fallback) dusunmek daha iyi.
+ * Pasif dil icin listede `enabled: false` y bos bir <kod>.ts dosyasi
+ * yeterlidir; anahtar eksikse Turkce'ye (fallback) donulur.
  *
- * Yeni bir dil eklemek icin: 1) i18n/<kod>.ts olustur, 2) languages
+ * Yeni dil eklemek icin: 1) i18n/<kod>.ts olustur, 2) languages
  * listesine ekle, 3) resources'e kaydet.
  */
 export const languages = [
   { code: 'tr', name: 'Türkçe', flag: '🇹🇷', enabled: true },
   { code: 'en', name: 'English', flag: '🇺🇸', enabled: true },
-  { code: 'az', name: 'Azərbaycan', flag: '🇦🇿', enabled: false },
-  { code: 'pt', name: 'Português', flag: '🇧🇷', enabled: false },
-  { code: 'es', name: 'Español', flag: '🇪🇸', enabled: false },
-  { code: 'ru', name: 'Русский', flag: '🇷🇺', enabled: false },
-  { code: 'ar', name: 'العربية', flag: '🇸🇦', enabled: false },
+  { code: 'pt', name: 'Português', flag: '🇧🇷', enabled: true },
+  { code: 'es', name: 'Español', flag: '🇪🇸', enabled: true },
 ];
 
 const resources = {
   tr: { translation: tr },
   en: { translation: en },
+  pt: { translation: pt },
+  es: { translation: es },
 };
 
 i18n
@@ -36,7 +36,7 @@ i18n
     resources,
     // Ceviri eklenmedigi anahtarlar Turkce'ye doner (bos ekran olmaz)
     fallbackLng: 'tr',
-    supportedLngs: ['tr', 'en'],
+    supportedLngs: ['tr', 'en', 'pt', 'es'],
     detection: {
       order: ['localStorage', 'navigator'],
       caches: ['localStorage'],
