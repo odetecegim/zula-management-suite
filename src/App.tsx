@@ -88,16 +88,28 @@ export function App() {
       // Yeni eklenen tohum uyelerini mevcut listeye BIR KEZ ekle.
       // Boylece yeni hesaplar her tarayicida gorunur olur, ama
       // kullanicinin yaptigi tum duzenlemeler korunur.
-      const SEED_FLAG = 'zula_suite_seeded_v4';
+      //
+      // ONEMLI: Ayni uye kodu / kullanici adi zaten varsa tohum eklenmez;
+      // aksi halde iki ayni kodlu kayit olusur ve benzersizlik kontrolu
+      // "zaten kullaniliyor" diyerek her kaydi engeller.
+      const SEED_FLAG = 'zula_suite_seeded_v5';
       if (!localStorage.getItem(SEED_FLAG)) {
         const present = new Set(result.map((m) => m.id));
+        const usedTags = new Set(
+          result.map((m) => String(m.tagId || '').trim().toLowerCase()).filter(Boolean)
+        );
+        const usedNames = new Set(
+          result.map((m) => String(m.username || '').trim().toLowerCase()).filter(Boolean)
+        );
+
         let added = 0;
         for (const seed of INITIAL_MEMBERS) {
-          if (!present.has(seed.id)) {
-            result.push(seed);
-            present.add(seed.id);
-            added++;
-          }
+          if (present.has(seed.id)) continue;
+          if (usedTags.has(String(seed.tagId || '').trim().toLowerCase())) continue;
+          if (usedNames.has(String(seed.username || '').trim().toLowerCase())) continue;
+          result.push(seed);
+          present.add(seed.id);
+          added++;
         }
         if (added > 0) localStorage.setItem('zula_suite_members_v2', JSON.stringify(result));
         localStorage.setItem(SEED_FLAG, '1');
