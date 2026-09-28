@@ -29,7 +29,15 @@ import type { Member, TestSession, ActivityLog, Performance, RoleDef, RoleId, Pe
 // Uye verisi icin localStorage anahtari (v2 = giris bilgisi semasi eklendi).
 // Eski "zula_suite_members" anahtari bilerek kullanilmaz; boylece bozuk/eski
 // kayitlar otomatik olarak temiz tohum veriye doner.
-const MEMBERS_KEY = 'zula_suite_members_v2';
+// UYE DEPOLAMA ANAHTARI - surum numarasidir.
+//
+// Y1..5: eski ornek uyeleri (burak, can, lucas, ...) tohum olarak
+//       enjekte ediyordu. Kullanici sildiginde tarayici 2.5 sn sonra geri
+//       yaziyor ve ayni uye kodu iki kisiye birden atanabiliyordu.
+// V6:    anahtar degistirilerek ESKI YEREL VERI TAMAMEN BIRAKILDI.
+//       Artik tarayici bos baslar ve veriyi yalnizca Google Sheets'ten alir.
+const MEMBERS_KEY = 'zula_suite_members_v6';
+
 
 export function App() {
   const [currentTab, setCurrentTab] = useState('dashboard');
