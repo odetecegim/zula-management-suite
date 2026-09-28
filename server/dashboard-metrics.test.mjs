@@ -96,4 +96,81 @@ t('tohum uyeleri 0-100 arasi gecerli puan tasiyor', () => {
   }
 });
 
-console.log('\n' + d + ' dashboard testi gecti.\n');
+console.log('\n== Rapor tablosu: satir sirasi uye koduna, SIRA kolonu puana ==');
+
+const buildRows = (list) => {
+  const rows = list.map((member) => ({ member, score: member.__score }));
+  const rankByMember = new Map();
+  [...rows]
+    .sort((a, b) => b.score - a.score)
+    .forEach((r, i) => rankByMember.set(r.member.id, i + 1));
+  rows.sort((a, b) => {
+    const m = (a.member.tagId || '').localeCompare(b.member.tagId || '', 'tr', { numeric: true });
+    if (m !== 0) return m;
+    const u = (a.member.username || '').localeCompare(b.member.username || '', 'tr', { numeric: true });
+    if (u !== 0) return u;
+    const f = a.member.fullName.localeCompare(b.member.fullName, 'tr');
+    if (f !== 0) return f;
+    return b.score - a.score;
+  });
+  return { rows, rankByMember };
+};
+
+const mem = (id, tag, user, name, score) => ({
+  id, tagId: tag, username: user, fullName: name, __score: score,
+});
+
+t('satirlar uye koduna gore siralanir (ZULA-001 once)', () => {
+  const { rows } = buildRows([
+    mem('c', 'ZULA-010', 'ccc', 'Cem', 50),
+    mem('a', 'ZULA-001', 'aaa', 'Ali', 10),
+    mem('b', 'ZULA-002', 'bbb', 'Bora', 90),
+  ]);
+  assert.deepEqual(rows.map((r) => r.member.tagId), ['ZULA-001', 'ZULA-002', 'ZULA-010']);
+});
+
+t('ZULA-2, ZULA-10 dan once gelir (sayisal)', () => {
+  const { rows } = buildRows([mem('a', 'ZULA-10', 'x', 'X', 0), mem('b', 'ZULA-2', 'y', 'Y', 0)]);
+  assert.deepEqual(rows.map((r) => r.member.tagId), ['ZULA-2', 'ZULA-10']);
+});
+
+t('SIRA kolonu puana gore hesaplanir (satir sirasi degil)', () => {
+  const { rows, rankByMember } = buildRows([
+    mem('a', 'ZULA-001', 'aaa', 'Ali', 10),
+    mem('b', 'ZULA-002', 'bbb', 'Bora', 90),
+  ]);
+  // Satir ZULA-001 once, ama 10 puan oldugu icin 2. sirada
+  assert.equal(rankByMember.get('a'), 2);
+  assert.equal(rankByMember.get('b'), 1);
+});
+
+t('en yuksek puanli her zaman 1. sira', () => {
+  const { rankByMember } = buildRows([
+    mem('a', 'ZULA-003', 'c', 'C', 50),
+    mem('b', 'ZULA-001', 'a', 'A', 99),
+    mem('c', 'ZULA-002', 'b', 'B', 70),
+  ]);
+  assert.equal(rankByMember.get('b'), 1);
+  assert.equal(rankByMember.get('c'), 2);
+  assert.equal(rankByMember.get('a'), 3);
+});
+
+t('ayni uye kodu varsa kullanici adi, sonra isim belirleyici', () => {
+  const { rows } = buildRows([
+    mem('a', 'ZULA-001', 'zeta', 'Ali', 0),
+    mem('b', 'ZULA-001', 'alpha', 'Veli', 0),
+  ]);
+  assert.deepEqual(rows.map((r) => r.member.username), ['alpha', 'zeta']);
+});
+
+t('puan esitse de her uye farkli sira alir', () => {
+  const { rankByMember } = buildRows([
+    mem('a', 'ZULA-001', 'a', 'A', 50),
+    mem('b', 'ZULA-002', 'b', 'B', 50),
+  ]);
+  const ranks = [...rankByMember.values()].sort();
+  assert.deepEqual(ranks, [1, 2]);
+});
+
+console.log('\n' + d + ' rapor testi gecti.\n');
+

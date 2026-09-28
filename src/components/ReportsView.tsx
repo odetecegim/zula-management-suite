@@ -70,8 +70,25 @@ export const ReportsView: React.FC<ReportsPageProps> = ({ members, performances 
         discordActions: perf?.discordActions ?? 0,
         managerScore: perf?.managerScore ?? 0,
       };
-    })
-    .sort((a, b) => b.score - a.score);
+    });
+
+  // SIRA (medal) kolonu PUANA gore hesaplanir; satir sirasi ise uye koduna.
+  // Boylece "ZULA-001" ustte olurken siralama numarasi yine performansi yansitir.
+  const rankByMember = new Map<string, number>();
+  [...rows]
+    .sort((a, b) => b.score - a.score)
+    .forEach((r, i) => rankByMember.set(r.member.id, i + 1));
+
+  // Ortak siralama kurali: uye kodu > kullanici adi > isim soyisim > puan
+  rows.sort((a, b) => {
+    const m = (a.member.tagId || '').localeCompare(b.member.tagId || '', 'tr', { numeric: true });
+    if (m !== 0) return m;
+    const u = (a.member.username || '').localeCompare(b.member.username || '', 'tr', { numeric: true });
+    if (u !== 0) return u;
+    const f = a.member.fullName.localeCompare(b.member.fullName, 'tr');
+    if (f !== 0) return f;
+    return b.score - a.score;
+  });
 
   const maxScore = rows.length > 0 ? Math.max(...rows.map((r) => r.score), 1) : 1;
   const withData = rows.filter((r) => r.perf).length;
@@ -79,8 +96,8 @@ export const ReportsView: React.FC<ReportsPageProps> = ({ members, performances 
   const baseName = 'Zula_Performans_' + period;
 
   const exportExcel = () => {
-    const ranking = rows.map((r, idx) => ({
-      Sıra: idx + 1,
+    const ranking = rows.map((r) => ({
+      Sıra: rankByMember.get(r.member.id) ?? 0,
       'Üye Kodu': r.member.tagId,
       'Ad Soyad': r.member.fullName,
       'Oyun Nick': r.member.gameNickname,
@@ -132,9 +149,9 @@ export const ReportsView: React.FC<ReportsPageProps> = ({ members, performances 
   const exportCsv = () => {
     const header =
       'Sira,Uye Kodu,Ad Soyad,Oyun Nick,Oyun,Bolge,Donem,Test Katilimi,Hata Bildirimi,Oneri Bildirimi,Toplam,QA Puani,Support,Hakem Performansi,Discord Islemleri,Yonetici Puani,Genel Puan';
-    const lines = rows.map((r, idx) =>
+    const lines = rows.map((r) =>
       [
-        idx + 1,
+        rankByMember.get(r.member.id) ?? 0,
         r.member.tagId,
         '"' + r.member.fullName + '"',
         r.member.gameNickname,
@@ -270,7 +287,7 @@ export const ReportsView: React.FC<ReportsPageProps> = ({ members, performances 
                   </td>
                 </tr>
               )}
-              {rows.map((r, idx) => (
+              {rows.map((r) => (
                 <tr
                   key={r.member.id}
                   onClick={() => r.perf && setDetail(r)}
@@ -280,7 +297,7 @@ export const ReportsView: React.FC<ReportsPageProps> = ({ members, performances 
                   }
                 >
                   <td className="px-4 py-4">
-                    <div className="flex items-center gap-2">{medalFor(idx)}</div>
+                    <div className="flex items-center gap-2">{medalFor((rankByMember.get(r.member.id) ?? 0) - 1)}</div>
                   </td>
                   <td className="px-4 py-4">
                     <div className="font-semibold text-slate-100 text-xs flex items-center gap-2">
