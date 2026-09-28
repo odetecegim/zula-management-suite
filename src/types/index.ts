@@ -15,7 +15,7 @@ export interface RoleDef {
   permissions: PermissionId[];
 }
 
-export type GameType = 'Zula' | 'Zula Strike' | 'Wolfteam';
+export type GameType = 'Zula PC' | 'Zula Strike' | 'Wolfteam';
 export type RegionType = 'TR' | 'EU' | 'LATAM' | 'MENA';
 export type StatusType = 'Aktif' | 'Pasif' | 'İncelemede';
 

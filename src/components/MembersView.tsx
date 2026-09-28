@@ -44,7 +44,7 @@ export const MembersView: React.FC<MembersProps> = ({
   const [formGameNickname, setFormGameNickname] = useState('');
   const [formDiscordTag, setFormDiscordTag] = useState('');
   const [formEmail, setFormEmail] = useState('');
-  const [formGame, setFormGame] = useState<GameType>('Zula');
+  const [formGame, setFormGame] = useState<GameType>('Zula PC');
   const [formRegion, setFormRegion] = useState<RegionType>('TR');
   const [formRole, setFormRole] = useState<RoleId>('qa_tester');
   const [formStatus, setFormStatus] = useState<StatusType>('Aktif');
@@ -131,7 +131,7 @@ export const MembersView: React.FC<MembersProps> = ({
     setFormGameNickname('');
     setFormDiscordTag('');
     setFormEmail('');
-    setFormGame('Zula');
+    setFormGame('Zula PC');
     setFormRegion('TR');
     setFormRole('qa_tester');
     setFormStatus('Aktif');

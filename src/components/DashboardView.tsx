@@ -53,7 +53,7 @@ export const DashboardView: React.FC<DashboardProps> = ({
     return best ? [{ region, member: best.member, score: best.score }] : [];
   });
 
-  const gameDistribution = (['Zula', 'Zula Strike', 'Wolfteam'] as const)
+  const gameDistribution = (['Zula PC', 'Zula Strike', 'Wolfteam'] as const)
     .map((game) => ({ label: game, count: members.filter((m) => m.game === game).length }))
     .filter((d) => d.count > 0);
   const maxGameCount = Math.max(1, ...gameDistribution.map((d) => d.count));

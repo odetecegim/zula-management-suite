@@ -16,7 +16,7 @@ export const TestSessionsView: React.FC<TestSessionsProps> = ({
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [title, setTitle] = useState('');
   const [version, setVersion] = useState('v2.16.0');
-  const [game, setGame] = useState<GameType>('Zula');
+  const [game, setGame] = useState<GameType>('Zula PC');
   const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
 
   const handleCreate = (e: React.FormEvent) => {
