@@ -22,10 +22,36 @@ export const DashboardView: React.FC<DashboardProps> = ({
 }) => {
   const totalMembers = members.length;
   const activeMembers = members.filter((m) => m.status === 'Aktif').length;
-  const totalBugs = members.reduce((acc, curr) => acc + curr.bugReportsCount, 0);
+  const totalBugs = members.reduce((acc, curr) => acc + (curr.bugReportsCount || 0), 0);
   const avgScore = totalMembers
     ? Math.round(members.reduce((acc, curr) => acc + curr.participationScore, 0) / totalMembers)
     : 0;
+
+  // Oturum dagilimi - kartlarda SAYIM KULLANILMAZ, veriden hesaplanir.
+  const ongoing = sessions.filter((s) => s.status === 'Devam Ediyor').length;
+  const completed = sessions.filter((s) => s.status === 'Tamamlandı').length;
+  const planned = sessions.filter((s) => s.status === 'Planlandı').length;
+
+  const sessionSummary =
+    sessions.length === 0
+      ? 'Henüz oturum yok'
+      : [
+          ongoing > 0 ? `${ongoing} devam ediyor` : '',
+          completed > 0 ? `${completed} tamamlandı` : '',
+          planned > 0 ? `${planned} planlandı` : '',
+        ]
+        .filter(Boolean)
+        .join(' · ');
+
+  // Katilim seviyesi etiketi de sabit metin degil, puana gore degisir
+  const effLevel =
+    avgScore >= 90
+      ? { text: 'Yüksek verimlilik', cls: 'text-emerald-400' }
+      : avgScore >= 70
+        ? { text: 'İyi seviye', cls: 'text-indigo-400' }
+        : avgScore >= 40
+          ? { text: 'Gelişime açık', cls: 'text-amber-400' }
+          : { text: 'Düşük', cls: 'text-rose-400' };
 
   const topTesters = [...members]
     .sort((a, b) => b.participationScore - a.participationScore)
@@ -103,8 +129,8 @@ export const DashboardView: React.FC<DashboardProps> = ({
           <div>
             <div className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Toplam Hata Raporu</div>
             <div className="text-2xl font-black text-white mt-1">{totalBugs}</div>
-            <div className="text-[11px] text-indigo-400 mt-1 flex items-center gap-1">
-              <span>QA ve Akademi Onaylı</span>
+            <div className={'text-[11px] mt-1 flex items-center gap-1 ' + (totalBugs > 0 ? 'text-indigo-400' : 'text-slate-500')}>
+              <span>{totalBugs > 0 ? 'QA ve Akademi Onaylı' : 'Henüz rapor kaydedilmedi'}</span>
             </div>
           </div>
           <div className="w-12 h-12 rounded-2xl bg-purple-500/10 border border-purple-500/20 flex items-center justify-center text-purple-400">
@@ -116,9 +142,9 @@ export const DashboardView: React.FC<DashboardProps> = ({
           <div>
             <div className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Ortalama Katılım</div>
             <div className="text-2xl font-black text-white mt-1">%{avgScore}</div>
-            <div className="text-[11px] text-emerald-400 mt-1 flex items-center gap-1">
+            <div className={'text-[11px] mt-1 flex items-center gap-1 ' + effLevel.cls}>
               <TrendingUp className="w-3.5 h-3.5" />
-              <span>Yüksek verimlilik</span>
+              <span>{totalMembers === 0 ? 'Veri yok' : effLevel.text}</span>
             </div>
           </div>
           <div className="w-12 h-12 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-400">
@@ -130,8 +156,13 @@ export const DashboardView: React.FC<DashboardProps> = ({
           <div>
             <div className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Test Oturumları</div>
             <div className="text-2xl font-black text-white mt-1">{sessions.length}</div>
-            <div className="text-[11px] text-amber-400 mt-1 flex items-center gap-1">
-              <span>1 oturum devam ediyor</span>
+            <div
+              className={
+                'text-[11px] mt-1 flex items-center gap-1 ' +
+                (sessions.length === 0 ? 'text-slate-500' : ongoing > 0 ? 'text-amber-400' : 'text-emerald-400')
+              }
+            >
+              <span>{sessionSummary}</span>
             </div>
           </div>
           <div className="w-12 h-12 rounded-2xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-amber-400">
