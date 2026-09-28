@@ -3,6 +3,7 @@ import { Search, Download, FileSpreadsheet, Trophy, Medal, Flame, Calculator, X 
 import * as XLSX from 'xlsx';
 import { currentPeriod, lastPeriods, periodLabel, calculateScore, scoreBreakdown, qaBaseTotal, QA_BASE_MULTIPLIER } from '../lib/time';
 import { ACADEMY_ROLES, REFEREE_ROLES } from '../lib/roles';
+import { playerIdCompare } from '../lib/member-sort';
 import type { Member, Performance } from '../types';
 
 interface ReportsPageProps {
@@ -79,9 +80,11 @@ export const ReportsView: React.FC<ReportsPageProps> = ({ members, performances 
     .sort((a, b) => b.score - a.score)
     .forEach((r, i) => rankByMember.set(r.member.id, i + 1));
 
-  // Ortak siralama kurali: uye kodu > kullanici adi > isim soyisim > puan
+  // Ortak siralama kurali: OYUNCU MEMBER ID > kullanici adi > isim soyisim > puan
+  // DIKKAT: ilk alan paneldeki "Uye Kodu" (ZULA-001) degil,
+  // oyundaki gercek sayisal uye numarasidir.
   rows.sort((a, b) => {
-    const m = (a.member.tagId || '').localeCompare(b.member.tagId || '', 'tr', { numeric: true });
+    const m = playerIdCompare(a.member.playerId ?? '', b.member.playerId ?? '');
     if (m !== 0) return m;
     const u = (a.member.username || '').localeCompare(b.member.username || '', 'tr', { numeric: true });
     if (u !== 0) return u;
@@ -268,21 +271,26 @@ export const ReportsView: React.FC<ReportsPageProps> = ({ members, performances 
             <thead className="bg-slate-950/80 text-slate-400 text-[11px] uppercase tracking-wider border-b border-slate-800">
               <tr>
                 <th className="px-4 py-4">Sıra</th>
-                <th className="px-4 py-4">Üye</th>
-                <th className="px-4 py-4 text-center">Katılım</th>
-                <th className="px-4 py-4 text-center">Hata</th>
-                <th className="px-4 py-4 text-center">Öneri</th>
+                <th className="px-4 py-4">Member</th>
+                <th className="px-4 py-4">İsim</th>
+                <th className="px-4 py-4">Takma ad</th>
+                <th className="px-4 py-4 text-center">* Test Katılımı</th>
+                <th className="px-4 py-4 text-center">→ Hata Bildirimi</th>
+                <th className="px-4 py-4 text-center">Öneri Bildirimi</th>
                 <th className="px-4 py-4 text-center">Toplam</th>
-                <th className="px-4 py-4 text-center text-emerald-400">QA Puanı</th>
+                <th className="px-4 py-4 text-center text-emerald-400">Detay</th>
                 <th className="px-4 py-4 text-center">Support</th>
-                <th className="px-4 py-4 text-center">Hakem</th>
-                <th className="px-4 py-4 text-right">Genel Puan</th>
+                <th className="px-4 py-4 text-center">Hakem Performans</th>
+                <th className="px-4 py-4 text-center text-emerald-400">QA</th>
+                <th className="px-4 py-4 text-center">Discord PC</th>
+                <th className="px-4 py-4 text-center">Kanaat</th>
+                <th className="px-4 py-4 text-right">Toplam</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-800/60">
               {rows.length === 0 && (
                 <tr>
-                  <td colSpan={10} className="px-5 py-12 text-center text-slate-500 text-xs">
+                  <td colSpan={15} className="px-5 py-12 text-center text-slate-500 text-xs">
                     Bu kriterlere uygun kayıt bulunamadı.
                   </td>
                 </tr>
@@ -299,6 +307,9 @@ export const ReportsView: React.FC<ReportsPageProps> = ({ members, performances 
                   <td className="px-4 py-4">
                     <div className="flex items-center gap-2">{medalFor((rankByMember.get(r.member.id) ?? 0) - 1)}</div>
                   </td>
+                  <td className="px-4 py-4 font-mono text-xs font-bold text-slate-200">
+                    {r.member.playerId || '—'}
+                  </td>
                   <td className="px-4 py-4">
                     <div className="font-semibold text-slate-100 text-xs flex items-center gap-2">
                       {r.member.fullName}
@@ -308,10 +319,8 @@ export const ReportsView: React.FC<ReportsPageProps> = ({ members, performances 
                         </span>
                       )}
                     </div>
-                    <div className="text-[11px] text-indigo-400">
-                      {r.member.gameNickname} · {r.member.tagId}
-                    </div>
                   </td>
+                  <td className="px-4 py-4 text-[11px] text-indigo-400">{r.member.gameNickname}</td>
                   <td className="px-4 py-4 text-center text-xs font-bold text-slate-200">{r.testDays}</td>
                   <td className="px-4 py-4 text-center text-xs font-bold text-slate-200">{r.bugReports}</td>
                   <td className="px-4 py-4 text-center text-xs font-bold text-slate-200">{r.suggestions}</td>
@@ -321,6 +330,9 @@ export const ReportsView: React.FC<ReportsPageProps> = ({ members, performances 
                   </td>
                   <td className="px-4 py-4 text-center text-xs font-bold text-slate-200">{r.support}</td>
                   <td className="px-4 py-4 text-center text-xs font-bold text-slate-200">{r.refereeMatches}</td>
+                  <td className="px-4 py-4 text-center text-xs font-bold text-slate-200">{r.qaReviews}</td>
+                  <td className="px-4 py-4 text-center text-xs font-bold text-slate-200">{r.discordActions}</td>
+                  <td className="px-4 py-4 text-center text-xs font-bold text-slate-200">{r.managerScore}</td>
                   <td className="px-4 py-4">
                     <div className="flex items-center justify-end gap-2">
                       <div className="w-20 hidden sm:block h-1.5 bg-slate-800 rounded-full overflow-hidden">

@@ -29,14 +29,46 @@ export function naturalCompare(a: string, b: string): number {
 }
 
 /**
+ * Oyuncu Member ID karsilastirmasi.
+ *
+ * playerId oyundaki SAYISAL uye numarasidir (orn. 10248571), bu yuzden
+ * metin karsilastirmasi yerine sayisal karsilastirma yapilir:
+ *   10248571 -> 10248571
+ *       999 ->       999   (999, 10248571'den KUCUKTIR)
+ *
+ * Bos (girilmemis) degerler her zaman sona gider; boylece listede
+* "Oyuncu ID girmeden eklenmis" uyeler ustte birikmeyi bozmaz.
+ */
+export function playerIdCompare(a: string, b: string): number {
+  const av = (a ?? '').trim();
+  const bv = (b ?? '').trim();
+  const aEmpty = av === '';
+  const bEmpty = bv === '';
+
+  if (aEmpty && bEmpty) return 0;
+  if (aEmpty) return 1; // bos olan sona
+  if (bEmpty) return -1;
+
+  const an = Number(av);
+  const bn = Number(bv);
+
+  if (!Number.isNaN(an) && !Number.isNaN(bn)) {
+    if (an !== bn) return an - bn;
+    return 0;
+  }
+  // Rakam olmayan degerler varsa metin karsilastirmasina dus
+  return naturalCompare(av, bv);
+}
+
+/**
  * Oyuncu siralamasi - oncelik sirasiyla:
- *   1) Uye kodu   (ZULA-001 ...)
+ *   1) Oyuncu Member ID  (playerId - oyundaki sayisal numara)
  *   2) Kullanici adi
  *   3) Isim soyisim
  *   4) Puanlama
  *
- * Onceki alanlar esit oldugunda siradaki alana gecilir; boylece
- * "ZULA-002" ile "ZULA-010" dogru sirada gosterilir.
+ * DIKKAT: ilk alan paneldeki "Uye Kodu" (ZULA-001) DEGILDIR;
+ * oyundaki gercek uye numarasidir.
  *
  * `getScore` verilirse 4. alan o puan kullanilir (or. performans
  * tablosunda donemin yonetici puani). Verilmezse uyenin genel
@@ -46,8 +78,8 @@ export function sortMembers<T extends Member>(list: T[], getScore?: (m: T) => nu
   const scoreOf = (m: T) => (getScore ? getScore(m) : m.participationScore) ?? 0;
 
   return [...list].sort((a, b) => {
-    const byTag = naturalCompare(a.tagId || '', b.tagId || '');
-    if (byTag !== 0) return byTag;
+    const byPlayerId = playerIdCompare(a.playerId ?? '', b.playerId ?? '');
+    if (byPlayerId !== 0) return byPlayerId;
 
     const byUser = naturalCompare(a.username || '', b.username || '');
     if (byUser !== 0) return byUser;
