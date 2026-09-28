@@ -74,8 +74,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
             className="h-9 w-auto object-contain drop-shadow-[0_2px_12px_rgba(245,158,11,0.45)]"
           />
           <div className="min-w-0">
-            <div className="font-extrabold text-sm tracking-wide text-white uppercase">Zula Suite</div>
-            <div className="text-[11px] text-indigo-400 font-medium">Test & Topluluk CRM</div>
+            <div className="font-extrabold text-sm tracking-wide text-white uppercase">Zula Teşkilat</div>
+            <div className="text-[11px] text-indigo-400 font-medium">Akademi</div>
           </div>
         </div>
 
