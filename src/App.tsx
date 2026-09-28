@@ -132,7 +132,19 @@ export function App() {
 
   const [sessions, setSessions] = useState<TestSession[]>(() => {
     const saved = localStorage.getItem('zula_suite_sessions');
-    return saved ? JSON.parse(saved) : INITIAL_TEST_SESSIONS;
+    if (!saved) return INITIAL_TEST_SESSIONS;
+    try {
+      const parsed = JSON.parse(saved) as TestSession[];
+      if (!Array.isArray(parsed)) return INITIAL_TEST_SESSIONS;
+      // Eski/kaldirilmis oyun etiketlerini gecir (orn. "Zula Mobile", "Zula")
+      const VALID = ['Zula PC', 'Zula Strike', 'Wolfteam'];
+      return parsed.map((s) => ({
+        ...s,
+        game: (VALID.includes(s.game) ? s.game : 'Zula PC') as TestSession['game'],
+      }));
+    } catch {
+      return INITIAL_TEST_SESSIONS;
+    }
   });
 
   const [logs, setLogs] = useState<ActivityLog[]>(() => {
@@ -461,6 +473,33 @@ const canEditPerformance = isAdmin || (currentUser?.permissions?.includes('perfo
     );
   };
 
+  // Test oturumu duzenleme (baslik, surum, oyun, tarih, durum)
+  const handleUpdateSession = (id: string, patch: Partial<TestSession>) => {
+    setSessions((prev) => prev.map((s) => (s.id === id ? { ...s, ...patch } : s)));
+    const newLog: ActivityLog = {
+      id: 'log-' + Date.now(),
+      actor: currentUser?.fullName || 'Sistem',
+      action: 'Test oturumu guncellendi: ' + (patch.title ?? id),
+      category: 'Performance',
+      timestamp: new Date().toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' }),
+    };
+    setLogs((prev) => [newLog, ...prev]);
+  };
+
+  // Test oturumu silme
+  const handleDeleteSession = (id: string) => {
+    const target = sessions.find((s) => s.id === id);
+    setSessions((prev) => prev.filter((s) => s.id !== id));
+    const newLog: ActivityLog = {
+      id: 'log-' + Date.now(),
+      actor: currentUser?.fullName || 'Sistem',
+      action: 'Test oturumu silindi: ' + (target?.title ?? id),
+      category: 'Performance',
+      timestamp: new Date().toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' }),
+    };
+    setLogs((prev) => [newLog, ...prev]);
+  };
+
   // Kullanıcının yetkisi olmayan bir sekmede kalması engellenir
   const activeTab = allowedTabs.includes(currentTab as PermissionId) ? currentTab : allowedTabs[0];
 
@@ -615,6 +654,8 @@ const canEditPerformance = isAdmin || (currentUser?.permissions?.includes('perfo
               sessions={sessions}
               onAddSession={handleAddSession}
               onUpdateStatus={handleUpdateSessionStatus}
+              onUpdateSession={handleUpdateSession}
+              onDeleteSession={handleDeleteSession}
             />
           )}
 
