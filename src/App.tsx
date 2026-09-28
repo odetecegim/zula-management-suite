@@ -13,6 +13,7 @@ import { ReportsView } from './components/ReportsView';
 import { LogsView } from './components/LogsView';
 import { SettingsView } from './components/SettingsView';
 import { SheetsView } from './components/SheetsView';
+import LanguageSelectionOverlay from './components/LanguageSelectionOverlay';
 import {
   INITIAL_MEMBERS,
   INITIAL_ROLES,
@@ -313,7 +314,12 @@ const canEditPerformance = isAdmin || (currentUser?.permissions?.includes('perfo
 
   // Oturum yoksa login ekranını göster
   if (!currentUser || currentUser.status === 'Pasif' || allowedTabs.length === 0) {
-    return <LoginScreen members={members} onLogin={handleLogin} />;
+    return (
+      <>
+        <LanguageSelectionOverlay />
+        <LoginScreen members={members} onLogin={handleLogin} />
+      </>
+    );
   }
 
   // Alt bilesenlerin denetim kaydi birakmasi icin ortak fonksiyon
@@ -531,6 +537,8 @@ const canEditPerformance = isAdmin || (currentUser?.permissions?.includes('perfo
 
   return (
     <div className="flex min-h-screen bg-slate-950 text-slate-100 selection:bg-indigo-500 selection:text-white">
+      <LanguageSelectionOverlay />
+
       {/* Sidebar */}
       <Sidebar
         currentTab={activeTab}

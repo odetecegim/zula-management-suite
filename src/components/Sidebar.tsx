@@ -13,7 +13,11 @@ import {
   ScrollText,
   Settings,
   Sheet,
+  Globe,
+  Check,
 } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
+import { languages } from '../i18n';
 import type { Member, PermissionId } from '../types';
 
 const SOCIAL_BTN =
@@ -36,18 +40,21 @@ export const Sidebar: React.FC<SidebarProps> = ({
   isAdmin,
   onLogout,
 }) => {
-  const allMenuItems: { id: PermissionId; label: string; icon: typeof LayoutDashboard; group?: string }[] = [
-    { id: 'dashboard', label: 'Genel Bakış', icon: LayoutDashboard },
-    { id: 'members', label: 'Üye & Personel Listesi', icon: Users, group: 'Ekip' },
-    { id: 'academy', label: 'Akademi Üyeleri', icon: GraduationCap, group: 'Ekip' },
-    { id: 'referees', label: 'Hakem Üyeleri', icon: Scale, group: 'Ekip' },
-    { id: 'performance', label: 'Performans Yönetimi', icon: BarChart3, group: 'Değerlendirme' },
-    { id: 'reports', label: 'Performans Raporları', icon: Award, group: 'Değerlendirme' },
-    { id: 'tests', label: 'Test Oturumları', icon: Activity, group: 'Değerlendirme' },
-    { id: 'roles', label: 'Rol & Yetkilendirme', icon: Shield, group: 'Sistem' },
-    { id: 'logs', label: 'Sistem Kayıtları', icon: ScrollText, group: 'Sistem' },
-    { id: 'settings', label: 'Ayarlar & Roller', icon: Settings, group: 'Sistem' },
-    { id: 'sheets', label: 'Google Sheets', icon: Sheet, group: 'Sistem' },
+  const { t, i18n } = useTranslation();
+  const [langOpen, setLangOpen] = React.useState(false);
+
+  const allMenuItems: { id: PermissionId; labelKey: string; icon: typeof LayoutDashboard; groupKey?: string }[] = [
+    { id: 'dashboard', labelKey: 'navDashboard', icon: LayoutDashboard },
+    { id: 'members', labelKey: 'perm_members', icon: Users, groupKey: 'navOperations' },
+    { id: 'academy', labelKey: 'navAcademy', icon: GraduationCap, groupKey: 'navOperations' },
+    { id: 'referees', labelKey: 'navReferees', icon: Scale, groupKey: 'navOperations' },
+    { id: 'performance', labelKey: 'navPerformance', icon: BarChart3, groupKey: 'navManagement' },
+    { id: 'reports', labelKey: 'navReports', icon: Award, groupKey: 'navManagement' },
+    { id: 'tests', labelKey: 'navTests', icon: Activity, groupKey: 'navManagement' },
+    { id: 'roles', labelKey: 'navRoles', icon: Shield, groupKey: 'navSystem' },
+    { id: 'logs', labelKey: 'navLogs', icon: ScrollText, groupKey: 'navSystem' },
+    { id: 'settings', labelKey: 'navSettings', icon: Settings, groupKey: 'navSystem' },
+    { id: 'sheets', labelKey: 'navSheets', icon: Sheet, groupKey: 'navSystem' },
   ];
 
   // Yetkisi olmayan sekmeler menüde görünmez
@@ -84,12 +91,13 @@ export const Sidebar: React.FC<SidebarProps> = ({
           {menuItems.map((item, idx) => {
             const Icon = item.icon;
             const isActive = currentTab === item.id;
-            const showGroup = item.group && (idx === 0 || menuItems[idx - 1].group !== item.group);
+            const showGroup =
+              item.groupKey && (idx === 0 || menuItems[idx - 1].groupKey !== item.groupKey);
             return (
               <div key={item.id}>
                 {showGroup && (
                   <div className="px-3.5 pt-3 pb-1 text-[10px] font-bold text-slate-600 uppercase tracking-widest">
-                    {item.group}
+                    {t(item.groupKey as string)}
                   </div>
                 )}
                 <button
@@ -102,7 +110,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                   }
                 >
                   <Icon className="w-4 h-4" />
-                  {item.label}
+                  {t(item.labelKey)}
                 </button>
               </div>
             );
@@ -112,6 +120,52 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
       {/* Developer Profile & Social Info */}
       <div className="pt-4 border-t border-slate-800/80 space-y-4">
+        {/* Dil secimi */}
+        <div className="relative">
+          <button
+            onClick={() => setLangOpen((v) => !v)}
+            className="w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-semibold text-slate-400 hover:text-slate-200 hover:bg-slate-900/60 transition-all cursor-pointer"
+            title={t('language')}
+          >
+            <Globe className="w-4 h-4" />
+            <span className="flex-1 text-left">{t('language')}</span>
+            <span className="text-base leading-none">
+              {languages.find((l) => l.code === i18n.language)?.flag ?? '🇹🇷'}
+            </span>
+          </button>
+
+          {langOpen && (
+            <div className="absolute bottom-full left-0 right-0 mb-2 bg-slate-900 border border-slate-800 rounded-xl overflow-hidden shadow-2xl z-50">
+              {languages.map((lang) => (
+                <button
+                  key={lang.code}
+                  disabled={!lang.enabled}
+                  onClick={() => {
+                    if (!lang.enabled) return;
+                    i18n.changeLanguage(lang.code);
+                    setLangOpen(false);
+                  }}
+                  className={
+                    'w-full flex items-center gap-3 px-3.5 py-2.5 text-xs transition-all text-left ' +
+                    (i18n.language === lang.code
+                      ? 'bg-indigo-600/20 text-indigo-300 font-semibold'
+                      : lang.enabled
+                        ? 'text-slate-400 hover:bg-slate-800 hover:text-slate-200 cursor-pointer'
+                        : 'text-slate-700 cursor-not-allowed')
+                  }
+                >
+                  <span className="text-base leading-none">{lang.flag}</span>
+                  <span className="flex-1">{lang.name}</span>
+                  {i18n.language === lang.code && <Check className="w-3.5 h-3.5" />}
+                  {!lang.enabled && (
+                    <span className="text-[9px] uppercase tracking-wide text-slate-600">Soon</span>
+                  )}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+
         {/* User Card */}
         <div className="p-3 bg-slate-900/60 rounded-2xl border border-slate-800 flex items-center gap-3">
           <div className="w-9 h-9 rounded-xl bg-indigo-600/20 border border-indigo-500/30 flex items-center justify-center font-bold text-indigo-400 text-xs">
@@ -127,7 +181,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
           <button
             onClick={onLogout}
             className="p-2 rounded-lg bg-slate-800 hover:bg-rose-500/20 text-slate-400 hover:text-rose-400 transition-all cursor-pointer"
-            title="Çıkış Yap"
+            title={t('logout')}
           >
             <LogOut className="w-4 h-4" />
           </button>
