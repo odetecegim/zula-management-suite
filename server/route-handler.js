@@ -163,6 +163,15 @@ export async function handleApi(method, segments, body = {}) {
         if (!Array.isArray(body?.members)) {
           return fail(400, 'members dizisi gerekli.');
         }
+
+        // GUARD: Bos liste kabul edilmez.
+        // writeMembers once satirlari temizleyip yeniden yazdigindan,
+        // bos dizi gondermek TUM uye kayitlarini silerdi. Bu bir hata
+        // durumunda (ya da bozuk bir istemcide) veri kaybi yaratir.
+        if (body.members.length === 0) {
+          return fail(400, 'members dizisi bos gonderilemez; tum kayitlar silinirdi.');
+        }
+
         const out = await writeMembers({ spreadsheetId, members: body.members, tabName });
         return ok({ ok: true, ...out });
       }
