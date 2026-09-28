@@ -293,3 +293,5 @@ export const INITIAL_LOGS: ActivityLog[] = [
     timestamp: '27.09.2026 19:20',
   },
 ];
+
+// Uye listesi tek kaynagi Google Sheets'tir (build: member-list-rebuild-1)
