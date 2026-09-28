@@ -66,6 +66,7 @@ export const tr = {
   accountInactive: 'Hesabınız pasif durumda. Yöneticinizle iletişime geçin.',
   noAccess: 'Hesabınıza henüz panel erişimi verilmemiş. Yöneticinizle iletişime geçin.',
   developer: 'Geliştirici',
+  developerContact: 'Geliştirici İletişim',
 
   // --- Dil secimi ---
   language: 'Dil',

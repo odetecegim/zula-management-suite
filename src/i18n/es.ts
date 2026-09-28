@@ -65,6 +65,7 @@ export const es = {
   accountInactive: 'Tu cuenta está inactiva. Ponte en contacto con el administrador.',
   noAccess: 'Todavía no tienes acceso al panel. Ponte en contacto con el administrador.',
   developer: 'Desarrollador',
+  developerContact: 'Contacto del Desarrollador',
 
   // --- Idioma ---
   language: 'Idioma',
