@@ -50,7 +50,7 @@ export function App() {
       if (missing > parsed.length / 2) return INITIAL_MEMBERS;
 
       // Kalan kayitlarda eksik alanlari tamamla
-      return parsed.map((m) => {
+      const result = parsed.map((m) => {
         const repaired: Member = {
           ...m,
           username:
@@ -80,6 +80,25 @@ export function App() {
 
         return { ...repaired, game, role } as Member;
       });
+
+      // Yeni eklenen tohum uyelerini mevcut listeye BIR KEZ ekle.
+      // Boylece yeni hesaplar her tarayicida gorunur olur, ama
+      // kullanicinin yaptigi tum duzenlemeler korunur.
+      const SEED_FLAG = 'zula_suite_seeded_v4';
+      if (!localStorage.getItem(SEED_FLAG)) {
+        const present = new Set(result.map((m) => m.id));
+        let added = 0;
+        for (const seed of INITIAL_MEMBERS) {
+          if (!present.has(seed.id)) {
+            result.push(seed);
+            present.add(seed.id);
+            added++;
+          }
+        }
+        if (added > 0) localStorage.setItem('zula_suite_members_v2', JSON.stringify(result));
+        localStorage.setItem(SEED_FLAG, '1');
+      }
+      return result;
     } catch {
       return INITIAL_MEMBERS;
     }

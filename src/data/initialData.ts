@@ -142,6 +142,25 @@ export const INITIAL_MEMBERS: Member[] = [
     password: 'tariq123',
     permissions: ['dashboard'],
   },
+  {
+    id: 'm-7',
+    tagId: 'ZULA-007',
+    fullName: 'Ali İhsan Zorba',
+    gameNickname: 'ZorBa<61>',
+    discordTag: 'zorba',
+    email: 'alizorba@example.com',
+    game: 'Zula PC',
+    region: 'TR',
+    role: 'academy_lead',
+    status: 'Aktif',
+    joinDate: '2025-09-01',
+    participationScore: 100,
+    bugReportsCount: 0,
+    notes: '',
+    username: 'zorba',
+    password: 'zorba123',
+    permissions: ['dashboard', 'members', 'academy', 'referees', 'tests', 'reports'],
+  },
 ];
 
 export const INITIAL_TEST_SESSIONS: TestSession[] = [
