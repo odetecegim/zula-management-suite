@@ -87,14 +87,33 @@ export function App() {
         return { ...repaired, game, role } as Member;
       });
 
-      // Yeni eklenen tohum uyelerini mevcut listeye BIR KEZ ekle.
-      // Boylece yeni hesaplar her tarayicida gorunur olur, ama
-      // kullanicinin yaptigi tum duzenlemeler korunur.
+      // ORNEK UYE GERI YAZIMINI ENGELLE
       //
-      // ONEMLI: Ayni uye kodu / kullanici adi zaten varsa tohum eklenmez;
-      // aksi halde iki ayni kodlu kayit olusur ve benzersizlik kontrolu
-      // "zaten kullaniliyor" diyerek her kaydi engeller.
-      const SEED_FLAG = 'zula_suite_seeded_v5';
+      // Sorun: ornek uyeler (burak, can, lucas, ...) kullanici tarafindan
+      // silindiginde tarayicinin eski listesi 2.5 sn sonra Sheets'e geri
+      // yaziliyordu. Sonuc: silinen kayitlar "geri geldi" ve yeni uyelerle
+      // ayni uye kodunu paylasip sessizce engelleniyordu.
+      //
+      // Cozum: Sheets'te hangi ornek uyelerin KALMASI gerektigini sunucu
+      // bildirir; tarayicida artik var olmayanlar eklenmez.
+      const removedSeeds = (() => {
+        try {
+          return JSON.parse(localStorage.getItem('zula_suite_removed_seeds') || '[]') as string[];
+        } catch {
+          return [];
+        }
+      })();
+      if (removedSeeds.length > 0) {
+        const removed = new Set(removedSeeds);
+        const kept = result.filter((m) => !(m.id.startsWith('m-') && removed.has(m.id)));
+        if (kept.length !== result.length) {
+          localStorage.setItem('zula_suite_members_v2', JSON.stringify(kept));
+          return kept; // erased ve yeniden atanmis ornekler geri gelmesin
+        }
+      }
+
+      // Yeni eklenen tohum uyelerini mevcut listeye BIR KEZ ekle.
+      const SEED_FLAG = 'zula_suite_seeded_v6';
       if (!localStorage.getItem(SEED_FLAG)) {
         const present = new Set(result.map((m) => m.id));
         const usedTags = new Set(
@@ -103,9 +122,11 @@ export function App() {
         const usedNames = new Set(
           result.map((m) => String(m.username || '').trim().toLowerCase()).filter(Boolean)
         );
+        const skip = new Set(removedSeeds);
 
         let added = 0;
         for (const seed of INITIAL_MEMBERS) {
+          if (skip.has(seed.id)) continue;
           if (present.has(seed.id)) continue;
           if (usedTags.has(String(seed.tagId || '').trim().toLowerCase())) continue;
           if (usedNames.has(String(seed.username || '').trim().toLowerCase())) continue;
@@ -198,6 +219,17 @@ export function App() {
     (async () => {
       const remote = await fetchRemoteMembers();
       if (cancelled || !remote || remote.length === 0) return;
+
+      // Sunucuda olmayan ORNEK uyeleri yerelden de kaldir.
+      // Boylece panelden silinen kayit 2.5 sn sonra geri yazilmaz.
+      const remoteIds = new Set(remote.map((r) => r.id));
+      const localOnly = members.filter((m) => /^m-[1-7]$/.test(m.id) && !remoteIds.has(m.id));
+      if (localOnly.length > 0) {
+        const gone = [...localOnly.map((m) => m.id)];
+        const merged = [...JSON.parse(localStorage.getItem('zula_suite_removed_seeds') || '[]'), ...gone];
+        localStorage.setItem('zula_suite_removed_seeds', JSON.stringify([...new Set(merged)]));
+        setMembers((prev) => prev.filter((m) => !gone.includes(m.id)));
+      }
 
       const localIds = new Set(members.map((m) => m.id));
       const missing = remote.filter((r) => !localIds.has(r.id));
