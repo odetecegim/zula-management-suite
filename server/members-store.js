@@ -176,6 +176,45 @@ export async function readMembersWithSecrets({ spreadsheetId, tabName = MEMBERS_
 }
 
 /**
+ * Ayni uye kodunu tasiyan satirlari temizler.
+ *
+ * Arayuz benzersizlik kontrolu yaptigi icin ayni kod normalde iki kez
+ * olusmaz. Ancak eski (ornek) kayitlar tarayicida kalirsa ayni kod
+ * hem gercek kayitta hem ornekte bulunur ve "zaten kullaniliyor"
+ * hatasiyle tum kayitlari engeller. Burada gercek kayit (13 haneli
+ * zaman damgali id) korunur, ornek kayit dusurulur.
+ */
+export function dedupeByTag(members) {
+  const seen = new Map();
+  const out = [];
+  for (const m of members) {
+    const tag = String(m.tagId || '').trim().toUpperCase();
+    if (!tag) {
+      out.push(m);
+      continue;
+    }
+    if (!seen.has(tag)) {
+      seen.set(tag, m);
+      out.push(m);
+      continue;
+    }
+    // Ayni kod tekrar ediyor: hangisinin secilecegini belirle
+    const first = seen.get(tag);
+    const firstReal = /^m-\d{13}$/.test(String(first.id || ''));
+    const curReal = /^m-\d{13}$/.test(String(m.id || ''));
+    if (firstReal && !curReal) continue; // gercek kayit korunur
+    if (!firstReal && curReal) {
+      // gercek kayitla degistir
+      const idx = out.indexOf(first);
+      out[idx] = m;
+      seen.set(tag, m);
+    }
+    // ikisi de ayni turdense ilkini birak
+  }
+  return out;
+}
+
+/**
  * Tum uyeleri yazar (baslik dahil, eski satirlar temizlenir).
  *
  * Sifre guvenligi:
@@ -196,10 +235,13 @@ export async function writeMembers({ spreadsheetId, members = [], tabName = MEMB
     existing.map((r) => [String(r[ID_IDX] ?? '').trim(), String(r[HASH_IDX] ?? '')])
   );
 
+  // Ayni uye kodunu tasiyan satirlari temizle
+  const cleaned = dedupeByTag(members);
+
   // Eski satirlari temizle
   await sheets.spreadsheets.values.clear({ spreadsheetId, range, body: {} });
 
-  const rows = members.map((m) => {
+  const rows = cleaned.map((m) => {
     const member = { ...m };
     const plain = String(m.password || '');
     delete member.password;
