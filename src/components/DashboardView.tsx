@@ -1,5 +1,5 @@
 import React from 'react';
-import type { Member, TestSession, ActivityLog, Performance } from '../types';
+import type { Member, TestSession, ActivityLog, Performance, RegionType } from '../types';
 import { Users, Bug, CheckCircle, Trophy, Activity, Zap, TrendingUp, AlertTriangle, Globe, MapPin, Crown } from 'lucide-react';
 import { calculateScore } from '../lib/time';
 
@@ -72,7 +72,7 @@ export const DashboardView: React.FC<DashboardProps> = ({
     .filter((x) => x.score > 0)
     .sort((a, b) => b.score - a.score);
 
-  const REGIONS: ('TR' | 'EU' | 'LATAM' | 'MENA')[] = ['TR', 'EU', 'LATAM', 'MENA'];
+  const REGIONS: RegionType[] = ['TR', 'EU', 'LATAM'];
 
   const regionChampions = REGIONS.flatMap((region) => {
     const best = scoredMembers.find((x) => x.member.region === region);

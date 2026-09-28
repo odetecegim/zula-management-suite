@@ -55,7 +55,7 @@ const matchFrom = <T extends string>(raw: string, allowed: readonly T[]): T | nu
 };
 
 const GAMES: GameType[] = ['Zula PC', 'Zula Strike', 'Wolfteam'];
-const REGIONS: RegionType[] = ['TR', 'EU', 'LATAM', 'MENA'];
+const REGIONS: RegionType[] = ['TR', 'EU', 'LATAM'];
 const STATUSES: StatusType[] = ['Aktif', 'Pasif', 'İncelemede'];
 const ROLES: RoleId[] = ['super_admin', 'company_manager', 'academy_lead', 'academy_member', 'fedai_member', 'referee_lead', 'referee'];
 

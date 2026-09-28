@@ -137,7 +137,7 @@ export const INITIAL_MEMBERS: Member[] = [
     discordTag: 'dune#3322',
     email: 'tariq@example.com',
     game: 'Zula PC',
-    region: 'MENA',
+    region: 'EU',
     role: 'academy_member',
     status: 'Pasif',
     joinDate: '2025-04-05',

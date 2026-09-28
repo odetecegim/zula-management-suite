@@ -365,7 +365,6 @@ export const PerformanceView: React.FC<PerformanceProps> = ({
     { id: 'TR', label: 'TR' },
     { id: 'EU', label: 'EU' },
     { id: 'LATAM', label: 'LATAM' },
-    { id: 'MENA', label: 'MENA' },
   ];
 
   // Secili bolgedeki uye sayisi (filtre etkisini gormek icin)

@@ -301,7 +301,6 @@ export const MembersView: React.FC<MembersProps> = ({
             <option value="TR">TR</option>
             <option value="EU">EU</option>
             <option value="LATAM">LATAM</option>
-            <option value="MENA">MENA</option>
           </select>
 
           <button
@@ -616,7 +615,6 @@ export const MembersView: React.FC<MembersProps> = ({
                     <option value="TR">TR</option>
                     <option value="EU">EU</option>
                     <option value="LATAM">LATAM</option>
-                    <option value="MENA">MENA</option>
                   </select>
                 </div>
 

@@ -19,7 +19,7 @@ export interface RoleDef {
 }
 
 export type GameType = 'Zula PC' | 'Zula Strike' | 'Wolfteam';
-export type RegionType = 'TR' | 'EU' | 'LATAM' | 'MENA';
+export type RegionType = 'TR' | 'EU' | 'LATAM';
 export type StatusType = 'Aktif' | 'Pasif' | 'İncelemede';
 
 export type PermissionId = 'dashboard' | 'members' | 'tests' | 'reports' | 'roles' | 'academy' | 'referees' | 'performance' | 'logs' | 'settings' | 'sheets';
