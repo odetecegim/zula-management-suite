@@ -89,8 +89,8 @@ const SOCIALS: {
   },
   {
     id: 'mail',
-    title: 'E-posta gonder',
-    href: `mailto:${MAIL_TO}?subject=${encodeURIComponent('Zula Teşkilat Paneli - İletişim')}`,
+    title: 'E-posta gönder',
+    href: `mailto:${MAIL_TO}`,
     external: false,
     hover: 'hover:bg-emerald-500/10 hover:text-emerald-400 hover:border-emerald-500/30',
     icon: <Mail className="w-4 h-4" />,
@@ -286,10 +286,10 @@ export const Sidebar: React.FC<SidebarProps> = ({
             ))}
           </div>
           <a
-            href="mailto:odetecegim@gmail.com"
+            href={`mailto:${MAIL_TO}`}
             className="block text-center text-[11px] text-slate-400 hover:text-indigo-300 transition-colors break-all"
           >
-            odetecegim@gmail.com
+            {MAIL_TO}
           </a>
           <div className="text-center text-[10px] text-slate-500 font-medium">
             MadByte & Zula CRM Platform © 2026
