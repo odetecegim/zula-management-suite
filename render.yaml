@@ -1,0 +1,26 @@
+services:
+  # Google Sheets backend (Express)
+  - type: web
+    name: zula-sheets-api
+    runtime: node
+    plan: free
+    region: frankfurt
+    rootDir: .
+    buildCommand: npm ci --omit=dev
+    startCommand: node server/index.js
+    healthCheckPath: /api/health
+    envVars:
+      - key: NODE_VERSION
+        value: "22"
+      - key: NODE_ENV
+        value: production
+      # Servis hesabi JSON'unu Render dashboard'da "Secret" olarak ekleyin.
+      # (Dosyayi repoya koymayin.) Panelde tek yapistirma ile kullanilir.
+      - key: GOOGLE_SERVICE_ACCOUNT_JSON
+        sync: false
+      - key: SHEETS_SPREADSHEET_ID
+        sync: false
+      - key: SHEETS_RANGE
+        value: A1:Z2000
+      - key: PORT
+        generateValue: true
