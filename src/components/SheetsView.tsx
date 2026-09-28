@@ -266,6 +266,7 @@ export const SheetsView: React.FC<SheetsViewProps> = ({ members, performances, o
             tagId: row.tagId,
             fullName: row.name,
             gameNickname: row.nickname || row.name.split(' ')[0] || 'Oyuncu',
+            playerId: '',
             discordTag: '',
             email: '',
             game: game ?? 'Zula PC',

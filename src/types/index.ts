@@ -35,6 +35,8 @@ export interface Member {
   tagId: string; // örn: ZULA-001
   fullName: string;
   gameNickname: string;
+  /** Oyuncunun Zula icindeki sayisal uye ID'si (orn. "1234567") */
+  playerId: string;
   discordTag: string;
   email: string;
   game: GameType;

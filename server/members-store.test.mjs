@@ -68,8 +68,18 @@ const member = {
   permissions: ['dashboard', 'members'],
 };
 
-test('sutun sayisi 17 (A..Q)', () => {
-  assert.equal(MEMBER_COLUMNS.length, 17);
+test('sutun sayisi 18 (A..R)', () => {
+  assert.equal(MEMBER_COLUMNS.length, 18);
+});
+test('playerId sutunu var ve korunur', () => {
+  assert.ok(MEMBER_COLUMNS.includes('playerId'));
+  const row = memberToRow({ ...member, playerId: '1234567' });
+  const back = rowToMember(row);
+  assert.equal(back.playerId, '1234567');
+});
+test('playerId yoksa bos string (undefined degil)', () => {
+  const row = memberToRow({ ...member, playerId: '' });
+  assert.equal(rowToMember(row).playerId, '');
 });
 test('uye -> satir -> uye gidis-donus', () => {
   const row = memberToRow(member);

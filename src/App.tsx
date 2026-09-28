@@ -79,6 +79,9 @@ export function App() {
           ? m.role
           : 'academy_member';
 
+        // Eski kayitlarda playerId olmayabilir -> bos stringe normalize et
+        repaired.playerId = String(m.playerId ?? '').trim();
+
         return { ...repaired, game, role } as Member;
       });
 

@@ -42,6 +42,7 @@ export const MembersView: React.FC<MembersProps> = ({
   const [formTagId, setFormTagId] = useState('');
   const [formFullName, setFormFullName] = useState('');
   const [formGameNickname, setFormGameNickname] = useState('');
+  const [formPlayerId, setFormPlayerId] = useState('');
   const [formDiscordTag, setFormDiscordTag] = useState('');
   const [formEmail, setFormEmail] = useState('');
   const [formGame, setFormGame] = useState<GameType>('Zula PC');
@@ -151,6 +152,7 @@ export const MembersView: React.FC<MembersProps> = ({
     setFormRegion(m.region);
     setFormRole(m.role);
     setFormStatus(m.status);
+    setFormPlayerId(m.playerId ?? '');
     setFormScore(m.participationScore);
     setFormNotes(m.notes);
     setFormUsername(m.username);
@@ -186,6 +188,7 @@ export const MembersView: React.FC<MembersProps> = ({
         tagId: formTagId,
         fullName: formFullName,
         gameNickname: formGameNickname,
+        playerId: formPlayerId.trim(),
         discordTag: formDiscordTag,
         email: formEmail,
         game: formGame,
@@ -202,6 +205,7 @@ export const MembersView: React.FC<MembersProps> = ({
         tagId: formTagId,
         fullName: formFullName,
         gameNickname: formGameNickname,
+        playerId: formPlayerId.trim(),
         discordTag: formDiscordTag,
         email: formEmail,
         game: formGame,
@@ -356,6 +360,14 @@ export const MembersView: React.FC<MembersProps> = ({
                             </div>
                             <div className="text-xs text-indigo-400 flex items-center gap-2">
                               <span>🎮 {m.gameNickname}</span>
+                              {m.playerId && (
+                                <>
+                                  <span className="text-slate-600">•</span>
+                                  <span className="font-mono text-slate-500" title="Oyuncu Member ID">
+                                    #{m.playerId}
+                                  </span>
+                                </>
+                              )}
                               <span className="text-slate-600">•</span>
                               <span className="text-slate-400">{m.discordTag}</span>
                             </div>
@@ -521,6 +533,20 @@ export const MembersView: React.FC<MembersProps> = ({
                     className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-sm text-white outline-none"
                   />
                   {errorFor('gameNickname')}
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-slate-400 mb-1">
+                    Oyuncu Member ID
+                  </label>
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    placeholder="Örn: 1234567"
+                    value={formPlayerId}
+                    onChange={(e) => setFormPlayerId(e.target.value.replace(/[^\d]/g, ''))}
+                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-sm text-white outline-none font-mono"
+                  />
+                  {errorFor('playerId')}
                 </div>
                 <div>
                   <label className="block text-xs font-semibold text-slate-400 mb-1">Discord Kullanıcı Adı</label>
