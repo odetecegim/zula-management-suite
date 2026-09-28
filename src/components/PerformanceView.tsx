@@ -631,7 +631,6 @@ export const PerformanceView: React.FC<PerformanceProps> = ({
                   min={0}
                   disabled={!canEdit}
                   icon={<MessageSquareText className="w-4 h-4 text-purple-400" />}
-                  hint="Birebir eklenir · sınır yok"
                   onChange={(v) => setDraft({ ...draft, managerOpinion: v })}
                 />
                 <NumInput
@@ -640,7 +639,6 @@ export const PerformanceView: React.FC<PerformanceProps> = ({
                   min={0}
                   disabled={!canEdit}
                   icon={<FileCheck className="w-4 h-4 text-sky-400" />}
-                  hint="İstatistik — puana eklenmez"
                   onChange={(v) => setDraft({ ...draft, qaReviews: v })}
                 />
               </div>
