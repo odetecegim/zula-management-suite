@@ -215,7 +215,8 @@ export async function writeMembers({ spreadsheetId, members = [], tabName = MEMB
     spreadsheetId,
     range: `${tab}!A1`,
     valueInputOption: 'USER_ENTERED',
-    requestBody: { valueInputOption: 'USER_ENTERED', values },
+    // valueInputOption requestBody'nin ICINDE olmaz; ust seviyede verilir
+    requestBody: { values },
   });
 
   return { written: members.length, tab };
