@@ -48,6 +48,7 @@ console.log('\n== Ceviri gercekten yapilmis mi ==');
 const sameOk = new Set([
   'languageSelection', 'navSheets', 'discordTag', 'perm_sheets', 'sheetsTabMembers',
   'role', // Rol -> Rol : teknik terim, iki dilde de ayni yazilir
+  'brandName', // "Zula Suite" urun adi, cevrilmez
 ]);
 for (const n of names.filter((x) => x !== 'tr')) {
   t(n + ': Turkce ile birebir ayni olmayanlar', () => {

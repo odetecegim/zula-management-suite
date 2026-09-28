@@ -56,6 +56,16 @@ export const es = {
   loginServerOffline: 'Servidor inaccesible, trabajando con datos locales',
   signedInAs: 'Sesión iniciada como',
 
+  // --- Pantalla de inicio de sesión ---
+  brandName: 'Zula Suite',
+  panelSubtitle: 'Panel de Gestión de Pruebas y Comunidad',
+  secureLogin: 'Acceso Seguro',
+  loginInProgress: 'Iniciando sesión...',
+  noAccountHint: 'Si no tienes una cuenta, solicita acceso al panel a un administrador.',
+  accountInactive: 'Tu cuenta está inactiva. Ponte en contacto con el administrador.',
+  noAccess: 'Todavía no tienes acceso al panel. Ponte en contacto con el administrador.',
+  developer: 'Desarrollador',
+
   // --- Idioma ---
   language: 'Idioma',
   languageSelection: 'Dil Seçimi / Language Selection',

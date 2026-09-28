@@ -57,6 +57,16 @@ export const en = {
   loginServerOffline: 'Server unreachable, working with local data',
   signedInAs: 'Signed in as',
 
+  // --- Login screen ---
+  brandName: 'Zula Suite',
+  panelSubtitle: 'Test & Community Management Panel',
+  secureLogin: 'Secure Sign In',
+  loginInProgress: 'Signing in...',
+  noAccountHint: 'If you do not have an account, request panel access from an administrator.',
+  accountInactive: 'Your account is inactive. Please contact your administrator.',
+  noAccess: 'You do not have panel access yet. Please contact your administrator.',
+  developer: 'Developer',
+
   // --- Language ---
   language: 'Language',
   languageSelection: 'Dil Seçimi / Language Selection',

@@ -57,6 +57,16 @@ export const tr = {
   loginServerOffline: 'Sunucuya ulaşılamıyor, yerel verilerle çalışılıyor',
   signedInAs: 'Giriş yapan',
 
+  // --- Login ekrani ---
+  brandName: 'Zula Suite',
+  panelSubtitle: 'Test & Topluluk Yönetim Paneli',
+  secureLogin: 'Güvenli Giriş',
+  loginInProgress: 'Giriş yapılıyor...',
+  noAccountHint: 'Hesabınız yoksa yöneticinizden panel erişimi talep edin.',
+  accountInactive: 'Hesabınız pasif durumda. Yöneticinizle iletişime geçin.',
+  noAccess: 'Hesabınıza henüz panel erişimi verilmemiş. Yöneticinizle iletişime geçin.',
+  developer: 'Geliştirici',
+
   // --- Dil secimi ---
   language: 'Dil',
   languageSelection: 'Dil Seçimi / Language Selection',

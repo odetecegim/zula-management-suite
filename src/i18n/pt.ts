@@ -56,6 +56,16 @@ export const pt = {
   loginServerOffline: 'Servidor inacessível, trabalhando com dados locais',
   signedInAs: 'Conectado como',
 
+  // --- Tela de login ---
+  brandName: 'Zula Suite',
+  panelSubtitle: 'Painel de Gestão de Testes e Comunidade',
+  secureLogin: 'Acesso Seguro',
+  loginInProgress: 'Entrando...',
+  noAccountHint: 'Se você não tem uma conta, solicite acesso ao painel a um administrador.',
+  accountInactive: 'Sua conta está inativa. Entre em contato com o administrador.',
+  noAccess: 'Você ainda não tem acesso ao painel. Entre em contato com o administrador.',
+  developer: 'Desenvolvedor',
+
   // --- Idioma ---
   language: 'Idioma',
   languageSelection: 'Dil Seçimi / Language Selection',

@@ -1,7 +1,9 @@
 import React, { useState } from 'react';
 import type { Member } from '../types';
-import { LogIn, AlertCircle, User, Lock, ShieldCheck } from 'lucide-react';
+import { LogIn, AlertCircle, User, Lock, ShieldCheck, Globe } from 'lucide-react';
 import { remoteLogin } from '../lib/members-api';
+import { useTranslation } from 'react-i18next';
+import { languages } from '../i18n';
 
 interface LoginScreenProps {
   members: Member[];
@@ -9,6 +11,7 @@ interface LoginScreenProps {
 }
 
 export const LoginScreen: React.FC<LoginScreenProps> = ({ members, onLogin }) => {
+  const { t, i18n } = useTranslation();
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
@@ -26,12 +29,12 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ members, onLogin }) =>
 
     const finish = (member: Member) => {
       if (member.status === 'Pasif') {
-        setError('Hesabınız pasif durumda. Yöneticinizle iletişime geçin.');
+        setError(t('accountInactive'));
         setLoading(false);
         return;
       }
       if (!member.permissions || member.permissions.length === 0) {
-        setError('Hesabınıza henüz panel erişimi verilmemiş. Yöneticinizle iletişime geçin.');
+        setError(t('noAccess'));
         setLoading(false);
         return;
       }
@@ -44,7 +47,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ members, onLogin }) =>
       return;
     }
     if (remote.status === 'invalid') {
-      setError('Kullanıcı adı veya şifre hatalı.');
+      setError(t('loginFailed'));
       setLoading(false);
       return;
     }
@@ -59,7 +62,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ members, onLogin }) =>
     );
 
     if (!member || !member.password || member.password !== password) {
-      setError('Kullanıcı adı veya şifre hatalı.');
+      setError(t('loginFailed'));
       setLoading(false);
       return;
     }
@@ -84,8 +87,28 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ members, onLogin }) =>
             className="mx-auto h-16 w-auto object-contain drop-shadow-[0_6px_30px_rgba(245,158,11,0.4)]"
           />
           <div>
-            <h1 className="text-2xl font-extrabold text-white tracking-tight">Zula Suite</h1>
-            <p className="text-sm text-indigo-400 font-medium">Test & Topluluk Yönetim Paneli</p>
+            <h1 className="text-2xl font-extrabold text-white tracking-tight">{t('brandName')}</h1>
+            <p className="text-sm text-indigo-400 font-medium">{t('panelSubtitle')}</p>
+          </div>
+
+          {/* Giris yapmadan once de dil degistirilebilir */}
+          <div className="flex items-center justify-center gap-2 pt-1">
+            <Globe className="w-3.5 h-3.5 text-slate-500" />
+            {languages.map((lang) => (
+              <button
+                key={lang.code}
+                onClick={() => i18n.changeLanguage(lang.code)}
+                title={lang.name}
+                className={
+                  'px-2 py-1 rounded-md text-[11px] font-semibold transition-all cursor-pointer ' +
+                  (i18n.language === lang.code
+                    ? 'bg-indigo-600 text-white'
+                    : 'text-slate-500 hover:text-slate-300 hover:bg-slate-800')
+                }
+              >
+                {lang.flag} {lang.code.toUpperCase()}
+              </button>
+            ))}
           </div>
         </div>
 
@@ -93,7 +116,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ members, onLogin }) =>
         <div className="bg-slate-900/70 border border-slate-800 rounded-3xl p-8 shadow-2xl backdrop-blur-xl space-y-5">
           <div className="flex items-center gap-2 text-slate-300">
             <ShieldCheck className="w-4 h-4 text-emerald-400" />
-            <span className="text-xs font-semibold uppercase tracking-wider">Güvenli Giriş</span>
+            <span className="text-xs font-semibold uppercase tracking-wider">{t('secureLogin')}</span>
           </div>
 
           {error && (
@@ -105,7 +128,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ members, onLogin }) =>
 
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
-              <label className="block text-xs font-semibold text-slate-400 mb-1.5">Kullanıcı Adı</label>
+              <label className="block text-xs font-semibold text-slate-400 mb-1.5">{t('username')}</label>
               <div className="relative">
                 <User className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
                 <input
@@ -113,7 +136,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ members, onLogin }) =>
                   required
                   autoFocus
                   autoComplete="username"
-                  placeholder="Kullanıcı adınız"
+                  placeholder={t('usernamePlaceholder')}
                   value={username}
                   onChange={(e) => setUsername(e.target.value)}
                   className="w-full bg-slate-950 border border-slate-800 rounded-xl pl-10 pr-4 py-3 text-sm text-white placeholder-slate-600 outline-none focus:border-indigo-500 transition-colors"
@@ -122,14 +145,14 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ members, onLogin }) =>
             </div>
 
             <div>
-              <label className="block text-xs font-semibold text-slate-400 mb-1.5">Şifre</label>
+              <label className="block text-xs font-semibold text-slate-400 mb-1.5">{t('password')}</label>
               <div className="relative">
                 <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
                 <input
                   type="password"
                   required
                   autoComplete="current-password"
-                  placeholder="Şifreniz"
+                  placeholder={t('passwordPlaceholder')}
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   className="w-full bg-slate-950 border border-slate-800 rounded-xl pl-10 pr-4 py-3 text-sm text-white placeholder-slate-600 outline-none focus:border-indigo-500 transition-colors"
@@ -143,19 +166,18 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ members, onLogin }) =>
               className="w-full flex items-center justify-center gap-2 bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700 text-white font-bold text-sm px-5 py-3.5 rounded-xl shadow-lg shadow-indigo-500/25 transition-all cursor-pointer disabled:opacity-60 disabled:cursor-wait"
             >
               <LogIn className="w-4 h-4" />
-              {loading ? 'Giriş yapılıyor...' : 'Panele Giriş Yap'}
+              {loading ? t('loginInProgress') : t('loginButton')}
             </button>
           </form>
 
           <div className="text-center pt-2 border-t border-slate-800/80">
-            <p className="text-[11px] text-slate-500">
-              Hesabınız yoksa yöneticinizden panel erişimi talep edin.
-            </p>
+            <p className="text-[11px] text-slate-500">{t('noAccountHint')}</p>
           </div>
         </div>
 
         <div className="text-center mt-6 text-[11px] text-slate-600">
-          MadByte & Zula CRM Platform © 2026 · Geliştirici: <span className="text-slate-500">@odetecegim</span>
+          MadByte & Zula CRM Platform © 2026 · {t('developer')}:{' '}
+          <span className="text-slate-500">@odetecegim</span>
         </div>
       </div>
     </div>
