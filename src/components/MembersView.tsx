@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Plus, Search, Trash2, Edit3, X, Check, Shield, UserCheck, KeyRound, Eye, EyeOff, Copy, AlertTriangle } from 'lucide-react';
 import { ALL_PERMISSIONS } from '../data/initialData';
 import { canManageMember, getRoleLevel, roleLevelLabel } from '../lib/roles';
+import { sortMembers } from '../lib/member-sort';
 import type { Member, RoleDef, GameType, RegionType, StatusType, RoleId, PermissionId } from '../types';
 
 export interface TeamFilter {
@@ -237,6 +238,9 @@ export const MembersView: React.FC<MembersProps> = ({
     return matchSearch && matchGame && matchRegion;
   });
 
+  // Oyuncu siralamasi: uye kodu > kullanici adi > isim soyisim > puanlama
+  const sortedMembers = sortMembers(filteredMembers);
+
   const getRoleDef = (roleId: RoleId) => roles.find((r) => r.id === roleId);
 
   // Hiyerarsi: giris yapan kullanici bu uyeyi yonetebilir mi?
@@ -333,7 +337,7 @@ export const MembersView: React.FC<MembersProps> = ({
                   </td>
                 </tr>
               ) : (
-                filteredMembers.map((m) => {
+                sortedMembers.map((m) => {
                   const roleDef = getRoleDef(m.role);
                   return (
                     <tr key={m.id} className="hover:bg-slate-800/30 transition-colors">
