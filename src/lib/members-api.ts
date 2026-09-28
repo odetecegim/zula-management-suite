@@ -13,7 +13,21 @@ import { loadSheetSettings, apiUrl } from './sheets';
 
 const TIMEOUT_MS = 8000;
 
-/** Guvenli POST/GET. Hata durumunda null doner. */
+/** Son hata mesaji; panelde kullaniciya gosterilmek uzere saklanir. */
+let lastSyncError = '';
+export const getLastSyncError = () => lastSyncError;
+export const clearLastSyncError = () => {
+  lastSyncError = '';
+};
+
+/**
+ * Guvenli POST/GET. Hata durumunda null doner.
+ *
+ * ONCEKI SURUM HATAYI TAMAMEN YUTUYORDU: ag hatasi, yetki hatasi ve
+ * sunucu hatasi ayni sekilde "null" donerdi. Boylece uye panelde
+ * kayitli gorunur ama Sheets'e hic yazilmamis oluyordu ve kullanici
+ * nedenini hic ogrenemiyordu. Artik nedeni kaydediyoruz.
+ */
 async function call<T>(path: string, body: unknown): Promise<T | null> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
@@ -24,10 +38,28 @@ async function call<T>(path: string, body: unknown): Promise<T | null> {
       body: JSON.stringify(body),
       signal: controller.signal,
     });
-    if (!res.ok) return null;
+    if (!res.ok) {
+      let detail = '';
+      try {
+        detail = (await res.text()).slice(0, 200);
+      } catch {
+        /* govde okunamadi */
+      }
+      lastSyncError = `Sunucu ${res.status}${detail ? `: ${detail}` : ''}`;
+      return null;
+    }
     const text = await res.text();
-    return text ? (JSON.parse(text) as T) : null;
-  } catch {
+    if (!text) {
+      lastSyncError = 'Sunucu bos yanit dondu';
+      return null;
+    }
+    lastSyncError = '';
+    return JSON.parse(text) as T;
+  } catch (e) {
+    lastSyncError =
+      e instanceof DOMException && e.name === 'AbortError'
+        ? 'Sunucu zaman asimina ugradi'
+        : `Baglanti hatasi: ${e instanceof Error ? e.message : 'bilinmiyor'}`;
     return null;
   } finally {
     clearTimeout(timer);

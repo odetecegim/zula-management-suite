@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { AlertTriangle } from 'lucide-react';
 import { Sidebar } from './components/Sidebar';
 import { LoginScreen } from './components/LoginScreen';
 import { DashboardView } from './components/DashboardView';
@@ -6,7 +7,7 @@ import { MembersView } from './components/MembersView';
 import type { TeamFilter } from './components/MembersView';
 import { PerformanceView } from './components/PerformanceView';
 import type { LogFn } from './components/PerformanceView';
-import { fetchRemoteMembers, pushRemoteMembers } from './lib/members-api';
+import { fetchRemoteMembers, pushRemoteMembers, getLastSyncError } from './lib/members-api';
 import { TestSessionsView } from './components/TestSessionsView';
 import { RolesView } from './components/RolesView';
 import { ReportsView } from './components/ReportsView';
@@ -218,9 +219,23 @@ export function App() {
   }, []);
 
   // 2) Uye listesi degisince sunucuya gecit yaz
+  //
+  // ONCEKI SURUM SESSIZCE BASARISIZ OLUYORDU: yazma hatasi olsa bile
+  // kullaniciya hicbir sey gorunmuyordu, uye panelde vardi ama Sheets'te
+  // olmadiyordu ve giris calismiyordu. Artik hata durumu ekranda gosterilir.
+  const [syncError, setSyncError] = useState<string>('');
+  const [syncOk, setSyncOk] = useState<boolean>(true);
+
   useEffect(() => {
-    const timer = setTimeout(() => {
-      void pushRemoteMembers(members);
+    const timer = setTimeout(async () => {
+      const ok = await pushRemoteMembers(members);
+      if (ok) {
+        setSyncOk(true);
+        setSyncError('');
+      } else {
+        setSyncOk(false);
+        setSyncError(getLastSyncError() || 'Google Sheets’e yazılamadı');
+      }
     }, 2500);
     return () => clearTimeout(timer);
   }, [members]);
@@ -538,6 +553,19 @@ const canEditPerformance = isAdmin || (currentUser?.permissions?.includes('perfo
   return (
     <div className="flex min-h-screen bg-slate-950 text-slate-100 selection:bg-indigo-500 selection:text-white">
       <LanguageSelectionOverlay />
+
+      {/* Sheets senkronizasyon durumu - sessiz hatalari gorunur kilar */}
+      <div className="fixed top-3 right-3 z-[90]">
+        {!syncOk && (
+          <div className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-rose-500/15 border border-rose-500/30 backdrop-blur-xl shadow-lg max-w-sm">
+            <AlertTriangle className="w-4 h-4 text-rose-400 shrink-0" />
+            <div className="min-w-0">
+              <div className="text-[11px] font-bold text-rose-300">Google Sheets’e kaydedilemedi</div>
+              <div className="text-[10px] text-rose-400/80 truncate">{syncError}</div>
+            </div>
+          </div>
+        )}
+      </div>
 
       {/* Sidebar */}
       <Sidebar
