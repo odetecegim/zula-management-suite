@@ -1,13 +1,13 @@
 import type { RoleId } from '../types';
 
 export function roleGroupFor(role: RoleId): 'academy' | 'referee' | null {
-  if (role === 'academy_lead' || role === 'qa_tester' || role === 'community_mod') return 'academy';
-  if (role === 'referee_lead') return 'referee';
+  if (role === 'academy_lead' || role === 'academy_member' || role === 'fedai_member' || role === 'qa_tester' || role === 'community_mod') return 'academy';
+  if (role === 'referee_lead' || role === 'referee' || role === 'observer') return 'referee';
   return null;
 }
 
-export const ACADEMY_ROLES: RoleId[] = ['academy_lead', 'qa_tester', 'community_mod'];
-export const REFEREE_ROLES: RoleId[] = ['referee_lead'];
+export const ACADEMY_ROLES: RoleId[] = ['academy_lead', 'academy_member', 'fedai_member', 'qa_tester', 'community_mod'];
+export const REFEREE_ROLES: RoleId[] = ['referee_lead', 'referee', 'observer'];
 
 // Rol hiyerarsisi: "level" mantigi ile ust/alt rol yonetimi
 // Ust seviye bir yonetici, yalnizca kendi seviyesinden dusuk rolleri yonetebilir.
@@ -16,7 +16,11 @@ export const ROLE_LEVELS: Record<string, number> = {
   company_manager: 90,
   academy_lead: 70,
   referee_lead: 70,
-  qa_tester: 60,
+  academy_member: 60,
+  fedai_member: 60,
+  referee: 60,
+  qa_tester: 55,
+  observer: 50,
   community_mod: 40,
 };
 

@@ -389,12 +389,8 @@ const canEditPerformance = isAdmin || (currentUser?.permissions?.includes('perfo
   // Kullanıcının yetkisi olmayan bir sekmede kalması engellenir
   const activeTab = allowedTabs.includes(currentTab as PermissionId) ? currentTab : allowedTabs[0];
 
-  const roleName = currentUser.role === 'super_admin' ? 'Süper Yönetici'
-    : currentUser.role === 'company_manager' ? 'Şirket Yöneticisi'
-    : currentUser.role === 'academy_lead' ? 'Akademi Kaptanı'
-    : currentUser.role === 'referee_lead' ? 'Baş Hakem'
-    : currentUser.role === 'qa_tester' ? 'Kıdemli QA Testçi'
-    : 'Topluluk Moderatörü';
+  // Rol adini roller listesinden cek (yeni roller de dogru gosterilsin)
+  const roleName = roles.find((r) => r.id === currentUser.role)?.name ?? currentUser.role;
 
   return (
     <div className="flex min-h-screen bg-slate-950 text-slate-100 selection:bg-indigo-500 selection:text-white">

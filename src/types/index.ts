@@ -1,8 +1,12 @@
-export type RoleId = 
+export type RoleId =
   | 'super_admin'
   | 'company_manager'
   | 'academy_lead'
+  | 'academy_member'
+  | 'fedai_member'
   | 'referee_lead'
+  | 'referee'
+  | 'observer'
   | 'qa_tester'
   | 'community_mod';
 
