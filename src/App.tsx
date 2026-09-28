@@ -176,19 +176,27 @@ export function App() {
   // --- Paylasilan uye deposu (Google Sheets) -------------------------
   // Backend kapaliysa sessizce devre disi kalir; yerel akis calisir.
 
-  // 1) Acilista sunucudan listeyi al (yoksa yerel veri korunur)
+  // 1) Acilista sunucudan listeyi al
+  //    DIKKAT: yerel veri bozulmaz. Uzaktan gelen kayitlar sadece EKLENIR;
+  //    ayni id'li yerel kayit (kullaniciya ait olabilir) ASLA ezilmez.
   useEffect(() => {
     let cancelled = false;
     (async () => {
       const remote = await fetchRemoteMembers();
       if (cancelled || !remote || remote.length === 0) return;
-      // Yerelde ayni kayit varsa onun sifresi korunur (sunucu hash saklar)
+
+      const localIds = new Set(members.map((m) => m.id));
+      const missing = remote.filter((r) => !localIds.has(r.id));
+
+      if (missing.length === 0) return; // yerelde hepsi var, hicbir sey degismez
+
+      // Yerelde sifre varsa koru (sunucu yalnizca hash saklar)
       const localById = new Map(members.map((m) => [m.id, m]));
-      const merged = remote.map((r) => {
+      const added = missing.map((r) => {
         const local = localById.get(r.id);
         return local?.password ? { ...r, password: local.password } : r;
       });
-      setMembers(merged);
+      setMembers((prev) => [...prev, ...added]);
     })();
     return () => {
       cancelled = true;
