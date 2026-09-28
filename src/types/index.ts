@@ -1,3 +1,5 @@
+
+
 export type RoleId =
   | 'super_admin'
   | 'company_manager'
@@ -5,10 +7,7 @@ export type RoleId =
   | 'academy_member'
   | 'fedai_member'
   | 'referee_lead'
-  | 'referee'
-  | 'observer'
-  | 'qa_tester'
-  | 'community_mod';
+  | 'referee';
 
 export interface RoleDef {
   id: RoleId;

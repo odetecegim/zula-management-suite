@@ -57,7 +57,7 @@ const matchFrom = <T extends string>(raw: string, allowed: readonly T[]): T | nu
 const GAMES: GameType[] = ['Zula PC', 'Zula Strike', 'Wolfteam'];
 const REGIONS: RegionType[] = ['TR', 'EU', 'LATAM', 'MENA'];
 const STATUSES: StatusType[] = ['Aktif', 'Pasif', 'İncelemede'];
-const ROLES: RoleId[] = ['super_admin', 'company_manager', 'academy_lead', 'referee_lead', 'qa_tester', 'community_mod'];
+const ROLES: RoleId[] = ['super_admin', 'company_manager', 'academy_lead', 'academy_member', 'fedai_member', 'referee_lead', 'referee'];
 
 const fmt = (n: number) => n.toLocaleString('tr-TR');
 
@@ -270,7 +270,7 @@ export const SheetsView: React.FC<SheetsViewProps> = ({ members, performances, o
             email: '',
             game: game ?? 'Zula PC',
             region: region ?? 'TR',
-            role: role ?? 'qa_tester',
+            role: role ?? 'academy_member',
             status: status ?? 'Aktif',
             joinDate: new Date().toISOString().split('T')[0],
             participationScore: 80,

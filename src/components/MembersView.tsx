@@ -46,7 +46,7 @@ export const MembersView: React.FC<MembersProps> = ({
   const [formEmail, setFormEmail] = useState('');
   const [formGame, setFormGame] = useState<GameType>('Zula PC');
   const [formRegion, setFormRegion] = useState<RegionType>('TR');
-  const [formRole, setFormRole] = useState<RoleId>('qa_tester');
+  const [formRole, setFormRole] = useState<RoleId>('academy_member');
   const [formStatus, setFormStatus] = useState<StatusType>('Aktif');
   const [formScore, setFormScore] = useState(80);
   const [formNotes, setFormNotes] = useState('');
@@ -93,11 +93,6 @@ export const MembersView: React.FC<MembersProps> = ({
     }
 
     // Discord ID: Topluluk Moderatörü için zorunlu ve 17+ haneli olmalı
-    if (formRole === 'community_mod') {
-      const digits = formDiscordTag.replace(/\D/g, '');
-      if (!formDiscordTag.trim()) next.discordTag = 'Topluluk Moderatörü için Discord kullanıcı adı zorunludur.';
-      else if (digits.length < 17) next.discordTag = 'Discord ID en az 17 haneli olmalıdır.';
-    }
 
     if (formPermissions.length === 0) next.permissions = 'En az bir bölüm erişimi seçmelisiniz.';
 
@@ -133,7 +128,7 @@ export const MembersView: React.FC<MembersProps> = ({
     setFormEmail('');
     setFormGame('Zula PC');
     setFormRegion('TR');
-    setFormRole('qa_tester');
+    setFormRole('academy_member');
     setFormStatus('Aktif');
     setFormScore(85);
     setFormNotes('');

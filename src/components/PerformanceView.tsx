@@ -146,7 +146,7 @@ export const PerformanceView: React.FC<PerformanceProps> = ({
       m.tagId.toLowerCase().includes(q);
     if (!matchSearch) return false;
     if (competency === 'ACADEMY') {
-      return ['academy_lead', 'qa_tester', 'community_mod'].includes(m.role);
+      return ['academy_lead', 'academy_member', 'fedai_member'].includes(m.role);
     }
     if (competency === 'REFEREE') {
       return m.role === 'referee_lead';
