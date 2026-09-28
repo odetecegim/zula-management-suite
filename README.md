@@ -28,20 +28,16 @@ npm start          # API + derlenmiş paneli birlikte sunar
 
 ## Giriş Hesapları
 
-Panel giriş ekranında **hiçbir hazır hesap gösterilmez** (site herkese açık
-olduğu için kullanıcı adları ve şifreler ekrana basılmaz).
+Panel giriş ekranında **hiçbir hazır hesap gösterilmez** — kullanıcı adları
+ve şifreler ekrana basılmaz.
 
-| Rol | Kullanıcı adı | Şifre | Erişim |
-|---|---|---|---|
-| Süper Yönetici | `huseyin` | `admin123` | tüm bölümler |
-| Akademi Kaptanı | `burak` | `burak123` | Genel Bakış, Akademi, Performans, Testler, Raporlar |
-| Baş Hakem | `can` | `can123` | Genel Bakış, Hakemler, Performans, Testler |
-| Kıdemli QA | `lucas` | `lucas123` | Genel Bakış, Akademi, Hakemler, Testler, Raporlar |
-| Topluluk Moderatörü | `elena` | `elena123` | Genel Bakış, Akademi, Üyeler |
+Başlangıçta yönetici dahil örnek hesaplar `src/data/initialData.ts` içinde
+tohum veri olarak tanımlıdır. **Bu bilgiler dokümantasyonda yayımlanmaz.**
 
-> ⚠️ **Canlıda kullanmadan önce şifreleri değiştirin.** Yönetici
-> bilgilerini giriş yaptıktan sonra **Üye & Personel Listesi → Düzenle →
-> Panel Girişi & Erişim Yetkileri** bölümünden güncelleyebilirsiniz.
+> ⚠️ Canlıya almadan önce tüm şifreleri değiştirin. Yönetici bilgilerini
+> giriş yaptıktan sonra **Üye & Personel Listesi → Düzenle → Panel Girişi &
+> Erişim Yetkileri** bölümünden güncelleyebilirsiniz.
+>
 > Şifreler düz metin `localStorage`'da tutulduğu için, internet üzerinden
 > gerçek kullanım öncesi bir backend + hash'li şifre önerilir.
 
@@ -223,8 +219,6 @@ Vercel fonksiyonu aynı modülü kullanır.
 
 ## Deployment (100% Ücretsiz — Tek Vercel Projesi)
 
-**Canlı adres:** https://zula-management-suite.vercel.app
-
 Frontend **ve** backend aynı Vercel projesinde çalışır:
 
 ```
@@ -286,8 +280,7 @@ VITE_API_BASE_URL=     # boş bırakın = aynı origin
 1. Panel açılıyor ve yönetici bilgileriyle giriş yapılabiliyor
 2. Sol menüde **Google Sheets** bölümü görünüyor
 3. Bölümde **yeşil tik** (kimlik bilgisi bulundu) çıkıyor
-4. `https://zula-management-suite.vercel.app/api/sheets/health` →
-   `{"ok":true,"configured":true}`
+4. `<uygulama-adresi>/api/sheets/health` → `{"ok":true,"configured":true}`
 5. **Bağlantıyı Test Et** çalışıyor
 
 > Not: Vercel'de fonksiyon `api/sheets/*` yolunda olduğu için sağlık

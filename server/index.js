@@ -29,7 +29,7 @@ const app = express();
 
 /**
  * CORS: varsayilanda tum kaynaklara acik. Isterseniz kisitleyin:
- *   CORS_ORIGIN=https://your-app.vercel.app
+ *   CORS_ORIGIN=https://<uygulama-adresiniz>
  */
 const corsOrigin = (process.env.CORS_ORIGIN || '').trim();
 app.use(
