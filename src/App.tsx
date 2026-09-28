@@ -71,19 +71,43 @@ export function App() {
         const VALID_GAMES = ['Zula PC', 'Zula Strike', 'Wolfteam'];
         const g = String(m.game ?? '');
         const game = (VALID_GAMES as string[]).includes(g) ? g : 'Zula PC';
-        return { ...repaired, game } as Member;
+
+        // Rol artik yoksa gecerli bir rolle degistir
+        const VALID_ROLES = new Set<string>(INITIAL_ROLES.map((r) => r.id));
+        const role = (VALID_ROLES.has(m.role) || String(m.role).startsWith('custom_'))
+          ? m.role
+          : 'academy_member';
+
+        return { ...repaired, game, role } as Member;
       });
     } catch {
       return INITIAL_MEMBERS;
     }
   });
 
-  // Rollerin panel izni icin eski kayitlari tamamla (v3 themasina uyum)
+  // Roller: kayitli listeyi yukler, eksik yerlesik rolleri ekler,
+  // kaldirilmis yerlesik rolleri temizler (kullaniciya ait ozel roller korunur).
   const [roles, setRoles] = useState<RoleDef[]>(() => {
     const saved = localStorage.getItem('zula_suite_roles_v3');
-    if (saved) return JSON.parse(saved);
-    // Not: eski 'zula_suite_roles' anahtari kullanilmiyordu; state hep INITIAL_ROLES idi
-    return INITIAL_ROLES;
+    if (!saved) return INITIAL_ROLES;
+    try {
+      const parsed = JSON.parse(saved) as RoleDef[];
+      if (!Array.isArray(parsed) || parsed.length === 0) return INITIAL_ROLES;
+
+      const builtIn = new Set<string>(INITIAL_ROLES.map((r) => r.id));
+      const isCustom = (id: string) => id.startsWith('custom_');
+
+      // 1) Kaldirilmis yerlesik rolleri dusur
+      let merged = parsed.filter((r) => builtIn.has(r.id) || isCustom(r.id));
+      // 2) Eksik yerlesik rolleri ekle
+      const present = new Set(merged.map((r) => r.id));
+      INITIAL_ROLES.forEach((base) => {
+        if (!present.has(base.id)) merged.push(base);
+      });
+      return merged;
+    } catch {
+      return INITIAL_ROLES;
+    }
   });
 
   const [sessions, setSessions] = useState<TestSession[]>(() => {
