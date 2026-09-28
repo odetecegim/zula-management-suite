@@ -88,7 +88,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ members, onLogin }) =>
           />
           <div>
             <h1 className="text-2xl font-extrabold text-white tracking-tight">{t('brandName')}</h1>
-            <p className="text-sm text-indigo-400 font-medium">{t('panelSubtitle')}</p>
+            <p className="text-sm text-indigo-400 font-medium">{t('academyLabel')}</p>
           </div>
 
           {/* Giris yapmadan once de dil degistirilebilir */}

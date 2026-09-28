@@ -58,8 +58,8 @@ export const en = {
   signedInAs: 'Signed in as',
 
   // --- Login screen ---
-  brandName: 'Zula Suite',
-  panelSubtitle: 'Test & Community Management Panel',
+  brandName: 'Zula Teşkilat',
+  academyLabel: 'Academy',
   secureLogin: 'Secure Sign In',
   loginInProgress: 'Signing in...',
   noAccountHint: 'If you do not have an account, request panel access from an administrator.',

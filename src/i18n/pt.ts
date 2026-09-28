@@ -57,8 +57,8 @@ export const pt = {
   signedInAs: 'Conectado como',
 
   // --- Tela de login ---
-  brandName: 'Zula Suite',
-  panelSubtitle: 'Painel de Gestão de Testes e Comunidade',
+  brandName: 'Zula Teşkilat',
+  academyLabel: 'Academia',
   secureLogin: 'Acesso Seguro',
   loginInProgress: 'Entrando...',
   noAccountHint: 'Se você não tem uma conta, solicite acesso ao painel a um administrador.',

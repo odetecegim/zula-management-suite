@@ -58,8 +58,8 @@ export const tr = {
   signedInAs: 'Giriş yapan',
 
   // --- Login ekrani ---
-  brandName: 'Zula Suite',
-  panelSubtitle: 'Test & Topluluk Yönetim Paneli',
+  brandName: 'Zula Teşkilat',
+  academyLabel: 'Akademi',
   secureLogin: 'Güvenli Giriş',
   loginInProgress: 'Giriş yapılıyor...',
   noAccountHint: 'Hesabınız yoksa yöneticinizden panel erişimi talep edin.',

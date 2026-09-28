@@ -57,8 +57,8 @@ export const es = {
   signedInAs: 'Sesión iniciada como',
 
   // --- Pantalla de inicio de sesión ---
-  brandName: 'Zula Suite',
-  panelSubtitle: 'Panel de Gestión de Pruebas y Comunidad',
+  brandName: 'Zula Teşkilat',
+  academyLabel: 'Academia',
   secureLogin: 'Acceso Seguro',
   loginInProgress: 'Iniciando sesión...',
   noAccountHint: 'Si no tienes una cuenta, solicita acceso al panel a un administrador.',
