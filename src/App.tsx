@@ -218,31 +218,40 @@ export function App() {
     let cancelled = false;
     (async () => {
       const remote = await fetchRemoteMembers();
-      if (cancelled || !remote || remote.length === 0) return;
-
-      // Sunucuda olmayan ORNEK uyeleri yerelden de kaldir.
-      // Boylece panelden silinen kayit 2.5 sn sonra geri yazilmaz.
-      const remoteIds = new Set(remote.map((r) => r.id));
-      const localOnly = members.filter((m) => /^m-[1-7]$/.test(m.id) && !remoteIds.has(m.id));
-      if (localOnly.length > 0) {
-        const gone = [...localOnly.map((m) => m.id)];
-        const merged = [...JSON.parse(localStorage.getItem('zula_suite_removed_seeds') || '[]'), ...gone];
-        localStorage.setItem('zula_suite_removed_seeds', JSON.stringify([...new Set(merged)]));
-        setMembers((prev) => prev.filter((m) => !gone.includes(m.id)));
+      if (cancelled) return;
+      if (!remote || remote.length === 0) {
+        setHydrated(true); // veri yoksa kilidi ac, panel calismaya devam etsin
+        return;
       }
 
+      // Sunucuda olmayan yerel kayitlari kaldir.
+      // Sheets kaynak veridir; panelde gorunen ama sunucuda olmayan
+      // kayitlar silinmis demektir (onceki oturumdan kalma veri).
+      const remoteIds = new Set(remote.map((r) => r.id));
+      const localOnly = members.filter((m) => !remoteIds.has(m.id));
+      const gone = localOnly.map((m) => m.id);
+      if (gone.length > 0) {
+        const prev = JSON.parse(localStorage.getItem('zula_suite_removed_seeds') || '[]');
+        localStorage.setItem('zula_suite_removed_seeds', JSON.stringify([...new Set([...prev, ...gone])]));
+        setMembers((prev2) => prev2.filter((m) => !gone.includes(m.id)));
+      }
+
+      // Sunucudaki kayitlari yerel listeye isle
       const localIds = new Set(members.map((m) => m.id));
       const missing = remote.filter((r) => !localIds.has(r.id));
 
-      if (missing.length === 0) return; // yerelde hepsi var, hicbir sey degismez
+      if (missing.length > 0) {
+        // Yerelde sifre varsa koru (sunucu yalnizca hash saklar)
+        const localById = new Map(members.map((m) => [m.id, m]));
+        const added = missing.map((r) => {
+          const local = localById.get(r.id);
+          return local?.password ? { ...r, password: local.password } : r;
+        });
+        setMembers((prev) => [...prev.filter((m) => !gone.includes(m.id)), ...added]);
+      }
 
-      // Yerelde sifre varsa koru (sunucu yalnizca hash saklar)
-      const localById = new Map(members.map((m) => [m.id, m]));
-      const added = missing.map((r) => {
-        const local = localById.get(r.id);
-        return local?.password ? { ...r, password: local.password } : r;
-      });
-      setMembers((prev) => [...prev, ...added]);
+      // Yalnizca veri CEKILDIKTEN SONRA yazmaya izin ver
+      setHydrated(true);
     })();
     return () => {
       cancelled = true;
@@ -258,7 +267,24 @@ export function App() {
   const [syncError, setSyncError] = useState<string>('');
   const [syncOk, setSyncOk] = useState<boolean>(true);
 
+  // HYDRATION KILIDI
+  //
+  // Acilis sirasinda iki sey ayni anda calisiyordu: yerel veri sunucuya
+  // yaziliyordu ve sunucudan veri cekiliyordu. Eski (silinmis) yerel
+  // liste once yazilip sunucudaki dogru veriyi eziyordu.
+  //
+  // Cozum: fetch bitene kadar HIC BIR yazma yapilmaz.
+  const [hydrated, setHydrated] = useState(false);
+
   useEffect(() => {
+    // Sunucu yanit vermese bile (ag kesik / backend kapali) kilidi ac;
+    // yoksa panel hicbir zaman degisiklik gonderemezdi.
+    const failsafe = setTimeout(() => setHydrated(true), 6000);
+    return () => clearTimeout(failsafe);
+  }, []);
+
+  useEffect(() => {
+    if (!hydrated) return; // uzaktan veri gelmeden yazma
     const timer = setTimeout(async () => {
       const ok = await pushRemoteMembers(members);
       if (ok) {
@@ -270,7 +296,7 @@ export function App() {
       }
     }, 2500);
     return () => clearTimeout(timer);
-  }, [members]);
+  }, [members, hydrated]);
 
   useEffect(() => {
     localStorage.setItem('zula_suite_sessions', JSON.stringify(sessions));
