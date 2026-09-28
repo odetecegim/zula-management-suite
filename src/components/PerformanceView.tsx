@@ -2,12 +2,12 @@ import React, { useState } from 'react';
 import {
   Search, Plus, Minus, Save, X, TestTube2, Bug, Lightbulb, Gavel, FileCheck,
   MessageSquareText, Star, StickyNote, Calculator, Ban, Timer, MessageCircleOff,
-  GraduationCap, Scale, Layers, Lock, CheckCircle2, LifeBuoy,
+  GraduationCap, Scale, Layers, Lock, CheckCircle2, LifeBuoy, Globe,
 } from 'lucide-react';
 import { currentPeriod, lastPeriods, daysInPeriod, periodLabel, calculateScore, scoreBreakdown, qaBaseTotal, QA_BASE_MULTIPLIER } from '../lib/time';
 import { canManageMember } from '../lib/roles';
 import { sortMembers } from '../lib/member-sort';
-import type { Member, Performance, PerfEntry, RefPerfEntry } from '../types';
+import type { Member, Performance, PerfEntry, RefPerfEntry, RegionType } from '../types';
 
 export type LogFn = (
   action: string,
@@ -125,6 +125,7 @@ export const PerformanceView: React.FC<PerformanceProps> = ({
   const [period, setPeriod] = useState<string>(currentPeriod());
   const [searchTerm, setSearchTerm] = useState('');
   const [competency, setCompetency] = useState<'ALL' | 'ACADEMY' | 'REFEREE'>('ALL');
+  const [region, setRegion] = useState<'ALL' | RegionType>('ALL');
   const [draft, setDraft] = useState<Performance | null>(null);
   const [base, setBase] = useState<Performance | null>(null);
 
@@ -146,6 +147,10 @@ export const PerformanceView: React.FC<PerformanceProps> = ({
       m.gameNickname.toLowerCase().includes(q) ||
       m.tagId.toLowerCase().includes(q);
     if (!matchSearch) return false;
+
+    // Bolge filtresi: her bolgenin oyunculari ayri ayri goruntulenir
+    if (region !== 'ALL' && m.region !== region) return false;
+
     if (competency === 'ACADEMY') {
       return ['academy_lead', 'academy_member', 'fedai_member'].includes(m.role);
     }
@@ -354,18 +359,49 @@ export const PerformanceView: React.FC<PerformanceProps> = ({
     { id: 'REFEREE', label: 'Hakem', icon: <Scale className="w-3.5 h-3.5" /> },
   ];
 
+  // Her bolgenin performansi ayri goruntulenir
+  const regionOptions: { id: 'ALL' | RegionType; label: string }[] = [
+    { id: 'ALL', label: 'Tüm Bölgeler' },
+    { id: 'TR', label: 'TR' },
+    { id: 'EU', label: 'EU' },
+    { id: 'LATAM', label: 'LATAM' },
+    { id: 'MENA', label: 'MENA' },
+  ];
+
+  // Secili bolgedeki uye sayisi (filtre etkisini gormek icin)
+  const regionCount = region === 'ALL'
+    ? active.length
+    : active.filter((m) => m.region === region).length;
+
   return (
     <div className="space-y-6">
       {/* Baslik + filtreler */}
       <div className="flex flex-col lg:flex-row gap-4 lg:items-center justify-between bg-slate-900/60 p-4 rounded-2xl border border-slate-800">
-        <div>
-          <h2 className="text-base font-bold text-white">Performans Yönetimi</h2>
-          <p className="text-xs text-slate-400">
-            Aylık puan, çarpanlı test serisi, hakemlik ve moderasyon kaydı
-          </p>
-        </div>
-        <div className="flex flex-wrap items-center gap-3">
-          <div className="flex items-center gap-1 bg-slate-950 border border-slate-800 rounded-xl p-1">
+          <div>
+            <h2 className="text-base font-bold text-white">Performans Yönetimi</h2>
+            <p className="text-xs text-slate-400">
+              {region === 'ALL' ? 'Tüm bölgeler' : region} · {regionCount} üye
+            </p>
+          </div>
+          <div className="flex flex-wrap items-center gap-3">
+            <div className="flex items-center gap-1 bg-slate-950 border border-slate-800 rounded-xl p-1">
+              {regionOptions.map((opt) => (
+                <button
+                  key={opt.id}
+                  onClick={() => setRegion(opt.id)}
+                  className={
+                    'flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-semibold transition-all cursor-pointer ' +
+                    (region === opt.id
+                      ? 'bg-emerald-600 text-white shadow-md shadow-emerald-600/20'
+                      : 'text-slate-400 hover:text-slate-200')
+                  }
+                >
+                  <Globe className="w-3.5 h-3.5" />
+                  {opt.label}
+                </button>
+              ))}
+            </div>
+            <div className="flex items-center gap-1 bg-slate-950 border border-slate-800 rounded-xl p-1">
             {competencyOptions.map((opt) => (
               <button
                 key={opt.id}
