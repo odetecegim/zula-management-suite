@@ -96,47 +96,14 @@ export function App() {
       //
       // Cozum: Sheets'te hangi ornek uyelerin KALMASI gerektigini sunucu
       // bildirir; tarayicida artik var olmayanlar eklenmez.
-      const removedSeeds = (() => {
-        try {
-          return JSON.parse(localStorage.getItem('zula_suite_removed_seeds') || '[]') as string[];
-        } catch {
-          return [];
-        }
-      })();
-      if (removedSeeds.length > 0) {
-        const removed = new Set(removedSeeds);
-        const kept = result.filter((m) => !(m.id.startsWith('m-') && removed.has(m.id)));
-        if (kept.length !== result.length) {
-          localStorage.setItem('zula_suite_members_v2', JSON.stringify(kept));
-          return kept; // erased ve yeniden atanmis ornekler geri gelmesin
-        }
-      }
-
-      // Yeni eklenen tohum uyelerini mevcut listeye BIR KEZ ekle.
-      const SEED_FLAG = 'zula_suite_seeded_v6';
-      if (!localStorage.getItem(SEED_FLAG)) {
-        const present = new Set(result.map((m) => m.id));
-        const usedTags = new Set(
-          result.map((m) => String(m.tagId || '').trim().toLowerCase()).filter(Boolean)
-        );
-        const usedNames = new Set(
-          result.map((m) => String(m.username || '').trim().toLowerCase()).filter(Boolean)
-        );
-        const skip = new Set(removedSeeds);
-
-        let added = 0;
-        for (const seed of INITIAL_MEMBERS) {
-          if (skip.has(seed.id)) continue;
-          if (present.has(seed.id)) continue;
-          if (usedTags.has(String(seed.tagId || '').trim().toLowerCase())) continue;
-          if (usedNames.has(String(seed.username || '').trim().toLowerCase())) continue;
-          result.push(seed);
-          present.add(seed.id);
-          added++;
-        }
-        if (added > 0) localStorage.setItem('zula_suite_members_v2', JSON.stringify(result));
-        localStorage.setItem(SEED_FLAG, '1');
-      }
+      // Artik hicbir tohum/ornek uye eklenmez.
+      //
+      // Onceki surum, INITIAL_MEMBERS listesini tarayiciya bir kez
+      // enjekte ediyordu. Bu yuzden kullanici bir kaydi silse bile
+      // 2.5 sn sonra geri geliyor, ayni uye kodu iki kisiye birden
+      // atanabiliyor ve "zaten kullaniliyor" hatasi tum kayitlari
+      // engelliyordu. Uye listesi artik YALNIZCA Google Sheets'ten gelir;
+      // kurucu hesap dahil her sey yonetici tarafindan panelden yonetilir.
       return result;
     } catch {
       return INITIAL_MEMBERS;
@@ -257,6 +224,44 @@ export function App() {
       cancelled = true;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // 1b) Sekmeye geri donuldugunde yeniden dogrula
+  //
+  // ACILE OLAY: Sunucuda kullanici silme islemi yapti, ama tarayicida
+  // acik olan bayat sekme 2.5 sn sonra eski (silinmis) listeyi geri
+  // yazdi ve Sheets'e geri geldi. Ayrica baska bir tarayicida yapilan
+  // degisiklikler de gorunur olmuyordu.
+  //
+  // Cozum: sekme veya pencere tekrar odaklandiginda veri CEKILIR ve
+  // sunucuda olmayan yerel kayitlar dusurulur.
+  useEffect(() => {
+    const reconcile = async () => {
+      if (document.visibilityState !== 'visible') return;
+      const remote = await fetchRemoteMembers();
+      if (!remote || remote.length === 0) return;
+
+      const remoteIds = new Set(remote.map((r) => r.id));
+      setMembers((prev) => {
+        const kept = prev.filter((m) => remoteIds.has(m.id));
+        if (kept.length === prev.length) return prev; // degisiklik yok, yazma tetikleme
+        const localById = new Map(prev.map((m) => [m.id, m]));
+        const added = remote
+          .filter((r) => !localById.has(r.id))
+          .map((r) => (localById.get(r.id)?.password ? { ...r, password: localById.get(r.id)!.password } : r));
+        return [...kept, ...added];
+      });
+    };
+
+    const onFocus = () => {
+      if (document.visibilityState === 'visible') void reconcile();
+    };
+    document.addEventListener('visibilitychange', onFocus);
+    window.addEventListener('focus', onFocus);
+    return () => {
+      document.removeEventListener('visibilitychange', onFocus);
+      window.removeEventListener('focus', onFocus);
+    };
   }, []);
 
   // 2) Uye listesi degisince sunucuya gecit yaz
