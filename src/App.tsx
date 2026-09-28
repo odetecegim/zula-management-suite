@@ -6,6 +6,7 @@ import { MembersView } from './components/MembersView';
 import type { TeamFilter } from './components/MembersView';
 import { PerformanceView } from './components/PerformanceView';
 import type { LogFn } from './components/PerformanceView';
+import { fetchRemoteMembers, pushRemoteMembers } from './lib/members-api';
 import { TestSessionsView } from './components/TestSessionsView';
 import { RolesView } from './components/RolesView';
 import { ReportsView } from './components/ReportsView';
@@ -155,6 +156,37 @@ export function App() {
 
   useEffect(() => {
     localStorage.setItem(MEMBERS_KEY, JSON.stringify(members));
+  }, [members]);
+
+  // --- Paylasilan uye deposu (Google Sheets) -------------------------
+  // Backend kapaliysa sessizce devre disi kalir; yerel akis calisir.
+
+  // 1) Acilista sunucudan listeyi al (yoksa yerel veri korunur)
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const remote = await fetchRemoteMembers();
+      if (cancelled || !remote || remote.length === 0) return;
+      // Yerelde ayni kayit varsa onun sifresi korunur (sunucu hash saklar)
+      const localById = new Map(members.map((m) => [m.id, m]));
+      const merged = remote.map((r) => {
+        const local = localById.get(r.id);
+        return local?.password ? { ...r, password: local.password } : r;
+      });
+      setMembers(merged);
+    })();
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // 2) Uye listesi degisince sunucuya gecit yaz
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      void pushRemoteMembers(members);
+    }, 2500);
+    return () => clearTimeout(timer);
   }, [members]);
 
   useEffect(() => {

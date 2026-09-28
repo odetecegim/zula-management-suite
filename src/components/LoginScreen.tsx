@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import type { Member } from '../types';
 import { LogIn, AlertCircle, User, Lock, ShieldCheck } from 'lucide-react';
+import { remoteLogin } from '../lib/members-api';
 
 interface LoginScreenProps {
   members: Member[];
@@ -13,43 +14,56 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ members, onLogin }) =>
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
     setLoading(true);
 
-    // Basit doğrulama (mock)
-    setTimeout(() => {
-      const cleanUser = username.trim().toLowerCase();
-      // Kullanıcı adı, üye kodu (ZULA-001) veya e-posta ile giriş yapılabilir
-      const member = members.find(
-        (m) =>
-          (m.username ?? '').toLowerCase() === cleanUser ||
-          m.tagId.toLowerCase() === cleanUser ||
-          (m.email ?? '').toLowerCase() === cleanUser
-      );
+    const cleanUser = username.trim();
 
-      if (!member || !member.password || member.password !== password) {
-        setError('Kullanıcı adı veya şifre hatalı.');
-        setLoading(false);
-        return;
-      }
+    // 1) Once sunucuda dogrula (sifre duz metin olarak istemcide tutulmaz)
+    const remote = await remoteLogin(cleanUser, password);
 
+    const finish = (member: Member) => {
       if (member.status === 'Pasif') {
         setError('Hesabınız pasif durumda. Yöneticinizle iletişime geçin.');
         setLoading(false);
         return;
       }
-
       if (!member.permissions || member.permissions.length === 0) {
         setError('Hesabınıza henüz panel erişimi verilmemiş. Yöneticinizle iletişime geçin.');
         setLoading(false);
         return;
       }
-
       setLoading(false);
       onLogin(member);
-    }, 350);
+    };
+
+    if (remote.status === 'ok') {
+      finish(remote.member);
+      return;
+    }
+    if (remote.status === 'invalid') {
+      setError('Kullanıcı adı veya şifre hatalı.');
+      setLoading(false);
+      return;
+    }
+
+    // 2) Sunucuya ulasilamadi -> mevcut yerel dogrulama
+    const clean = cleanUser.toLowerCase();
+    const member = members.find(
+      (m) =>
+        (m.username ?? '').toLowerCase() === clean ||
+        m.tagId.toLowerCase() === clean ||
+        (m.email ?? '').toLowerCase() === clean
+    );
+
+    if (!member || !member.password || member.password !== password) {
+      setError('Kullanıcı adı veya şifre hatalı.');
+      setLoading(false);
+      return;
+    }
+    finish(member);
   };
 
   return (

@@ -87,7 +87,8 @@ export async function getClient() {
       client_email: creds.client_email,
       private_key: String(creds.private_key || '').replace(/\\n/g, '\n'),
     },
-    scopes: ['https://www.googleapis.com/auth/spreadsheets.readonly'],
+    // Uyeleri Sheets'e yazabilmek icin salt-okunur degil, tam erisim gerekir.
+    scopes: ['https://www.googleapis.com/auth/spreadsheets'],
   });
 
   await auth.getClient();

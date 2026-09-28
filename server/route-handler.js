@@ -20,6 +20,15 @@ import {
   DEFAULT_RANGE,
 } from './sheets-service.js';
 
+import {
+  readMembers,
+  readMembersWithSecrets,
+  writeMembers,
+  verifyPassword,
+  normalizeUsername,
+  MEMBERS_TAB,
+} from './members-store.js';
+
 const DEFAULT_SPREADSHEET = extractSpreadsheetId(process.env.SHEETS_SPREADSHEET_ID || '');
 
 /** Girdi (ID veya URL) guvenli sekilde tablo ID'sine cevrilir. */
@@ -139,12 +148,56 @@ export async function handleApi(method, segments, body = {}) {
         return ok({ ok: true, ...out });
       }
 
+      case 'members': {
+        // GET  -> uyeleri oku
+        // POST -> uyeleri yaz
+        const spreadsheetId = resolveId(body);
+        if (!spreadsheetId) return fail(400, 'Spreadsheet ID gerekli.');
+        const tabName = body?.tab || MEMBERS_TAB;
+
+        if (get) {
+          const members = await readMembers({ spreadsheetId, tabName });
+          return ok({ ok: true, count: members.length, members, tab: tabName });
+        }
+
+        if (!Array.isArray(body?.members)) {
+          return fail(400, 'members dizisi gerekli.');
+        }
+        const out = await writeMembers({ spreadsheetId, members: body.members, tabName });
+        return ok({ ok: true, ...out });
+      }
+
+      case 'login': {
+        // Sifre dogrulamasi SUNUCUDA yapilir; sifre hicbir zaman istemciye gitmez.
+        const spreadsheetId = resolveId(body);
+        if (!spreadsheetId) return fail(400, 'Spreadsheet ID gerekli.');
+        const tabName = body?.tab || MEMBERS_TAB;
+
+        const rows = await readMembersWithSecrets({ spreadsheetId, tabName });
+        const clean = normalizeUsername(body?.username);
+        const found = rows.find(
+          (m) =>
+            normalizeUsername(m.username) === clean ||
+            normalizeUsername(m.tagId) === clean ||
+            normalizeUsername(m.email) === clean
+        );
+
+        if (!found || !verifyPassword(body?.password, found.passwordHash)) {
+          return fail(401, 'Kullanıcı adı veya şifre hatalı.', 'BAD_CREDENTIALS');
+        }
+
+        // Sifre ozetini yanitta gonderme
+        const { passwordHash, ...safe } = found;
+        return ok({ ok: true, member: safe });
+      }
+
       default:
         if (get && !endpoint) {
           return ok({
             service: 'Zula Suite Sheets API',
             endpoints: [
               'health', 'status', 'sheets', 'test', 'headers', 'fetch', 'fetch-all', 'write',
+              'members', 'login',
             ],
           });
         }
