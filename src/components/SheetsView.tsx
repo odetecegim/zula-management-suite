@@ -54,7 +54,7 @@ const matchFrom = <T extends string>(raw: string, allowed: readonly T[]): T | nu
   return hit ?? null;
 };
 
-const GAMES: GameType[] = ['Zula PC', 'Zula Mobile', 'Zula Strike', 'Wolfteam'];
+const GAMES: GameType[] = ['Zula', 'Zula Strike', 'Wolfteam'];
 const REGIONS: RegionType[] = ['TR', 'EU', 'LATAM', 'MENA'];
 const STATUSES: StatusType[] = ['Aktif', 'Pasif', 'İncelemede'];
 const ROLES: RoleId[] = ['super_admin', 'company_manager', 'academy_lead', 'referee_lead', 'qa_tester', 'community_mod'];
@@ -268,7 +268,7 @@ export const SheetsView: React.FC<SheetsViewProps> = ({ members, performances, o
             gameNickname: row.nickname || row.name.split(' ')[0] || 'Oyuncu',
             discordTag: '',
             email: '',
-            game: game ?? 'Zula PC',
+            game: game ?? 'Zula',
             region: region ?? 'TR',
             role: role ?? 'qa_tester',
             status: status ?? 'Aktif',

@@ -44,7 +44,7 @@ export const MembersView: React.FC<MembersProps> = ({
   const [formGameNickname, setFormGameNickname] = useState('');
   const [formDiscordTag, setFormDiscordTag] = useState('');
   const [formEmail, setFormEmail] = useState('');
-  const [formGame, setFormGame] = useState<GameType>('Zula PC');
+  const [formGame, setFormGame] = useState<GameType>('Zula');
   const [formRegion, setFormRegion] = useState<RegionType>('TR');
   const [formRole, setFormRole] = useState<RoleId>('qa_tester');
   const [formStatus, setFormStatus] = useState<StatusType>('Aktif');
@@ -131,7 +131,7 @@ export const MembersView: React.FC<MembersProps> = ({
     setFormGameNickname('');
     setFormDiscordTag('');
     setFormEmail('');
-    setFormGame('Zula PC');
+    setFormGame('Zula');
     setFormRegion('TR');
     setFormRole('qa_tester');
     setFormStatus('Aktif');
@@ -284,8 +284,7 @@ export const MembersView: React.FC<MembersProps> = ({
             className="bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs font-medium text-slate-300 outline-none"
           >
             <option value="ALL">Tüm Oyunlar</option>
-            <option value="Zula PC">Zula PC</option>
-            <option value="Zula Mobile">Zula Mobile</option>
+            <option value="Zula">Zula</option>
             <option value="Zula Strike">Zula Strike</option>
             <option value="Wolfteam">Wolfteam</option>
           </select>
@@ -576,8 +575,7 @@ export const MembersView: React.FC<MembersProps> = ({
                     onChange={(e) => setFormGame(e.target.value as GameType)}
                     className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-sm text-white outline-none"
                   >
-                    <option value="Zula PC">Zula PC</option>
-                    <option value="Zula Mobile">Zula Mobile</option>
+                    <option value="Zula">Zula</option>
                     <option value="Zula Strike">Zula Strike</option>
                     <option value="Wolfteam">Wolfteam</option>
                   </select>

@@ -16,7 +16,7 @@ export const TestSessionsView: React.FC<TestSessionsProps> = ({
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [title, setTitle] = useState('');
   const [version, setVersion] = useState('v2.16.0');
-  const [game, setGame] = useState<GameType>('Zula PC');
+  const [game, setGame] = useState<GameType>('Zula');
   const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
 
   const handleCreate = (e: React.FormEvent) => {
@@ -156,8 +156,7 @@ export const TestSessionsView: React.FC<TestSessionsProps> = ({
                     onChange={(e) => setGame(e.target.value as GameType)}
                     className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-sm text-white outline-none"
                   >
-                    <option value="Zula PC">Zula PC</option>
-                    <option value="Zula Mobile">Zula Mobile</option>
+                    <option value="Zula">Zula</option>
                     <option value="Zula Strike">Zula Strike</option>
                     <option value="Wolfteam">Wolfteam</option>
                   </select>

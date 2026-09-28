@@ -67,7 +67,11 @@ export function App() {
         if (repaired.role === 'super_admin' || repaired.role === 'company_manager') {
           repaired.permissions = ALL_PERMISSION_IDS;
         }
-        return repaired;
+        // Eski oyun etiketlerini gecir: "Zula PC"/"Zula Mobile" -> gecerli deger
+        const VALID_GAMES = ['Zula', 'Zula Strike', 'Wolfteam'];
+        const g = String(m.game ?? '');
+        const game = (VALID_GAMES as string[]).includes(g) ? g : 'Zula';
+        return { ...repaired, game } as Member;
       });
     } catch {
       return INITIAL_MEMBERS;
