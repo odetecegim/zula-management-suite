@@ -279,6 +279,7 @@ export async function writeMembers({
   // Once mevcut sifre ozetlerini sakla (koruma icin)
   const existing = await readRows({ spreadsheetId, tabName });
   const ID_IDX = MEMBER_COLUMNS.indexOf('id');
+  const TAG_IDX = MEMBER_COLUMNS.indexOf('tagId');
   const HASH_IDX = MEMBER_COLUMNS.indexOf('passwordHash');
   const hashById = new Map(
     existing.map((r) => [String(r[ID_IDX] ?? '').trim(), String(r[HASH_IDX] ?? '')])
@@ -294,10 +295,21 @@ export async function writeMembers({
   let rows = cleaned;
   if (upsertOnly) {
     const incomingIds = new Set(cleaned.map((m) => String(m.id || '').trim()));
+    // Etiket bazli de koruma: gelen listede ayni ZULA-XXX kodu varsa
+    // eski kayit EKLENMEZ. Aksi halde ayni uye iki kez yazilir
+    // (eski id + yeni id) ve listede tekrar eder.
+    const incomingTags = new Set(
+      cleaned.map((m) => String(m.tagId || '').trim().toUpperCase()).filter(Boolean)
+    );
+
     const missing = existing.filter((r) => {
       const id = String(r[ID_IDX] ?? '').trim();
-      return id && !incomingIds.has(id);
+      if (!id || incomingIds.has(id)) return false;
+      const tag = String(r[TAG_IDX] ?? '').trim().toUpperCase();
+      if (tag && incomingTags.has(tag)) return false; // ayni etiket -> yenisini kullan
+      return true;
     });
+
     if (missing.length > 0) {
       // Eksik satirlari MEVCUT HALIYLE ekle; sifre ozeti ASLA kaybolmaz.
       rows = [
@@ -308,6 +320,8 @@ export async function writeMembers({
         })),
       ];
     }
+    // Son bir guvenlik: ayni etiket iki kez gecmesin
+    rows = dedupeByTag(rows);
   }
 
   // Eski satirlari temizle
