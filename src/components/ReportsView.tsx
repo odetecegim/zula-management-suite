@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { Search, Download, FileSpreadsheet, Trophy, Medal, Flame, Calculator, X } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { currentPeriod, lastPeriods, periodLabel, calculateScore, scoreBreakdown, qaBaseTotal, QA_BASE_MULTIPLIER } from '../lib/time';
-import { ACADEMY_ROLES, REFEREE_ROLES } from '../lib/roles';
+import { ACADEMY_ROLES, REFEREE_ROLES, performanceMembers } from '../lib/roles';
 import { playerIdCompare } from '../lib/member-sort';
 import type { Member, Performance } from '../types';
 
@@ -41,7 +41,7 @@ export const ReportsView: React.FC<ReportsPageProps> = ({ members, performances 
     return true;
   };
 
-  const rows: ReportRow[] = members
+  const rows: ReportRow[] = performanceMembers(members)
     .filter((m) => m.status !== 'Pasif' && inScope(m))
     .filter((m) => {
       const q = searchTerm.toLowerCase();

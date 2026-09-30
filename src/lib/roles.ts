@@ -1,4 +1,4 @@
-import type { RoleId } from '../types';
+import type { RoleId, Member } from '../types';
 
 export function roleGroupFor(role: RoleId): 'academy' | 'referee' | null {
   if (role === 'academy_lead' || role === 'academy_member' || role === 'fedai_member') return 'academy';
@@ -9,11 +9,44 @@ export function roleGroupFor(role: RoleId): 'academy' | 'referee' | null {
 export const ACADEMY_ROLES: RoleId[] = ['academy_lead', 'academy_member', 'fedai_member'];
 export const REFEREE_ROLES: RoleId[] = ['referee_lead', 'referee'];
 
+/**
+ * ŞİRKET KADROSU ROLLERİ
+ *
+ * Bu roller yönetim kadrosudur; test/katılım performansı takip edilmez.
+ * Sinan'ın orijinal panelindeki "role_sysadmin / role_compmgr / role_compstaff"
+ * filtresinin karşılığıdır (Dashboard.tsx -> adminRoles).
+ */
+export const COMPANY_STAFF_ROLES: RoleId[] = [
+  'super_admin',
+  'company_manager',
+  'company_staff',
+];
+
+/** Üye şirket kadrosuna mı giriyor? (performans listelerinde görünmez) */
+export function isCompanyStaff(member: Pick<Member, 'role'>): boolean {
+  return COMPANY_STAFF_ROLES.includes(member.role);
+}
+
+/**
+ * PERFORMANS LİSTELERİ İÇİN FİLTRELENMİŞ ÜYELER
+ *
+ * Şirket kadrosu (yönetim) üyeleri performans listelerinde ve
+ * istatistiklerde yer almaz; onlar testçi/oyuncu değil, yöneticidir.
+ *
+ * Kullanım:
+ *   const list = performanceMembers(members);
+ *   const avg  = averagePerformance(list, performances);
+ */
+export function performanceMembers<T extends Pick<Member, 'role'>>(members: T[]): T[] {
+  return members.filter((m) => !isCompanyStaff(m));
+}
+
 // Rol hiyerarsisi: "level" mantigi ile ust/alt rol yonetimi
 // Ust seviye bir yonetici, yalnizca kendi seviyesinden dusuk rolleri yonetebilir.
 export const ROLE_LEVELS: Record<string, number> = {
   super_admin: 100,
   company_manager: 90,
+  company_staff: 80,
   academy_lead: 70,
   referee_lead: 70,
   academy_member: 60,

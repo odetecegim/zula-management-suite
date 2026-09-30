@@ -2,6 +2,7 @@ import React from 'react';
 import type { Member, TestSession, ActivityLog, Performance, RegionType } from '../types';
 import { Users, Bug, CheckCircle, Trophy, Activity, Zap, TrendingUp, AlertTriangle, Globe, MapPin, Crown } from 'lucide-react';
 import { calculateScore } from '../lib/time';
+import { performanceMembers } from '../lib/roles';
 
 interface DashboardProps {
   members: Member[];
@@ -20,11 +21,14 @@ export const DashboardView: React.FC<DashboardProps> = ({
   currentUser,
   onSelectTab,
 }) => {
-  const totalMembers = members.length;
-  const activeMembers = members.filter((m) => m.status === 'Aktif').length;
-  const totalBugs = members.reduce((acc, curr) => acc + (curr.bugReportsCount || 0), 0);
+  // Şirket kadrosu (yönetim) üyeleri performans istatistiklerine dahil EDILMEZ.
+  // Onlar testçi değil yöneticidir; ortalamaya sokmak metriği bozar.
+  const statMembers = performanceMembers(members);
+  const totalMembers = statMembers.length;
+  const activeMembers = statMembers.filter((m) => m.status === 'Aktif').length;
+  const totalBugs = statMembers.reduce((acc, curr) => acc + (curr.bugReportsCount || 0), 0);
   const avgScore = totalMembers
-    ? Math.round(members.reduce((acc, curr) => acc + curr.participationScore, 0) / totalMembers)
+    ? Math.round(statMembers.reduce((acc, curr) => acc + curr.participationScore, 0) / totalMembers)
     : 0;
 
   // Oturum dagilimi - kartlarda SAYIM KULLANILMAZ, veriden hesaplanir.
@@ -53,7 +57,8 @@ export const DashboardView: React.FC<DashboardProps> = ({
           ? { text: 'Gelişime açık', cls: 'text-amber-400' }
           : { text: 'Düşük', cls: 'text-rose-400' };
 
-  const topTesters = [...members]
+  // "En iyi testçiler" siralamasinda da yoneticiler yer almaz
+  const topTesters = [...statMembers]
     .sort((a, b) => b.participationScore - a.participationScore)
     .slice(0, 4);
 
@@ -67,7 +72,7 @@ export const DashboardView: React.FC<DashboardProps> = ({
     return p ? calculateScore(p) : 0;
   };
 
-  const scoredMembers = members
+  const scoredMembers = statMembers
     .map((m) => ({ member: m, score: scoreFor(m.id) }))
     .filter((x) => x.score > 0)
     .sort((a, b) => b.score - a.score);
@@ -80,13 +85,13 @@ export const DashboardView: React.FC<DashboardProps> = ({
   });
 
   const gameDistribution = (['Zula PC', 'Zula Strike', 'Wolfteam'] as const)
-    .map((game) => ({ label: game, count: members.filter((m) => m.game === game).length }))
+    .map((game) => ({ label: game, count: statMembers.filter((m) => m.game === game).length }))
     .filter((d) => d.count > 0);
   const maxGameCount = Math.max(1, ...gameDistribution.map((d) => d.count));
 
   const regionDistribution = REGIONS.map((region) => ({
     label: region,
-    count: members.filter((m) => m.region === region).length,
+    count: statMembers.filter((m) => m.region === region).length,
   })).filter((d) => d.count > 0);
   const maxRegionCount = Math.max(1, ...regionDistribution.map((d) => d.count));
 

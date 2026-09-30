@@ -5,7 +5,7 @@ import {
   GraduationCap, Scale, Layers, Lock, CheckCircle2, LifeBuoy, Globe,
 } from 'lucide-react';
 import { currentPeriod, lastPeriods, daysInPeriod, periodLabel, calculateScore, scoreBreakdown, qaBaseTotal, QA_BASE_MULTIPLIER } from '../lib/time';
-import { canManageMember } from '../lib/roles';
+import { canManageMember, performanceMembers } from '../lib/roles';
 import { sortMembers } from '../lib/member-sort';
 import type { Member, Performance, PerfEntry, RefPerfEntry, RegionType } from '../types';
 
@@ -138,7 +138,8 @@ export const PerformanceView: React.FC<PerformanceProps> = ({
   const [entryDay, setEntryDay] = useState<number>(1);
   const [entryMultiplier, setEntryMultiplier] = useState<number>(1);
 
-  const active = members.filter((m) => m.status !== 'Pasif');
+  // Şirket kadrosu (yönetim) üyeleri performans listesinde GÖRÜNMEZ.
+  const active = performanceMembers(members).filter((m) => m.status !== 'Pasif');
 
   const filtered = active.filter((m) => {
     const q = searchTerm.toLowerCase();
