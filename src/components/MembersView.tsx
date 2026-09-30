@@ -313,24 +313,20 @@ export const MembersView: React.FC<MembersProps> = ({
 
     // Bos birakilmis alanlarin degeri kullanicuya gosterilir; boylece
     // "hangi kullanici adi / sifre atandi" sorusu cevapsiz kalmaz.
-    if (!editingMember && isAdmin && credentials.username) {
-      // YENI UYE: sifre her zaman uretilir, giris testi yapilabilir.
-      // DUZENLEME: sifre bos birakilmissa test yapilmaz.
-      const canVerify = Boolean(credentials.password);
+    // Şifre değiştirildiyse (yeni üye VEYA düzenlemede yeni şifre
+    // yazıldıysa) gerçek giriş testi yapılır; yönetici şifrenin
+    // gerçekten değiştiğini görür.
+    if (credentials.username && credentials.password && isAdmin) {
       const info = {
         username: credentials.username,
         password: credentials.password,
         tagId: finalTagId,
-        verified: canVerify ? null : false,
-        verifyMessage: canVerify
-          ? 'Kaydedildi, doğrulanıyor...'
-          : 'Kaydedildi. Şifre değiştirilmediği için giriş testi yapılmadı.',
+        verified: null as boolean | null,
+        verifyMessage: editingMember
+          ? 'Şifre güncellendi, doğrulanıyor...'
+          : 'Kaydedildi, doğrulanıyor...',
       };
       setCreatedCredentials(info);
-      if (!canVerify) {
-        setIsModalOpen(false);
-        return;
-      }
 
       // KALICI COZUM: kayittan sonra GERCEK giris denemesi yap.
       // Boylece "uye eklendi ama giremiyor" durumu bir daha olmaz;
@@ -651,7 +647,11 @@ export const MembersView: React.FC<MembersProps> = ({
           <div className="bg-slate-900 border border-slate-800 w-full max-w-md rounded-2xl shadow-2xl overflow-hidden">
             <div className="p-5 border-b border-slate-800 bg-slate-950/60 flex items-center gap-2">
               <Check className="w-5 h-5 text-emerald-400" />
-              <h3 className="text-base font-bold text-white">Üye oluşturuldu</h3>
+              <h3 className="text-base font-bold text-white">
+                {createdCredentials.verifyMessage.includes('güncellendi')
+                  ? 'Şifre güncellendi'
+                  : 'Üye oluşturuldu'}
+              </h3>
             </div>
 
             <div className="p-5 space-y-4">
@@ -983,6 +983,11 @@ export const MembersView: React.FC<MembersProps> = ({
                     </div>
                     <div>
                       <label className="block text-xs font-semibold text-slate-400 mb-1">Şifre</label>
+                  <p className="text-[10px] text-slate-500 mb-1.5">
+                    {editingMember
+                      ? 'Değiştirmek istemiyorsanız boş bırakın — mevcut şifre korunur.'
+                      : 'Boş bırakılırsa geçici şifre atanır.'}
+                  </p>
                       <div className="relative">
                         <input
                           type={showPassword ? 'text' : 'password'}
