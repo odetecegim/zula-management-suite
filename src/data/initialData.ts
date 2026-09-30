@@ -17,6 +17,47 @@ export const ALL_PERMISSIONS: PermissionDef[] = [
 
 export const ALL_PERMISSION_IDS: PermissionId[] = ALL_PERMISSIONS.map((p) => p.id);
 
+/**
+ * İzin alanını her zaman geçerli bir diziye çevirir.
+ *
+ * Google Sheets izinleri metin olarak saklar: "dashboard,members,..."
+ * Bu metin dizi olarak okunursa üye "yetkisiz" sayılır ve panel
+ * girişi sessizce reddedilir. Bu yüzden izinler her okuma
+ * noktasında normalize edilir.
+ *
+ * @param raw  izinler (dizi, virgüllü metin veya undefined)
+ * @param role üyenin rolü — izin yoksa rolün varsayılanı uygulanır
+ */
+export function normalizePermissions(
+  raw: unknown,
+  role?: string
+): PermissionId[] {
+  const VALID = new Set<string>(ALL_PERMISSION_IDS);
+
+  // 1) Dizi ise geçerli olanları filtrele
+  if (Array.isArray(raw)) {
+    const list = (raw as unknown[])
+      .map(String)
+      .filter((p) => VALID.has(p)) as PermissionId[];
+    if (list.length > 0) return list;
+  }
+
+  // 2) Virgüllü metin ise böl
+  if (typeof raw === 'string' && raw.trim()) {
+    const list = raw
+      .split(',')
+      .map((s) => s.trim())
+      .filter((p) => VALID.has(p)) as PermissionId[];
+    if (list.length > 0) return list;
+  }
+
+  // 3) İzin yoksa: yönetici rolleri tam yetki, diğerleri Genel Bakış
+  if (role === 'super_admin' || role === 'company_manager') {
+    return ALL_PERMISSION_IDS;
+  }
+  return ['dashboard'];
+}
+
 export const INITIAL_ROLES: RoleDef[] = [
   { id: 'super_admin', name: 'Süper Yönetici', badgeColor: 'bg-red-500/10 text-red-400 border-red-500/20', description: 'Tüm yetkilere sahip ana yönetici', permissions: ['dashboard', 'members', 'performance', 'reports', 'academy', 'referees', 'roles', 'logs', 'tests', 'settings', 'sheets'] },
   { id: 'company_manager', name: 'Şirket Yöneticisi', badgeColor: 'bg-purple-500/10 text-purple-400 border-purple-500/20', description: 'Operasyon ve ekip koordinatörü', permissions: ['dashboard', 'members', 'performance', 'reports', 'academy', 'referees', 'roles', 'logs', 'tests', 'settings', 'sheets'] },

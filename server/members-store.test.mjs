@@ -91,9 +91,16 @@ test('uye -> satir -> uye gidis-donus', () => {
   assert.deepEqual(back.permissions, ['dashboard', 'members']);
   assert.equal(back.passwordHash, undefined, 'sifre alani disari verilmemeli');
 });
-test('izin listesi bos ise dizi olur', () => {
+// Izin alani bos gelirse rolun varsayilan izinleri uygulanir.
+// (BOS liste, uyeyi "yetkisiz" yapip panel girisini reddederdi.)
+test('izin listesi bos ise role gore varsayilan izinler', () => {
   const row = memberToRow({ ...member, permissions: [] });
-  assert.deepEqual(rowToMember(row).permissions, []);
+  assert.deepEqual(rowToMember(row).permissions, ['dashboard']);
+
+  const adminRow = memberToRow({ ...member, role: 'super_admin', permissions: [] });
+  const adminPerms = rowToMember(adminRow).permissions;
+  assert.ok(adminPerms.includes('members'), 'admin tum yetkilere sahip olmali');
+  assert.ok(adminPerms.includes('dashboard'));
 });
 test('sayisal alanlar metinden sayiya cevrilir', () => {
   const row = memberToRow({ ...member, participationScore: '85', bugReportsCount: '7' });
@@ -108,7 +115,9 @@ test('sifre alani satirda korunur (sunucu icin)', () => {
 test('eksik sutunlar undefined olmaz', () => {
   const back = rowToMember(new Array(MEMBER_COLUMNS.length).fill(''));
   assert.equal(back.fullName, '');
-  assert.deepEqual(back.permissions, []);
+  // izin alani bos olsa da gecerli bir dizi donmeli (giris engellenmemeli)
+  assert.ok(Array.isArray(back.permissions));
+  assert.ok(back.permissions.length > 0);
   assert.equal(back.participationScore, 0);
 });
 

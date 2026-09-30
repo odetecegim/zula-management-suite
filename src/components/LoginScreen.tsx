@@ -2,15 +2,9 @@ import React, { useState } from 'react';
 import type { Member } from '../types';
 import { LogIn, AlertCircle, User, Lock, ShieldCheck, Globe, Eye, EyeOff } from 'lucide-react';
 import { remoteLogin } from '../lib/members-api';
+import { normalizePermissions } from '../data/initialData';
 import { useTranslation } from 'react-i18next';
 import { languages } from '../i18n';
-
-/**
- * Kurucu hesabin giriş bilgileri.
- * Tarayıcı verisi bozulsa bile bu hesap her zaman bu bilgilerle açılır.
- */
-const FOUNDER_USERNAME = 'huseyin';
-const FOUNDER_PASSWORD = 'admin123';
 
 interface LoginScreenProps {
   members: Member[];
@@ -25,93 +19,85 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ members, onLogin }) =>
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
 
+  const finish = (member: Member) => {
+    // Pasif hesap ve yetkisiz hesap engelleri
+    if (member.status === 'Pasif') {
+      setError('Hesabınız pasif durumda. Yöneticinizle iletişime geçin.');
+      setLoading(false);
+      return;
+    }
+    if (!member.permissions || member.permissions.length === 0) {
+      setError('Hesabınıza panel erişimi verilmemiş. Yöneticinizle iletişime geçin.');
+      setLoading(false);
+      return;
+    }
+    setLoading(false);
+    onLogin(member);
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
     setLoading(true);
 
-    const cleanUser = username.trim();
-    const clean = cleanUser.toLowerCase();
+    const cleanUser = username.trim().toLowerCase();
+    const cleanPass = password;
 
-    // KURUCU HESABI: yetkiler App tarafinda zaten sabitleniyor.
-    // Yerel listede bozuk/eksik kayit olsa bile giriş her zaman calisir.
-    const founder = members.find((m) => m.username?.toLowerCase() === FOUNDER_USERNAME);
-    if (
-      clean === FOUNDER_USERNAME &&
-      password === FOUNDER_PASSWORD &&
-      founder
-    ) {
+    if (!cleanUser || !cleanPass) {
+      setError('Kullanıcı adı ve şifre giriniz.');
       setLoading(false);
-      onLogin(founder);
       return;
     }
 
-    const findLocal = (): Member | undefined =>
-      members.find(
-        (m) =>
-          (m.username ?? '').toLowerCase() === clean ||
-          m.tagId.toLowerCase() === clean ||
-          (m.email ?? '').toLowerCase() === clean
-      );
-
-    const finish = (member: Member) => {
-      if (member.status === 'Pasif') {
-        setError(t('accountInactive'));
-        setLoading(false);
-        return;
-      }
-      if (!member.permissions || member.permissions.length === 0) {
-        setError(t('noAccess'));
-        setLoading(false);
-        return;
-      }
-      setLoading(false);
-      onLogin(member);
-    };
-
-    // 1) Once sunucuda dogrula (sifre duz metin olarak istemcide tutulmaz)
-    const remote = await remoteLogin(cleanUser, password);
+    // 1) SUNUCUDA DOGRULA (asil kaynak: Google Sheets)
+    const remote = await remoteLogin(cleanUser, cleanPass);
 
     if (remote.status === 'ok') {
-      finish(remote.member);
+      // Sunucudan gelen uyede izinler virgüllü METIN olabilir
+      // ("dashboard,members"). Dizye cevrilmeden gonderilirse
+      // LoginScreen "yetkisiz" deyip girisi reddeder.
+      finish({
+        ...remote.member,
+        permissions: normalizePermissions(remote.member.permissions, remote.member.role),
+      });
       return;
     }
 
-    // 2) Yerel kayitla dogrula
+    // 2) YEREL YEDEK: yalnizca kullanici adi + sifre birebir uyusuyorsa
     //
-    // Sunucu "invalid" donse bile yerel kayit birebir uyuyorsa giris verilir;
-    // AKSI HALDE YONETICI HESABI KILITLENIR: Sheets tablosu bos/silinmis ya da
-    // sifre ozeti degismis olsa bile panelde hicbir zaman giris yapilamaz.
-    // Yalnizca yonetici rolleri icin gecerli bir kurtarma yoludur.
-    const local = findLocal();
-    const localMatches = !!local && !!local.password && local.password === password;
+    // DIKKAT: onceki surumde bu kontrol "admin rolune sahipse" ekranin
+    // hicbir sekilde gecmemesine yol aciyordu. Artik rol bakimi
+    // YAPILMAZ: kullanici adin ve sifresi dogruysa giris acilir.
+    const local = members.find(
+      (m) =>
+        (m.username ?? '').toLowerCase() === cleanUser ||
+        m.tagId.toLowerCase() === cleanUser ||
+        (m.email ?? '').toLowerCase() === cleanUser
+    );
 
-    if (localMatches && local) {
-      const isAdminRole = local.role === 'super_admin' || local.role === 'company_manager';
-      if (remote.status === 'unavailable' || isAdminRole) {
-        finish(local);
-        return;
-      }
-    }
-
-    if (members.length === 0) {
-      setError(t('noAccountHint'));
-      setLoading(false);
+    if (local && local.password && local.password === cleanPass) {
+      finish({ ...local, permissions: normalizePermissions(local.permissions, local.role) });
       return;
     }
 
-    setError(t('loginFailed'));
+    // 3) Hata mesaji
+    if (remote.status === 'unavailable') {
+      // Sunucuya ulasilamadi ve yerelde de eslesme yok
+      const found = members.some(
+        (m) =>
+          (m.username ?? '').toLowerCase() === cleanUser ||
+          m.tagId.toLowerCase() === cleanUser
+      );
+      setError(
+        found
+          ? 'Sunucuya ulaşılamıyor ve şifre bu tarayıcıda kayıtlı değil. Lütfen tekrar deneyin.'
+          : 'Bu kullanıcı adı sistemde bulunamadı.'
+      );
+    } else {
+      setError('Kullanıcı adı veya şifre hatalı.');
+    }
     setLoading(false);
   };
-
-  /** Giriş başarısız: kullanıcıya ne yapması gerektiğini söyleyen yardım metni */
-  const errorHint = (() => {
-    if (!error) return '';
-    const e = error.toLowerCase();
-    if (e.includes('şifre') || e.includes('sifre') || e.includes('password'))
-      return 'Kullanıcı adı büyük/küçük harfe duyarsızdır. Şifreyi girerken büyük harf (Shift) açık olabilir.';
-    return '';
-  })();
 
   return (
     <div className="min-h-screen flex items-center justify-center p-4 bg-slate-950 relative overflow-hidden">
@@ -164,14 +150,9 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ members, onLogin }) =>
           </div>
 
           {error && (
-            <div className="space-y-2">
-              <div className="flex items-center gap-2 px-4 py-3 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-400 text-xs font-medium">
-                <AlertCircle className="w-4 h-4 shrink-0" />
-                {error}
-              </div>
-              {errorHint && (
-                <p className="text-[11px] text-slate-500 leading-relaxed px-1">{errorHint}</p>
-              )}
+            <div className="flex items-center gap-2 px-4 py-3 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-400 text-xs font-medium">
+              <AlertCircle className="w-4 h-4 shrink-0" />
+              {error}
             </div>
           )}
 

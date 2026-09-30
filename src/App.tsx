@@ -22,6 +22,7 @@ import {
   INITIAL_LOGS,
   INITIAL_PERFORMANCES,
   ALL_PERMISSION_IDS,
+  normalizePermissions,
   FOUNDER_MEMBER_ID,
 } from './data/initialData';
 import { ACADEMY_ROLES, REFEREE_ROLES } from './lib/roles';
@@ -58,6 +59,7 @@ const MEMBERS_KEY = 'zula_suite_members_v8';
  */
 const FOUNDER_USERNAME = 'huseyin';
 const FOUNDER_PASSWORD = 'admin123';
+
 
 const PURGE_BLOCKLIST_KEY = 'zula_suite_purge_blocklist_v1';
 const PURGE_FLAG_KEY = 'zula_suite_purge_non_founder_v2';
@@ -124,10 +126,9 @@ export function App() {
               ? String(m.username)
               : m.tagId.toLowerCase().replace(/-/g, ''),
           password: m.password && String(m.password).length > 0 ? String(m.password) : '1234',
-          permissions:
-            Array.isArray(m.permissions) && m.permissions.length > 0
-              ? m.permissions
-              : (['dashboard'] as PermissionId[]),
+          // Izinler Sheets'ten metin ("dashboard,members") olarak gelir;
+          // normalizePermissions hem metni hem diziyi guvenli hale getirir.
+          permissions: normalizePermissions(m.permissions, m.role),
         };
         // Admin roller tum yeni bolumleri otomatik gorur
         if (repaired.role === 'super_admin' || repaired.role === 'company_manager') {
@@ -180,11 +181,24 @@ export function App() {
       // Kurucu hesabin kimlik bilgileri her acilista sabitlenir:
       // yoneticinin sifresi yanlislikla degisse/veri bozulsa bile
       // FOUNDER_USERNAME / FOUNDER_PASSWORD ile giris her zaman calisir.
-      return cleaned.map((m) =>
-        m.id === FOUNDER_MEMBER_ID
-          ? { ...m, username: FOUNDER_USERNAME, password: FOUNDER_PASSWORD, role: 'super_admin', status: 'Aktif', permissions: ALL_PERMISSION_IDS }
-          : m
-      );
+      //
+      // AYRICA: Sheets'ten gelen "permissions" alani metin olarak saklanir
+      // ("dashboard,members,..."). Diziyi degistirmeden okursak uye
+      // "yetkisiz" sayilir ve GIRIS REDDEDILIR. Bu yuzden her zaman
+      // normalize edilir.
+      return cleaned.map((m) => {
+        if (m.id === FOUNDER_MEMBER_ID) {
+          return {
+            ...m,
+            username: FOUNDER_USERNAME,
+            password: FOUNDER_PASSWORD,
+            role: 'super_admin',
+            status: 'Aktif',
+            permissions: ALL_PERMISSION_IDS,
+          };
+        }
+        return { ...m, permissions: normalizePermissions(m.permissions, m.role) };
+      });
     } catch {
       return INITIAL_MEMBERS;
     }

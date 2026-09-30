@@ -88,6 +88,40 @@ const toNum = (v, fallback = 0) => {
 };
 
 /** Sheets satiri -> uye nesnesi (sifre alani HARIC edilir). */
+/** Rollerin varsayılan bölüm izinleri. */
+const ROLE_DEFAULT_PERMISSIONS = {
+  super_admin: [
+    'dashboard','members','performance','reports','academy','referees',
+    'roles','logs','tests','settings','sheets',
+  ],
+  company_manager: [
+    'dashboard','members','performance','reports','academy','referees',
+    'roles','logs','tests','settings','sheets',
+  ],
+  company_staff: ['dashboard','members','logs'],
+  academy_lead: ['dashboard','academy','performance','tests','reports'],
+  academy_member: ['dashboard','academy','performance','reports'],
+  fedai_member: ['dashboard','academy'],
+  referee_lead: ['dashboard','referees','performance','tests'],
+  referee: ['dashboard','referees','performance'],
+};
+
+/**
+ * Izin alanini her zaman gecerli bir diziye cevirir.
+ * Sheets'te izinler virgullu METIN olarak saklanir; metni diziye
+ * cevirmeden okumak uyeyi "yetkisiz" yapar ve giris reddedilir.
+ */
+function normalizePermissionList(raw, role) {
+  const list =
+    typeof raw === 'string'
+      ? raw.split(',').map((s) => s.trim()).filter(Boolean)
+      : Array.isArray(raw)
+        ? raw.map(String).filter(Boolean)
+        : [];
+  if (list.length > 0) return list;
+  return ROLE_DEFAULT_PERMISSIONS[role] || ['dashboard'];
+}
+
 export function rowToMember(row) {
   const get = (name) => {
     const i = MEMBER_COLUMNS.indexOf(name);
@@ -110,10 +144,7 @@ export function rowToMember(row) {
     bugReportsCount: toNum(get('bugReportsCount')),
     notes: get('notes'),
     username: get('username'),
-    permissions: get('permissions')
-      .split(',')
-      .map((p) => p.trim())
-      .filter(Boolean),
+    permissions: normalizePermissionList(get('permissions'), get('role')),
   };
 }
 
@@ -121,7 +152,16 @@ export function rowToMember(row) {
 export function memberToRow(member) {
   return MEMBER_COLUMNS.map((col) => {
     if (col === 'permissions') {
-      return Array.isArray(member.permissions) ? member.permissions.join(',') : '';
+      // Izinler dizi olabilecegi gibi virgüllü METIN de olabilir.
+      // Iki bicimi de kabul ediyoruz; aksi halde izin alani sessizce
+      // BOS yazilir ve uye "yetkisiz" sayilip giremez.
+      const value = member.permissions;
+      const text = Array.isArray(value)
+        ? value.join(',')
+        : value == null
+          ? ''
+          : String(value);
+      return text.trim();
     }
     if (col === 'passwordHash') return member.passwordHash || '';
     if (col === 'participationScore') return Number(member.participationScore) || 0;
