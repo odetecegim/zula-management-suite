@@ -22,6 +22,7 @@ import {
   INITIAL_LOGS,
   INITIAL_PERFORMANCES,
   ALL_PERMISSION_IDS,
+  FOUNDER_MEMBER_ID,
 } from './data/initialData';
 import { ACADEMY_ROLES, REFEREE_ROLES } from './lib/roles';
 import type { Member, TestSession, ActivityLog, Performance, RoleDef, RoleId, PermissionId } from './types';
@@ -36,7 +37,64 @@ import type { Member, TestSession, ActivityLog, Performance, RoleDef, RoleId, Pe
 //       yaziyor ve ayni uye kodu iki kisiye birden atanabiliyordu.
 // V6:    anahtar degistirilerek ESKI YEREL VERI TAMAMEN BIRAKILDI.
 //       Artik tarayici bos baslar ve veriyi yalnizca Google Sheets'ten alir.
-const MEMBERS_KEY = 'zula_suite_members_v6';
+// V8: onarim semasi degisti; v1..v7 anahtarlarindaki bozuk/kullaniciya
+//     ait olmayan uye listeleri kalici olarak birakildi.
+const MEMBERS_KEY = 'zula_suite_members_v8';
+
+/**
+ * SİLİNEN ÜYE ENGEL LİSTESİ
+ *
+ * Kurucu hesap dışındaki örnek/kayıtlı üyeler veriden kaldırıldı. Bu liste
+ * olmadan tarayıcıdaki eski kopya ya da Google Sheets'teki satırlar üyeleri
+ * geri getiriyordu. Engel listesine giren kimlikler yerel ve uzak listeden
+ * kalıcı olarak süzülür.
+ */
+/**
+ * KURUCU HESAP BILGILERI
+ *
+ * Panelin kilitlenmemesi icin tek ve değişmez yönetici hesabı.
+ * Tarayıcı verisi bozulsa bile bu bilgiler her acilista yeniden
+ * uygulanır; böylece "şifre hatırlanmıyor" durumu oluşamaz.
+ */
+const FOUNDER_USERNAME = 'huseyin';
+const FOUNDER_PASSWORD = 'admin123';
+
+const PURGE_BLOCKLIST_KEY = 'zula_suite_purge_blocklist_v1';
+const PURGE_FLAG_KEY = 'zula_suite_purge_non_founder_v2';
+
+/**
+ * ÖRNEK ÜYE KİMLİKLERİ — ENGEL LİSTESİNE SİLİNMESİ
+ *
+ * ONCEKI SURUM (KRITIK HATA): filtre `m.id !== FOUNDER_MEMBER_ID`
+ * diyordu, yani KURUCU DIŞINDAKI HER ÜYEYİ siliyordu. Admin panelden
+ * yeni üye eklediginde sonraki acilista o üye anında kayboluyor,
+ * Sheets'e yazilmiyor ve kullanici giris yapamiyordu.
+ *
+ * COZUM: yalnizca ESKI ORNEK uyeler engellenir. Admin'in ekledigi
+ * yeni uyeler (farkli id) korunur ve calisir.
+ */
+const LEGACY_SEED_IDS = new Set(['m-2', 'm-3', 'm-4', 'm-5']);
+
+function loadBlocklist(): string[] {
+  try {
+    const raw = localStorage.getItem(PURGE_BLOCKLIST_KEY);
+    const parsed = raw ? (JSON.parse(raw) as unknown) : [];
+    return Array.isArray(parsed) ? (parsed as string[]) : [];
+  } catch {
+    return [];
+  }
+}
+
+function saveBlocklist(ids: string[]): void {
+  try {
+    localStorage.setItem(PURGE_BLOCKLIST_KEY, JSON.stringify([...new Set(ids)]));
+  } catch {
+    /* depolama kapali olabilir */
+  }
+}
+
+/** Uygulama surumu - her degisiklikte artirilir (onbellegi kirmak icin). */
+export const APP_VERSION = '2.0.0-member-clean';
 
 
 export function App() {
@@ -61,6 +119,11 @@ export function App() {
       if (missing > parsed.length / 2) return INITIAL_MEMBERS;
 
       // Kalan kayitlarda eksik alanlari tamamla
+      // KURUCU HESAP: kayit her zaman mevcut olmali ve sifresi BOZULMAMALI.
+      //
+      // ONCEKI SURUM HATASI: eksik sifre her uye icin '1234' ile dolduruluyordu.
+      // Bozuk bir yerel kayitta kurucunun sifresi de '1234' oldugu icin
+      // kullanici "huseyin / admin123" ile giremiyor ve panel kilitleniyordu.
       const result = parsed.map((m) => {
         const repaired: Member = {
           ...m,
@@ -112,7 +175,24 @@ export function App() {
       // atanabiliyor ve "zaten kullaniliyor" hatasi tum kayitlari
       // engelliyordu. Uye listesi artik YALNIZCA Google Sheets'ten gelir;
       // kurucu hesap dahil her sey yonetici tarafindan panelden yonetilir.
-      return result;
+      // ENGEL LISTESI: kurucu disinda kaldirilan kayitlar geri gelmez
+      const blocked = new Set(loadBlocklist());
+      const cleaned = result.filter((m) => !blocked.has(m.id));
+
+      // KURUCU HESAP HER ZAMAN BULUNUR (panel kilitlenmesin)
+      if (!cleaned.some((m) => m.id === FOUNDER_MEMBER_ID)) {
+        const founder = INITIAL_MEMBERS.find((m) => m.id === FOUNDER_MEMBER_ID);
+        if (founder) cleaned.unshift(founder);
+      }
+
+      // Kurucu hesabin kimlik bilgileri her acilista sabitlenir:
+      // yoneticinin sifresi yanlislikla degisse/veri bozulsa bile
+      // FOUNDER_USERNAME / FOUNDER_PASSWORD ile giris her zaman calisir.
+      return cleaned.map((m) =>
+        m.id === FOUNDER_MEMBER_ID
+          ? { ...m, username: FOUNDER_USERNAME, password: FOUNDER_PASSWORD, role: 'super_admin', status: 'Aktif', permissions: ALL_PERMISSION_IDS }
+          : m
+      );
     } catch {
       return INITIAL_MEMBERS;
     }
@@ -183,6 +263,45 @@ export function App() {
     localStorage.setItem(MEMBERS_KEY, JSON.stringify(members));
   }, [members]);
 
+  // --- KURUCU DISINDAKI KAYITLARI TEMIZLE (tek seferlik) --------------
+  //
+  // Istenen: sistemde yalnizca kurucu hesap (Huseyin) kalsin.
+  // Kaldirilan kimlikler engel listesine yazilir; boylece tarayicidaki eski
+  // kopya veya Sheets satirlari onlari geri getiremez. Temizlik sonrasi
+  // uye listesi Sheets'e de yazilir (mevcut senkronizasyon akisi).
+  useEffect(() => {
+    if (localStorage.getItem(PURGE_FLAG_KEY) === 'done') return;
+
+    // KRITIK HATA DUZELTMESI (2)
+    //
+    // ONCEKI SURUM: `members.filter(m => m.id === FOUNDER_MEMBER_ID)`
+    // yaziyordu. Bu, KURUCU DISINDAKI HER UYEYI siler — yani panelden
+    // eklediginiz yeni uyeler bir sonraki acilista aninda kayboluyor,
+    // Sheets'e hic yazilmiyor ve o kullanici giris yapamiyor.
+    //
+    // COZUM: yalnizca ESKI ORNEK uyeler (LEGACY_SEED_IDS) temizlenir.
+    // Sizin eklediginiz yeni uyeler korunur ve calisir.
+    const removedIds = members
+      .filter((m) => LEGACY_SEED_IDS.has(m.id))
+      .map((m) => m.id);
+
+    if (removedIds.length > 0) {
+      const removed = new Set(removedIds);
+      setMembers((prev) => prev.filter((m) => !removed.has(m.id)));
+      setPerformances((prev) => prev.filter((p) => !removed.has(p.memberId)));
+      saveBlocklist([...loadBlocklist(), ...removedIds]);
+    }
+
+    // KURUCU HESAP HER ZAMAN VAR OLMALI (panel kilitlenmesin)
+    if (!members.some((m) => m.id === FOUNDER_MEMBER_ID)) {
+      const founder = INITIAL_MEMBERS.find((m) => m.id === FOUNDER_MEMBER_ID);
+      if (founder) setMembers((prev) => [founder, ...prev]);
+    }
+
+    localStorage.setItem(PURGE_FLAG_KEY, 'done');
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   // --- Paylasilan uye deposu (Google Sheets) -------------------------
   // Backend kapaliysa sessizce devre disi kalir; yerel akis calisir.
 
@@ -192,22 +311,31 @@ export function App() {
   useEffect(() => {
     let cancelled = false;
     (async () => {
-      const remote = await fetchRemoteMembers();
+      const fetched = await fetchRemoteMembers();
       if (cancelled) return;
+      // Engel listesindeki (silinen) kayitlar sunucudan gelse bile alinmaz
+      const blocked = new Set(loadBlocklist());
+      const remote = fetched ? fetched.filter((r) => !blocked.has(r.id)) : null;
       if (!remote || remote.length === 0) {
         setHydrated(true); // veri yoksa kilidi ac, panel calismaya devam etsin
         return;
       }
 
-      // Sunucuda olmayan yerel kayitlari kaldir.
-      // Sheets kaynak veridir; panelde gorunen ama sunucuda olmayan
-      // kayitlar silinmis demektir (onceki oturumdan kalma veri).
+      // KRITIK HATA DUZELTMESI (3)
+      //
+      // ONCEKI SURUM: sunucuda bulunmayan HER yerel kayit siliniyordu
+      // ("gone"). Yeni eklediginiz uye once yerel state'e giriyor,
+      // Sheets'e yazma 2.5 sn gecikmeyle tetiklendigi icin bu surece
+      // giris sirasinda "sunucuda yok" sayilip ANINDA siliniyordu.
+      // Sonuc: uye kaybolur, Sheets'e hic yazilmaz, giris calismaz.
+      //
+      // COZUM: yalnizca ESKI ORNEK uyeler "gone" sayilir.
       const remoteIds = new Set(remote.map((r) => r.id));
-      const localOnly = members.filter((m) => !remoteIds.has(m.id));
+      const localOnly = members.filter(
+        (m) => !remoteIds.has(m.id) && LEGACY_SEED_IDS.has(m.id)
+      );
       const gone = localOnly.map((m) => m.id);
       if (gone.length > 0) {
-        const prev = JSON.parse(localStorage.getItem('zula_suite_removed_seeds') || '[]');
-        localStorage.setItem('zula_suite_removed_seeds', JSON.stringify([...new Set([...prev, ...gone])]));
         setMembers((prev2) => prev2.filter((m) => !gone.includes(m.id)));
       }
 
@@ -246,18 +374,42 @@ export function App() {
   useEffect(() => {
     const reconcile = async () => {
       if (document.visibilityState !== 'visible') return;
-      const remote = await fetchRemoteMembers();
-      if (!remote || remote.length === 0) return;
+      const fetched = await fetchRemoteMembers();
+      if (!fetched || fetched.length === 0) return;
+
+      // Engel listesindeki (silinen) kayitlar ve kurucu hesap korunur
+      const blocked = new Set(loadBlocklist());
+      const remote = fetched.filter((r) => !blocked.has(r.id));
+      if (remote.length === 0) return;
 
       const remoteIds = new Set(remote.map((r) => r.id));
       setMembers((prev) => {
-        const kept = prev.filter((m) => remoteIds.has(m.id));
-        if (kept.length === prev.length) return prev; // degisiklik yok, yazma tetikleme
+        // KRITIK HATA DUZELTMESI (4)
+        //
+        // ONCEKI SURUM: `prev.filter(m => remoteIds.has(m.id) || kurucu)`
+        // Sunucuda olmayan HER yerel uye siliniyordu. Sekmeye geri
+        // dondugunuzda (yeni uye yazilmadan once) uye kayboluyordu.
+        //
+        // COZUM: yerel uyeler KORUNUR; yalnizca Sheets'te de olanlar
+        // eski veriyle guncellenir, Sheets'te olmayan yeni uyeler kalir.
+        const kept = prev.filter((m) => remoteIds.has(m.id) || m.id === FOUNDER_MEMBER_ID);
         const localById = new Map(prev.map((m) => [m.id, m]));
+
+        // Sheets'te degismis kayitlari tazele
+        const refreshed = kept.map((m) => {
+          const r = remote.find((x) => x.id === m.id);
+          if (!r) return m; // yerelde sadece var (yeni eklenmis) - dokunma
+          return { ...m, ...r, password: m.password };
+        });
+
+        // Sheets'te olup yerelde olmayanlar eklenir
         const added = remote
           .filter((r) => !localById.has(r.id))
           .map((r) => (localById.get(r.id)?.password ? { ...r, password: localById.get(r.id)!.password } : r));
-        return [...kept, ...added];
+
+        const next = [...refreshed, ...added];
+        if (next.length === prev.length && next.every((m, i) => m === prev[i])) return prev;
+        return next;
       });
     };
 
@@ -457,6 +609,13 @@ const canEditPerformance = isAdmin || (currentUser?.permissions?.includes('perfo
     const target = members.find((m) => m.id === id);
     setMembers((prev) => prev.filter((item) => item.id !== id));
     setPerformances((prev) => prev.filter((p) => p.memberId !== id));
+
+    // Silinen uye Sheets'ten de kalici olarak dusmeli.
+    // Aksi halde sunucudan geri gelir ve panelde tekrar gorunur.
+    if (target && id !== FOUNDER_MEMBER_ID) {
+      saveBlocklist([...loadBlocklist(), id]);
+    }
+
     if (target) {
       const newLog: ActivityLog = {
         id: 'log-' + Date.now(),
@@ -739,6 +898,7 @@ const canEditPerformance = isAdmin || (currentUser?.permissions?.includes('perfo
               currentUser={currentUser}
               isAdmin={isAdmin}
               teamFilter={null}
+              logs={logs}
             />
           )}
 
@@ -752,6 +912,7 @@ const canEditPerformance = isAdmin || (currentUser?.permissions?.includes('perfo
               currentUser={currentUser}
               isAdmin={isAdmin}
               teamFilter={academyFilter}
+              logs={logs}
             />
           )}
 
@@ -765,6 +926,7 @@ const canEditPerformance = isAdmin || (currentUser?.permissions?.includes('perfo
               currentUser={currentUser}
               isAdmin={isAdmin}
               teamFilter={refereeFilter}
+              logs={logs}
             />
           )}
 
