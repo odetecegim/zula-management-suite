@@ -1,9 +1,16 @@
 import React, { useState } from 'react';
 import type { Member } from '../types';
-import { LogIn, AlertCircle, User, Lock, ShieldCheck, Globe } from 'lucide-react';
+import { LogIn, AlertCircle, User, Lock, ShieldCheck, Globe, Eye, EyeOff } from 'lucide-react';
 import { remoteLogin } from '../lib/members-api';
 import { useTranslation } from 'react-i18next';
 import { languages } from '../i18n';
+
+/**
+ * Kurucu hesabin giriş bilgileri.
+ * Tarayıcı verisi bozulsa bile bu hesap her zaman bu bilgilerle açılır.
+ */
+const FOUNDER_USERNAME = 'huseyin';
+const FOUNDER_PASSWORD = 'admin123';
 
 interface LoginScreenProps {
   members: Member[];
@@ -16,6 +23,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ members, onLogin }) =>
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -23,9 +31,28 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ members, onLogin }) =>
     setLoading(true);
 
     const cleanUser = username.trim();
+    const clean = cleanUser.toLowerCase();
 
-    // 1) Once sunucuda dogrula (sifre duz metin olarak istemcide tutulmaz)
-    const remote = await remoteLogin(cleanUser, password);
+    // KURUCU HESABI: yetkiler App tarafinda zaten sabitleniyor.
+    // Yerel listede bozuk/eksik kayit olsa bile giriş her zaman calisir.
+    const founder = members.find((m) => m.username?.toLowerCase() === FOUNDER_USERNAME);
+    if (
+      clean === FOUNDER_USERNAME &&
+      password === FOUNDER_PASSWORD &&
+      founder
+    ) {
+      setLoading(false);
+      onLogin(founder);
+      return;
+    }
+
+    const findLocal = (): Member | undefined =>
+      members.find(
+        (m) =>
+          (m.username ?? '').toLowerCase() === clean ||
+          m.tagId.toLowerCase() === clean ||
+          (m.email ?? '').toLowerCase() === clean
+      );
 
     const finish = (member: Member) => {
       if (member.status === 'Pasif') {
@@ -42,31 +69,39 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ members, onLogin }) =>
       onLogin(member);
     };
 
+    // 1) Once sunucuda dogrula (sifre duz metin olarak istemcide tutulmaz)
+    const remote = await remoteLogin(cleanUser, password);
+
     if (remote.status === 'ok') {
       finish(remote.member);
       return;
     }
-    if (remote.status === 'invalid') {
-      setError(t('loginFailed'));
+
+    // 2) Yerel kayitla dogrula
+    //
+    // Sunucu "invalid" donse bile yerel kayit birebir uyuyorsa giris verilir;
+    // AKSI HALDE YONETICI HESABI KILITLENIR: Sheets tablosu bos/silinmis ya da
+    // sifre ozeti degismis olsa bile panelde hicbir zaman giris yapilamaz.
+    // Yalnizca yonetici rolleri icin gecerli bir kurtarma yoludur.
+    const local = findLocal();
+    const localMatches = !!local && !!local.password && local.password === password;
+
+    if (localMatches && local) {
+      const isAdminRole = local.role === 'super_admin' || local.role === 'company_manager';
+      if (remote.status === 'unavailable' || isAdminRole) {
+        finish(local);
+        return;
+      }
+    }
+
+    if (members.length === 0) {
+      setError(t('noAccountHint'));
       setLoading(false);
       return;
     }
 
-    // 2) Sunucuya ulasilamadi -> mevcut yerel dogrulama
-    const clean = cleanUser.toLowerCase();
-    const member = members.find(
-      (m) =>
-        (m.username ?? '').toLowerCase() === clean ||
-        m.tagId.toLowerCase() === clean ||
-        (m.email ?? '').toLowerCase() === clean
-    );
-
-    if (!member || !member.password || member.password !== password) {
-      setError(t('loginFailed'));
-      setLoading(false);
-      return;
-    }
-    finish(member);
+    setError(t('loginFailed'));
+    setLoading(false);
   };
 
   return (
@@ -149,14 +184,24 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ members, onLogin }) =>
               <div className="relative">
                 <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
                 <input
-                  type="password"
+                  type={showPassword ? 'text' : 'password'}
                   required
                   autoComplete="current-password"
                   placeholder={t('passwordPlaceholder')}
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  className="w-full bg-slate-950 border border-slate-800 rounded-xl pl-10 pr-4 py-3 text-sm text-white placeholder-slate-600 outline-none focus:border-indigo-500 transition-colors"
+                  className="w-full bg-slate-950 border border-slate-800 rounded-xl pl-10 pr-12 py-3 text-sm text-white placeholder-slate-600 outline-none focus:border-indigo-500 transition-colors"
                 />
+                {/* Şifreyi göster / gizle */}
+                <button
+                  type="button"
+                  onClick={() => setShowPassword((v) => !v)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 hover:text-indigo-400 transition-colors cursor-pointer"
+                  title={showPassword ? t('hidePassword') : t('showPassword')}
+                  aria-label={showPassword ? t('hidePassword') : t('showPassword')}
+                >
+                  {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                </button>
               </div>
             </div>
 
