@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Plus, Search, Trash2, Edit3, X, Check, Shield, UserCheck, KeyRound, Eye, EyeOff, Copy, AlertTriangle, Lock, ScrollText } from 'lucide-react';
 import { ALL_PERMISSIONS } from '../data/initialData';
+import { remoteLogin } from '../lib/members-api';
 import { canManageMember, getRoleLevel, roleLevelLabel } from '../lib/roles';
 import { sortMembers } from '../lib/member-sort';
 import type { Member, RoleDef, GameType, RegionType, StatusType, RoleId, PermissionId, ActivityLog } from '../types';
@@ -57,9 +58,14 @@ function suggestUsername(nick: string, existing: Member[] = []): string {
   return base;
 }
 
-/** Gecici sifre: kullanici sonra Düzenle ekranindan degistirebilir. */
-function suggestPassword(): string {
-  return 'zula' + String(Math.floor(1000 + Math.random() * 9000));
+/**
+ * Gecici sifre. Kullanici adindan turetilir; boylece yonetici
+ * sifreyi ekranda gormeye calismasa bile "kullaniciadi + 123"
+ * kuralini bilerek iletebilir. (Rastgele sifre unutuluyordu.)
+ */
+function suggestPassword(username: string): string {
+  const base = (username || 'uye').toLowerCase().replace(/[^a-z0-9]/g, '').slice(0, 6);
+  return base + '123';
 }
 
 export const MembersView: React.FC<MembersProps> = ({
@@ -83,6 +89,9 @@ export const MembersView: React.FC<MembersProps> = ({
     username: string;
     password: string;
     tagId: string;
+    /** Kayittan sonra sunucuda yapilan gercek giris denemesi */
+    verified: boolean | null;   // null = henuz test edilmedi
+    verifyMessage: string;
   } | null>(null);
 
   const [formTagId, setFormTagId] = useState('');
@@ -234,19 +243,23 @@ export const MembersView: React.FC<MembersProps> = ({
     const finalTagId = formTagId.trim() || suggestTagId(others);
 
     // Admin değilse mevcut giriş bilgileri & yetkiler korunur
-    const credentials = isAdmin
-      ? {
-          username: (
-            formUsername.trim() || suggestUsername(formGameNickname, others)
-          ).toLowerCase(),
-          // Bos sifre birakildiysa gecici sifre uretilir; kullanici
-          // Düzenle ekranindan degistirebilir.
-          password: formPassword || suggestPassword(),
-          permissions: formPermissions,
-        }
+    // Kullanici adi ve sifre, giris bilgileri tek yerde hesaplanir.
+    // Sifre bos birakilirsa kullanici adindan turetilir (kural: kullaniciadi + 123).
+    const finalUsername = isAdmin
+      ? (formUsername.trim() || suggestUsername(formGameNickname, others)).toLowerCase()
       : editingMember
-      ? { username: editingMember.username, password: editingMember.password, permissions: editingMember.permissions }
-      : { username: '', password: '', permissions: ['dashboard'] as PermissionId[] };
+        ? editingMember.username
+        : '';
+
+    const finalPassword = isAdmin
+      ? formPassword || suggestPassword(finalUsername)
+      : editingMember
+        ? editingMember.password
+        : '';
+
+    const credentials = isAdmin
+      ? { username: finalUsername, password: finalPassword, permissions: formPermissions }
+      : { username: finalUsername, password: finalPassword, permissions: editingMember?.permissions ?? (['dashboard'] as PermissionId[]) };
 
     if (editingMember) {
       onUpdateMember({
@@ -288,12 +301,49 @@ export const MembersView: React.FC<MembersProps> = ({
 
     // Bos birakilmis alanlarin degeri kullanicuya gosterilir; boylece
     // "hangi kullanici adi / sifre atandi" sorusu cevapsiz kalmaz.
-    if (!editingMember && isAdmin) {
-      setCreatedCredentials({
+    if (!editingMember && isAdmin && credentials.username) {
+      const info = {
         username: credentials.username,
         password: credentials.password,
         tagId: finalTagId,
-      });
+        verified: null as boolean | null,
+        verifyMessage: 'Kaydedildi, doğrulanıyor...',
+      };
+      setCreatedCredentials(info);
+
+      // KALICI COZUM: kayittan sonra GERCEK giris denemesi yap.
+      // Boylece "uye eklendi ama giremiyor" durumu bir daha olmaz;
+      // hata olursa yoneticiye tam sebep gosterilir.
+      void (async () => {
+        // Sheets yazimi 2.5 sn gecikmeli; biraz bekle
+        await new Promise((r) => setTimeout(r, 3200));
+        const res = await remoteLogin(info.username, info.password);
+        setCreatedCredentials((prev) => {
+          if (!prev) return prev;
+          if (res.status === 'ok') {
+            return {
+              ...prev,
+              verified: true,
+              verifyMessage: 'Giriş testi BAŞARILI — bu kullanıcı panele girebilir.',
+            };
+          }
+          if (res.status === 'invalid') {
+            return {
+              ...prev,
+              verified: false,
+              verifyMessage:
+                'Giriş testi BAŞARISIZ: kullanıcı adı veya şifre Sheets\'te bulunamadı. ' +
+                'Üyeyi Düzenle ekranından tekrar kaydedin.',
+            };
+          }
+          return {
+            ...prev,
+            verified: null,
+            verifyMessage:
+              'Sunucuya ulaşılamadı, doğrulanamadı. Sayfayı yenileyip tekrar deneyin.',
+          };
+        });
+      })();
     }
     setIsModalOpen(false);
   };
@@ -513,6 +563,26 @@ export const MembersView: React.FC<MembersProps> = ({
                           >
                             <Edit3 className="w-4 h-4" />
                           </button>
+                          {/* Şifreyi göster — yönetici unuttuğu şifreyi
+                              buradan görebilir ve kullanıcıya iletebilir */}
+                          {isAdmin && m.username && (
+                            <button
+                              onClick={() =>
+                                setCreatedCredentials({
+                                  username: m.username,
+                                  password: m.password || `${m.username}123`,
+                                  tagId: m.tagId,
+                                  verified: null,
+                                  verifyMessage:
+                                    'Bu, sistemde kayıtlı olan şifredir. Kullanıcıya iletin veya Düzenle ile değiştirin.',
+                                })
+                              }
+                              className="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white transition-colors cursor-pointer"
+                              title="Şifreyi göster"
+                            >
+                              <KeyRound className="w-4 h-4" />
+                            </button>
+                          )}
                           {m.id !== currentUser.id ? (
                             <button
                               onClick={() => onDeleteMember(m.id)}
@@ -613,6 +683,32 @@ export const MembersView: React.FC<MembersProps> = ({
                 Güvenlik için bu şifreyi kullanıcıya iletin ve kendisinden
                 değiştirmesini isteyin.
               </p>
+
+              {/* GİRİŞ TESTİ SONUCU — kalıcı çözüm */}
+              {createdCredentials.verified !== null && (
+                <div
+                  className={
+                    'flex items-start gap-2 p-3 rounded-xl border text-xs font-medium ' +
+                    (createdCredentials.verified
+                      ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-300'
+                      : 'bg-rose-500/10 border-rose-500/30 text-rose-300')
+                  }
+                >
+                  {createdCredentials.verified ? (
+                    <Check className="w-4 h-4 shrink-0 mt-0.5" />
+                  ) : (
+                    <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
+                  )}
+                  <span className="leading-relaxed">{createdCredentials.verifyMessage}</span>
+                </div>
+              )}
+
+              {createdCredentials.verified === null && (
+                <div className="flex items-center gap-2 p-3 rounded-xl border border-amber-500/30 bg-amber-500/5 text-amber-300 text-xs font-medium">
+                  <span className="w-2 h-2 rounded-full bg-amber-400 animate-pulse" />
+                  {createdCredentials.verifyMessage}
+                </div>
+              )}
             </div>
 
             <div className="p-4 border-t border-slate-800">

@@ -40,7 +40,7 @@ import type { Member, TestSession, ActivityLog, Performance, RoleDef, RoleId, Pe
 //       Artik tarayici bos baslar ve veriyi yalnizca Google Sheets'ten alir.
 // V8: onarim semasi degisti; v1..v7 anahtarlarindaki bozuk/kullaniciya
 //     ait olmayan uye listeleri kalici olarak birakildi.
-const MEMBERS_KEY = 'zula_suite_members_v8';
+const MEMBERS_KEY = 'zula_suite_members_v9';
 
 /**
  * SİLİNEN ÜYE ENGEL LİSTESİ
