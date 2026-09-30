@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { AlertTriangle } from 'lucide-react';
+import { AlertTriangle, CheckCircle } from 'lucide-react';
 import { Sidebar } from './components/Sidebar';
 import { LoginScreen } from './components/LoginScreen';
 import { DashboardView } from './components/DashboardView';
@@ -399,11 +399,13 @@ export function App() {
 
   // 2) Uye listesi degisince sunucuya gecit yaz
   //
-  // ONCEKI SURUM SESSIZCE BASARISIZ OLUYORDU: yazma hatasi olsa bile
-  // kullaniciya hicbir sey gorunmuyordu, uye panelde vardi ama Sheets'te
-  // olmadiyordu ve giris calismiyordu. Artik hata durumu ekranda gosterilir.
+  // Yazma hatasi olursa kullaniciya acikca bildirilir; sessizce
+  // basarisiz olmak, "uye eklendim sanip sonra kayboldu" durumu
+  // yaratirdi.
   const [syncError, setSyncError] = useState<string>('');
   const [syncOk, setSyncOk] = useState<boolean>(true);
+  // Yeni uye eklendiginde kullaniciya "kaydediliyor" geri bildirimi
+  const [saveNotice, setSaveNotice] = useState<{ name: string; ok: boolean } | null>(null);
 
   // HYDRATION KILIDI
   //
@@ -448,13 +450,22 @@ export function App() {
       if (ok) {
         setSyncOk(true);
         setSyncError('');
+        setSaveNotice((n) => (n && !n.ok ? { ...n, ok: true } : n));
       } else {
         setSyncOk(false);
         setSyncError(getLastSyncError() || 'Google Sheets’e yazılamadı');
+        setSaveNotice((n) => (n ? { ...n, ok: false } : n));
       }
     }, 2500);
     return () => clearTimeout(timer);
   }, [members, hydrated]);
+
+  // Bildirimi birkac saniye sonra kapat
+  useEffect(() => {
+    if (!saveNotice) return;
+    const t = setTimeout(() => setSaveNotice(null), 6000);
+    return () => clearTimeout(t);
+  }, [saveNotice]);
 
   useEffect(() => {
     localStorage.setItem('zula_suite_sessions', JSON.stringify(sessions));
@@ -574,6 +585,8 @@ const canEditPerformance = isAdmin || (currentUser?.permissions?.includes('perfo
 
   const handleAddMember = (m: Member) => {
     setMembers((prev) => [m, ...prev]);
+    // Kullaniciya "kaydediliyor" bildirimi; sonucu yazma islemi guncelleyecek.
+    setSaveNotice({ name: m.fullName, ok: true });
     const newLog: ActivityLog = {
       id: 'log-' + Date.now(),
       actor: currentUser?.fullName || 'Sistem',
@@ -780,13 +793,41 @@ const canEditPerformance = isAdmin || (currentUser?.permissions?.includes('perfo
       <LanguageSelectionOverlay />
 
       {/* Sheets senkronizasyon durumu - sessiz hatalari gorunur kilar */}
-      <div className="fixed top-3 right-3 z-[90]">
+      <div className="fixed top-3 right-3 z-[90] space-y-2">
         {!syncOk && (
           <div className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-rose-500/15 border border-rose-500/30 backdrop-blur-xl shadow-lg max-w-sm">
             <AlertTriangle className="w-4 h-4 text-rose-400 shrink-0" />
             <div className="min-w-0">
               <div className="text-[11px] font-bold text-rose-300">Google Sheets’e kaydedilemedi</div>
-              <div className="text-[10px] text-rose-400/80 truncate">{syncError}</div>
+              <div className="text-[10px] text-rose-400/80">{syncError}</div>
+            </div>
+          </div>
+        )}
+
+        {/* Yeni uye eklendiginde kaydetme sonucunu goster */}
+        {saveNotice && (
+          <div
+            className={
+              'flex items-center gap-2 px-4 py-2.5 rounded-xl border backdrop-blur-xl shadow-lg max-w-sm ' +
+              (saveNotice.ok
+                ? 'bg-emerald-500/15 border-emerald-500/30'
+                : 'bg-rose-500/15 border-rose-500/30')
+            }
+          >
+            {saveNotice.ok ? (
+              <CheckCircle className="w-4 h-4 text-emerald-400 shrink-0" />
+            ) : (
+              <AlertTriangle className="w-4 h-4 text-rose-400 shrink-0" />
+            )}
+            <div className="min-w-0">
+              <div className={'text-[11px] font-bold ' + (saveNotice.ok ? 'text-emerald-300' : 'text-rose-300')}>
+                {saveNotice.name} kaydedildi
+              </div>
+              {!saveNotice.ok && (
+                <div className="text-[10px] text-rose-400/80">
+                  Sheets’e yazılamadı — bu kullanıcı giriş yapamayabilir.
+                </div>
+              )}
             </div>
           </div>
         )}
