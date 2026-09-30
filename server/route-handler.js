@@ -172,41 +172,84 @@ export async function handleApi(method, segments, body = {}) {
           return fail(400, 'members dizisi bos gonderilemez; tum kayitlar silinirdi.');
         }
 
-        // GUARD 2: KISMEN SILME KORUMASI
+        // GUARD 2: KISMEN SILME KORUMASI → KALDIRILDI
         //
-        // writeMembers() once tum satirlari SILER, sonra gelen listeyi
-        // yazar. Bu yuzden istemci yanlislikla filtrelenmis/eksik bir
-        // liste gonderirse tablodaki diger uyeler kalici olarak silinir.
+        // Önceki sürüm, mevcut kayıtların yarısından azını içeren isteği
+        // reddediyordu. Bu, "B yönetici yeni üye ekledi, A yönetici
+        // güncelledi" senaryosunda A'nın isteğini engelliyordu.
         //
-        // Gercek kullanici silme islemi (panelden "uye sil") de bu
-        // endpoint'i kullandigi icin, kasitli silmeleri ayirt etmemiz
-        // gerekiyor. Bunun icin:
-        //   - confirmSil (istemcinin bu istegi KASITLI oldugunu
-        //     bildirdigi bayrak) varsa koruma devre disi kalir,
-        //   - aksi halde mevcut kayitlarin yarisindan azi geliyorsa
-        //     islem reddedilir.
+        // Artık gerek yok: writeMembers() `upsertOnly` ile çalıştığında
+        // gelen listede olmayan üyeleri KORUR. Yalnızca panelde "Sil"
+        // ile kaldırılan üye sunucuya gönderilmez ve sunucuda da
+        // silinmiş olur. Böylece hem veri kaybı hem de yalnız çalışma
+        // engeli ortadan kalkar.
         //
-        // NOT: Bu bayrak bir guvenlik onlemi DEGIL, sadece "kullanici
-        // bunu istiyor" bilgisidir; yetkilendirme zaten ayri tutuluyor.
-        if (body?.confirmSil !== true) {
-          try {
-            const existingCount = (await readMembers({ spreadsheetId, tabName })).length;
-            const incomingCount = body.members.length;
-            if (existingCount > 0 && incomingCount < existingCount * 0.5) {
-              return fail(
-                400,
-                `Guvenlik: mevcut ${existingCount} uye varken ${incomingCount} uye gonderildi. ` +
-                  `Islem iptal edildi (veri kaybi olustururdu). Uye silmek icin paneli kullanin.`,
-                'REFUSED_MASS_DELETE'
-              );
-            }
-          } catch (e) {
-            // Okuma basarisiz olursa yazmaya devam et (gercek hata asagida yakalanir)
-          }
+        // NOT: confirmSil bayrağı geriye dönük uyumluluk için bırakıldı.
+
+        const out = await writeMembers({
+          spreadsheetId,
+          members: body.members,
+          tabName,
+          // Panel varsayılan olarak GÜVENLİ modda yazar: gelen listede
+          // olmayan mevcut üyeler SİLİNMEZ. Böylece iki yönetici aynı
+          // anda çalıştığında biri diğerinin eklediği üyeyi silemez.
+          upsertOnly: body.upsertOnly !== false,
+        });
+        return ok({ ok: true, ...out });
+      }
+
+      // --- TEK ÜYE SİLME -------------------------------------------------
+      // Panelde "Sil" düğmesi yalnızca bu uç noktayı çağırır; diğer
+      // üyelerin kaydına hiç dokunulmaz. Toplu yazma her zaman
+      // upsertOnly=true ile çalıştığı için, silinen üye listede
+      // olmadığı için yanlışca korunmaz ve burada gerçekten silinir.
+      case 'member-delete': {
+        const spreadsheetId = resolveId(body);
+        if (!spreadsheetId) return fail(400, 'Spreadsheet ID gerekli.');
+        const id = String(body?.id || '').trim();
+        if (!id) return fail(400, 'Silinecek üye id gerekli.');
+
+        const all = await readMembers({ spreadsheetId, tabName: body?.tab || MEMBERS_TAB });
+        const next = all.filter((m) => String(m.id || '').trim() !== id);
+        if (next.length === all.length) {
+          return fail(404, 'Üye bulunamadı (id: ' + id + ').', 'NOT_FOUND');
         }
 
-        const out = await writeMembers({ spreadsheetId, members: body.members, tabName });
-        return ok({ ok: true, ...out });
+        // Burada GERÇEKTEN silmek istiyoruz -> upsertOnly false
+        const out = await writeMembers({
+          spreadsheetId,
+          members: next,
+          tabName: body?.tab || MEMBERS_TAB,
+          upsertOnly: false,
+        });
+        return ok({ ok: true, ...out, deletedId: id });
+      }
+
+      // --- TEK UYE SILME -------------------------------------------------
+      // Panelde "Sil" dugmesi yalnizca bu uc noktayi cagirir; diger
+      // uyelerin kaydina hic dokunulmaz. Toplu yazma her zaman
+      // upsertOnly=true ile calistigi icin, silinen uye listede
+      // olmadigi icin yanlisca korunmaz ve burada gercekten silinir.
+      case 'member-delete': {
+        const spreadsheetId = resolveId(body);
+        if (!spreadsheetId) return fail(400, 'Spreadsheet ID gerekli.');
+        const id = String(body?.id || '').trim();
+        if (!id) return fail(400, 'Silinecek uye id gerekli.');
+
+        const all = await readMembers({ spreadsheetId, tabName: body?.tab || MEMBERS_TAB });
+        const next = all.filter((m) => String(m.id || '').trim() !== id);
+        if (next.length === all.length) {
+          return fail(404, 'Uye bulunamadi (id: ' + id + ').', 'NOT_FOUND');
+        }
+
+        // Burada GERCEKTEN silmek istiyoruz -> upsertOnly false
+        const out = await writeMembers({
+          spreadsheetId,
+          members: next,
+          tabName: body?.tab || MEMBERS_TAB,
+          upsertOnly: false,
+        });
+        return ok({ ok: true, ...out, deletedId: id });
       }
 
       case 'login': {

@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import { AlertTriangle, CheckCircle } from 'lucide-react';
 import { Sidebar } from './components/Sidebar';
 import { LoginScreen } from './components/LoginScreen';
@@ -7,7 +7,12 @@ import { MembersView } from './components/MembersView';
 import type { TeamFilter } from './components/MembersView';
 import { PerformanceView } from './components/PerformanceView';
 import type { LogFn } from './components/PerformanceView';
-import { fetchRemoteMembers, pushRemoteMembers, getLastSyncError } from './lib/members-api';
+import {
+  fetchRemoteMembers,
+  pushRemoteMembers,
+  getLastSyncError,
+  deleteRemoteMember,
+} from './lib/members-api';
 import { TestSessionsView } from './components/TestSessionsView';
 import { RolesView } from './components/RolesView';
 import { ReportsView } from './components/ReportsView';
@@ -430,10 +435,6 @@ export function App() {
   // Cozum: fetch bitene kadar HIC BIR yazma yapilmaz.
   const [hydrated, setHydrated] = useState(false);
 
-  // Panelden bilerek uye silindiginde sunucuya bildirilir; boylece
-  // "kismen silme" korumasi gercek silmeyi engellemez.
-  const membersDeletingRef = useRef(false);
-
   useEffect(() => {
     // Sunucu yanit vermese bile (ag kesik / backend kapali) kilidi ac;
     // yoksa panel hicbir zaman degisiklik gonderemezdi.
@@ -489,9 +490,7 @@ export function App() {
         // Sunucu okunamazsa yerel listeyle devam et
       }
 
-      const deleteIntent = membersDeletingRef.current;
-      membersDeletingRef.current = false;
-      const ok = await pushRemoteMembers(toWrite, { confirmSil: deleteIntent });
+      const ok = await pushRemoteMembers(toWrite);
       if (ok) {
         setSyncOk(true);
         setSyncError('');
@@ -700,15 +699,14 @@ const canEditPerformance = isAdmin || (currentUser?.permissions?.includes('perfo
 
   const handleDeleteMember = (id: string) => {
     const target = members.find((m) => m.id === id);
-    // Sunucudaki "kismen silme" korumasina bildir: bu kasitli bir silme.
-    membersDeletingRef.current = true;
     setMembers((prev) => prev.filter((item) => item.id !== id));
     setPerformances((prev) => prev.filter((p) => p.memberId !== id));
 
-    // Silinen uye Sheets'ten de kalici olarak dusmeli.
-    // Aksi halde sunucudan geri gelir ve panelde tekrar gorunur.
+    // Sunucudan da SİL. Toplu yazma artık güvenli modda (upsertOnly)
+    // çalıştığı için listede olmayan üyeyi KORUR; bu yüzden gerçek
+    // silme ayrı bir uç noktayla yapılır.
     if (target && id !== FOUNDER_MEMBER_ID) {
-      saveBlocklist([...loadBlocklist(), id]);
+      void deleteRemoteMember(id);
     }
 
     if (target) {

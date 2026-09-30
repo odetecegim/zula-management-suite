@@ -262,7 +262,16 @@ export function dedupeByTag(members) {
  *  - `password` ve `passwordHash` yoksa, tabloda zaten olan hash KORUNUR
  *    (boylece sunucudan okunmus uyeler tekrar yazildiginda sifre silinmez).
  */
-export async function writeMembers({ spreadsheetId, members = [], tabName = MEMBERS_TAB }) {
+export async function writeMembers({
+  spreadsheetId,
+  members = [],
+  tabName = MEMBERS_TAB,
+  // Guvenli mod: gelen listede OLMAYAN mevcut uyeler SILINMEZ,
+  // yalnizca guncellenir/eklenir. Panel varsayilan olarak bunu kullanir;
+  // boylece iki yonetici ayni anda calistiginda biri digerinin
+  // ekledigi uyeyi silemez.
+  upsertOnly = false,
+}) {
   const sheets = await getClient();
   const tab = await ensureMembersTab({ spreadsheetId, tabName });
   const range = `${tab}!A1:${LAST_COL}1000`;
@@ -274,14 +283,37 @@ export async function writeMembers({ spreadsheetId, members = [], tabName = MEMB
   const hashById = new Map(
     existing.map((r) => [String(r[ID_IDX] ?? '').trim(), String(r[HASH_IDX] ?? '')])
   );
+  const existingById = new Map(
+    existing.map((r) => [String(r[ID_IDX] ?? '').trim(), r])
+  );
 
   // Ayni uye kodunu tasiyan satirlari temizle
   const cleaned = dedupeByTag(members);
 
+  // ---- GUVENLI MOD: gelen listede olmayan mevcut kayitlari KORU ----
+  let rows = cleaned;
+  if (upsertOnly) {
+    const incomingIds = new Set(cleaned.map((m) => String(m.id || '').trim()));
+    const missing = existing.filter((r) => {
+      const id = String(r[ID_IDX] ?? '').trim();
+      return id && !incomingIds.has(id);
+    });
+    if (missing.length > 0) {
+      // Eksik satirlari MEVCUT HALIYLE ekle; sifre ozeti ASLA kaybolmaz.
+      rows = [
+        ...cleaned,
+        ...missing.map((r) => ({
+          ...rowToMember(r),
+          passwordHash: String(r[HASH_IDX] ?? ''),
+        })),
+      ];
+    }
+  }
+
   // Eski satirlari temizle
   await sheets.spreadsheets.values.clear({ spreadsheetId, range, body: {} });
 
-  const rows = cleaned.map((m) => {
+  const out = rows.map((m) => {
     const member = { ...m };
     const plain = String(m.password || '');
     delete member.password;
@@ -291,17 +323,21 @@ export async function writeMembers({ spreadsheetId, members = [], tabName = MEMB
     } else if (!member.passwordHash) {
       member.passwordHash = hashById.get(String(m.id || '').trim()) || '';
     }
+    // Korunan satirlarda hash zaten dolu; yine de dogrula
+    if (!member.passwordHash) {
+      const prev = existingById.get(String(m.id || '').trim());
+      if (prev) member.passwordHash = String(prev[HASH_IDX] ?? '');
+    }
     return memberToRow(member);
   });
 
-  const values = [MEMBER_COLUMNS, ...rows];
+  const values = [MEMBER_COLUMNS, ...out];
   await sheets.spreadsheets.values.update({
     spreadsheetId,
     range: `${tab}!A1`,
     valueInputOption: 'USER_ENTERED',
-    // valueInputOption requestBody'nin ICINDE olmaz; ust seviyede verilir
     requestBody: { values },
   });
 
-  return { written: members.length, tab };
+  return { written: out.length, tab, upserted: upsertOnly };
 }

@@ -110,6 +110,22 @@ export async function pushRemoteMembers(
   return !!data?.ok;
 }
 
+/**
+ * Tek bir üyeyi sunucudan SİLer.
+ *
+ * Neden ayrı uç nokta? Toplu yazma her zaman `upsertOnly: true`
+ * ile çalışır (başka yöneticinin eklediği üyeleri korumak için).
+ * Bu yüzden paneldeki "Sil" düğmesi bu uç noktayı çağırmalı.
+ */
+export async function deleteRemoteMember(id: string): Promise<boolean> {
+  if (!id) return false;
+  const data = await call<{ ok: boolean }>('/api/sheets/member-delete', {
+    spreadsheetId: currentSpreadsheetId(),
+    id,
+  });
+  return !!data?.ok;
+}
+
 /* ------------------------------------------------------------------ */
 /* Giris                                                               */
 /* ------------------------------------------------------------------ */
