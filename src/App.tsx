@@ -635,13 +635,28 @@ const canEditPerformance = isAdmin || (currentUser?.permissions?.includes('perfo
     setCurrentTab('dashboard');
   };
 
+  // OTURUM KAPATMA: yonetici bir kullaniciyi "Pasif" cekerse, o
+  // kullanicinin ACIK oturumu da hemen kapanmali. Aksi halde panel
+  // acik kalir ve kullanici yeni giris yapmadan kullanmaya devam eder.
+  const sessionIsPassive =
+    currentUserId !== null &&
+    currentUser !== null &&
+    String(currentUser.status ?? '').toLocaleLowerCase('tr-TR') !== 'aktif';
+
+  useEffect(() => {
+    if (!sessionIsPassive) return;
+    localStorage.removeItem('zula_suite_session');
+    setCurrentUserId(null);
+    setCurrentTab('dashboard');
+  }, [sessionIsPassive]);
+
   // Oturum yoksa veya hesap pasifse login ekranını göster.
   //
   // DIKKAT: `allowedTabs.length === 0` kontrolu KALDIRILDI. Izinler
   // normalize edildiginden bu artik yalnizca gercekten yetkisiz
   // hesaplarda olur; ama bir eslesme hatasinda kullaniciyi panelden
   // atiyordu. Izin kontrolu zaten LoginScreen'de (finish) yapiliyor.
-  if (!currentUser || currentUser.status === 'Pasif') {
+  if (!currentUser || String(currentUser.status ?? '').toLocaleLowerCase('tr-TR') !== 'aktif') {
     return (
       <>
         <LanguageSelectionOverlay />

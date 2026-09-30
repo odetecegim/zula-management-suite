@@ -271,6 +271,25 @@ export async function handleApi(method, segments, body = {}) {
           return fail(401, 'Kullanıcı adı veya şifre hatalı.', 'BAD_CREDENTIALS');
         }
 
+        // PASİF HESAP ENGELİ
+        //
+        // Önceki sürümde durum kontrolü YOKTU. Panele "Pasif" çekilen
+        // bir kullanıcı şifresi doğru olduğu sürece sunucudan 200 alıp
+        // panele girebiliyordu (yalnızca arayüz katmanı engelliyordu,
+        // o da kolayca atlatılabiliyordu).
+        //
+        // Çözüm: durum kontrolü SUNUCUDA yapılır. Pasif hesap için
+        // 403 ACCOUNT_INACTIVE döner; böylece engel istemciden bağımsız
+        // ve atlatılamaz olur.
+        const status = String(found.status || '').trim();
+        if (status && status.toLocaleLowerCase('tr-TR') !== 'aktif') {
+          return fail(
+            403,
+            'Hesabınız pasif durumda. Panele giriş yapamazsınız; yöneticinizle iletişime geçin.',
+            'ACCOUNT_INACTIVE'
+          );
+        }
+
         // Sifre ozetini yanitta gonderme
         const { passwordHash, ...safe } = found;
         return ok({ ok: true, member: safe });

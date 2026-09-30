@@ -63,6 +63,15 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ members, onLogin }) =>
       return;
     }
 
+    // PASIF HESAP: sunucu 403 dondurun. Yerel yedek DE devre disi
+    // birakilir; aksi halde backend kapaliyken pasif kullanici giris
+    // yapabilirdi.
+    if (remote.status === 'inactive') {
+      setError(remote.message);
+      setLoading(false);
+      return;
+    }
+
     // 2) YEREL YEDEK: yalnizca kullanici adi + sifre birebir uyusuyorsa
     //
     // DIKKAT: onceki surumde bu kontrol "admin rolune sahipse" ekranin
@@ -76,6 +85,12 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ members, onLogin }) =>
     );
 
     if (local && local.password && local.password === cleanPass) {
+      // Pasif hesap yerel yoldan da reddedilir
+      if (String(local.status ?? '').toLowerCase() === 'pasif') {
+        setError('Hesabınız pasif durumda. Panele giriş yapamazsınız; yöneticinizle iletişime geçin.');
+        setLoading(false);
+        return;
+      }
       finish({ ...local, permissions: normalizePermissions(local.permissions, local.role) });
       return;
     }

@@ -133,6 +133,7 @@ export async function deleteRemoteMember(id: string): Promise<boolean> {
 export type RemoteLoginResult =
   | { status: 'ok'; member: Member }
   | { status: 'invalid' } // kimlik bilgisi yanlış (sunucu erisilebilir)
+  | { status: 'inactive'; message: string } // hesap pasif -> giris reddedildi
   | { status: 'unavailable' }; // backend kapali -> yerel dogrulamaya dus
 
 /**
@@ -153,6 +154,26 @@ export async function remoteLogin(
       body: JSON.stringify({ spreadsheetId: currentSpreadsheetId(), username, password }),
     });
     if (res.status === 401) return { status: 'invalid' };
+
+    // 403 ACCOUNT_INACTIVE: hesap pasif. Bu bir hata değil, net bir
+    // engel; kullanıcıya doğru mesajı göstermemiz gerekir.
+    if (res.status === 403) {
+      try {
+        const body = (await res.json()) as { error?: string };
+        return {
+          status: 'inactive',
+          message:
+            body?.error ||
+            'Hesabınız pasif durumda. Panele giriş yapamazsınız.',
+        };
+      } catch {
+        return {
+          status: 'inactive',
+          message: 'Hesabınız pasif durumda. Panele giriş yapamazsınız.',
+        };
+      }
+    }
+
     if (!res.ok) return { status: 'unavailable' };
 
     const data = (await res.json()) as { ok: boolean; member?: Member };
