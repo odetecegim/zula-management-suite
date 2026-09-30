@@ -321,37 +321,53 @@ export function App() {
       const blocked = new Set(loadBlocklist());
       const remote = fetched ? fetched.filter((r) => !blocked.has(r.id)) : null;
       if (!remote || remote.length === 0) {
-        setHydrated(true); // veri yoksa kilidi ac, panel calismaya devam etsin
+        // Sunucudan HICBIR uye gelmediyse yerel listeyi OLDURMU
+        // birakmiyoruz: aksi halde paneldeki eski kayitlar ekranda
+        // kalir ve yeni kayitlar gorunmez.
+        setHydrated(true);
         return;
       }
 
-      // "Sunucuda yok" sayilan kayitlar yalnizca ORNEK uyelerdir.
-      // Yeni eklenen uyeler Sheets yazimi (2.5 sn) tamamlanana kadar
-      // sunucuda gorunmez; onlari silmek kayit kaybina yol acar.
+      // ---- UYE LISTESINI SUNUCUYLA TAM OLARAK ESITLE ----
+      //
+      // SORUN: yerel liste yalnizca "Sheets'te zaten olan" kayitlari
+      // tutuyordu; hicbir zaman Sheets'teki gercek liste ile
+      // degistirilmiyordu. Sonuc: baska bir cihazda eklenen uye
+      // ekranda hic gorunmuyor, silinen uye ekranda kaliyordu.
+      //
+      // COZUM: Sheets (paylasilan depo) TEK KAYNAK olarak alinir.
+      //   - Sheets'te olan HER uye listeye girer
+      //   - Sheets'te OLMAYAN uye listeden dusulur
+      // Yalnizca su an yazilmamis yeni uyeler korunur (sunucu
+      // yazma gecikmeli oldugu icin).
       const remoteIds = new Set(remote.map((r) => r.id));
-      const localOnly = members.filter(
-        (m) => !remoteIds.has(m.id) && LEGACY_SEED_IDS.has(m.id)
+      const localById = new Map(members.map((m) => [m.id, m]));
+
+      // 1) Sheets'te OLAN her üye listeye girer.
+      //    Yerelde varsa alanları tazele (şifre korunur), yoksa ekle.
+      const synced = remote.map((r) => {
+        const local = localById.get(r.id);
+        return local ? { ...local, ...r, password: local.password } : r;
+      });
+
+      // 2) Sheets'te OLMAYAN üyeler düşer.
+      //    Yalnızca henüz yazılmamış yeniler korunur (yazma 2.5 sn gecikmeli).
+      const pendingIds = new Set(
+        members
+          .filter((m) => !remoteIds.has(m.id))
+          // Örnek (tohum) üyeler her zaman düşülür
+          .filter((m) => !LEGACY_SEED_IDS.has(m.id))
+          .map((m) => m.id)
       );
-      const gone = localOnly.map((m) => m.id);
-      if (gone.length > 0) {
-        setMembers((prev2) => prev2.filter((m) => !gone.includes(m.id)));
-      }
+      const pending = members.filter((m) => pendingIds.has(m.id));
 
-      // Sunucudaki kayitlari yerel listeye isle
-      const localIds = new Set(members.map((m) => m.id));
-      const missing = remote.filter((r) => !localIds.has(r.id));
+      const next = [...synced, ...pending];
+      const unchanged =
+        next.length === members.length &&
+        next.every((m, i) => members[i] && members[i].id === m.id);
+      if (!unchanged) setMembers(next);
 
-      if (missing.length > 0) {
-        // Yerelde sifre varsa koru (sunucu yalnizca hash saklar)
-        const localById = new Map(members.map((m) => [m.id, m]));
-        const added = missing.map((r) => {
-          const local = localById.get(r.id);
-          return local?.password ? { ...r, password: local.password } : r;
-        });
-        setMembers((prev) => [...prev.filter((m) => !gone.includes(m.id)), ...added]);
-      }
-
-      // Yalnizca veri CEKILDIKTEN SONRA yazmaya izin ver
+      // Yalnızca veri ÇEKİLDİKTEN SONRA yazmaya izin ver
       setHydrated(true);
     })();
     return () => {
@@ -382,25 +398,23 @@ export function App() {
 
       const remoteIds = new Set(remote.map((r) => r.id));
       setMembers((prev) => {
-        // Yereldeki uyeler KORUNUR; Sheets'te olmayanlar silinmez
-        // (henuz yazilmamis yeni uyeler olabilirler).
-        const kept = prev.filter((m) => remoteIds.has(m.id) || m.id === FOUNDER_MEMBER_ID);
         const localById = new Map(prev.map((m) => [m.id, m]));
 
-        // Sheets'te degismis kayitlari tazele
-        const refreshed = kept.map((m) => {
-          const r = remote.find((x) => x.id === m.id);
-          if (!r) return m; // yerelde sadece var (yeni eklenmis) - dokunma
-          return { ...m, ...r, password: m.password };
+        // Sheets'te OLAN her uye listeye girer (yoksa eklenir)
+        const synced = remote.map((r) => {
+          const local = localById.get(r.id);
+          return local ? { ...local, ...r, password: local.password } : r;
         });
 
-        // Sheets'te olup yerelde olmayanlar eklenir
-        const added = remote
-          .filter((r) => !localById.has(r.id))
-          .map((r) => (localById.get(r.id)?.password ? { ...r, password: localById.get(r.id)!.password } : r));
+        // Sheets'te olmayanlar: yalnizca yeni yazilmamis uyeler kalir
+        const pending = prev.filter(
+          (m) => !remoteIds.has(m.id) && !LEGACY_SEED_IDS.has(m.id)
+        );
 
-        const next = [...refreshed, ...added];
-        if (next.length === prev.length && next.every((m, i) => m === prev[i])) return prev;
+        const next = [...synced, ...pending];
+        if (next.length === prev.length && next.every((m, i) => prev[i] && prev[i].id === m.id)) {
+          return prev;
+        }
         return next;
       });
     };
