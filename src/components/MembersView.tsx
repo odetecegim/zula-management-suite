@@ -1,9 +1,9 @@
 import React, { useState } from 'react';
-import { Plus, Search, Trash2, Edit3, X, Check, Shield, UserCheck, KeyRound, Eye, EyeOff, Copy, AlertTriangle } from 'lucide-react';
+import { Plus, Search, Trash2, Edit3, X, Check, Shield, UserCheck, KeyRound, Eye, EyeOff, Copy, AlertTriangle, Lock, ScrollText } from 'lucide-react';
 import { ALL_PERMISSIONS } from '../data/initialData';
 import { canManageMember, getRoleLevel, roleLevelLabel } from '../lib/roles';
 import { sortMembers } from '../lib/member-sort';
-import type { Member, RoleDef, GameType, RegionType, StatusType, RoleId, PermissionId } from '../types';
+import type { Member, RoleDef, GameType, RegionType, StatusType, RoleId, PermissionId, ActivityLog } from '../types';
 
 export interface TeamFilter {
   team: 'academy' | 'referee';
@@ -22,6 +22,7 @@ interface MembersProps {
   currentUser: Member;
   isAdmin: boolean;
   teamFilter: TeamFilter | null;
+  logs: ActivityLog[];
 }
 
 export const MembersView: React.FC<MembersProps> = ({
@@ -33,6 +34,7 @@ export const MembersView: React.FC<MembersProps> = ({
   currentUser,
   isAdmin,
   teamFilter,
+  logs,
 }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [filterGame, setFilterGame] = useState<string>('ALL');
@@ -96,10 +98,10 @@ export const MembersView: React.FC<MembersProps> = ({
 
     // Discord ID: Topluluk Moderatörü için zorunlu ve 17+ haneli olmalı
 
-    if (formPermissions.length === 0) next.permissions = 'En az bir bölüm erişimi seçmelisiniz.';
-
-    // Panel girisi (yalnizca admin duzenler)
+    // Panel girisi ve bolum izinleri (yalnizca admin duzenler)
     if (isAdmin) {
+      if (formPermissions.length === 0) next.permissions = 'En az bir bölüm erişimi seçmelisiniz.';
+
       const userTrim = formUsername.trim().toLowerCase();
       if (!userTrim) next.username = 'Kullanıcı adı zorunludur.';
       else if (!/^[a-zA-Z0-9]{4,10}$/.test(userTrim))
@@ -755,16 +757,59 @@ export const MembersView: React.FC<MembersProps> = ({
                   onClick={() => setIsModalOpen(false)}
                   className="px-4 py-2 rounded-xl text-xs font-medium text-slate-400 hover:text-white hover:bg-slate-800 transition-colors cursor-pointer"
                 >
-                  Vazgeç
+                  {canEditTarget ? 'Vazgeç' : 'Kapat'}
                 </button>
-                <button
-                  type="submit"
-                  disabled={!canEditTarget}
-                  className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-500 text-white font-semibold text-xs px-5 py-2.5 rounded-xl shadow-lg shadow-indigo-600/20 transition-all cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
-                >
-                  <Check className="w-4 h-4" />
-                  Kaydet
-                </button>
+                {canEditTarget ? (
+                  <button
+                    type="submit"
+                    className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-500 text-white font-semibold text-xs px-5 py-2.5 rounded-xl shadow-lg shadow-indigo-600/20 transition-all cursor-pointer"
+                  >
+                    <Check className="w-4 h-4" />
+                    Kaydet
+                  </button>
+                ) : (
+                  <span className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-medium bg-amber-500/10 text-amber-400 border border-amber-500/20">
+                    <Lock className="w-3.5 h-3.5" />
+                    Salt görüntüleme — düzenleme yetkiniz yok
+                  </span>
+                )}
+              </div>
+
+              {/* Kullaniciya ait islem kayitlari */}
+              <div className="pt-2 border-t border-slate-800">
+                <h4 className="text-xs font-bold text-slate-300 mb-2 flex items-center gap-2">
+                  <ScrollText className="w-4 h-4 text-indigo-400" />
+                  Kullanıcı Kayıtları
+                </h4>
+                {(() => {
+                  const related = logs
+                    .filter((l) => l.memberId === (editingMember?.id ?? '') || l.userId === (editingMember?.id ?? ''))
+                    .slice(0, 20);
+                  if (!editingMember) {
+                    return (
+                      <p className="text-[11px] text-slate-500 italic">
+                        Kullanıcı henüz kaydedilmediği için kayıt bulunmuyor.
+                      </p>
+                    );
+                  }
+                  if (related.length === 0) {
+                    return (
+                      <p className="text-[11px] text-slate-500 italic">Bu kullanıcı için kayıt bulunmuyor.</p>
+                    );
+                  }
+                  return (
+                    <div className="space-y-2 max-h-48 overflow-y-auto pr-1">
+                      {related.map((log) => (
+                        <div
+                          key={log.id}
+                          className="text-[11px] leading-snug text-slate-300 bg-slate-950/60 p-2.5 rounded-xl border border-slate-800"
+                        >
+                          {log.action}
+                        </div>
+                      ))}
+                    </div>
+                  );
+                })()}
               </div>
             </form>
           </div>
