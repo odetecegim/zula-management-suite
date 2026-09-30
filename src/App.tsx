@@ -25,7 +25,7 @@ import {
   normalizePermissions,
   FOUNDER_MEMBER_ID,
 } from './data/initialData';
-import { ACADEMY_ROLES, REFEREE_ROLES } from './lib/roles';
+import { ACADEMY_ROLES, REFEREE_ROLES, canViewLogs } from './lib/roles';
 import type { Member, TestSession, ActivityLog, Performance, RoleDef, RoleId, PermissionId } from './types';
 
 // Uye verisi icin localStorage anahtari (v2 = giris bilgisi semasi eklendi).
@@ -583,6 +583,13 @@ const canEditPerformance = isAdmin || (currentUser?.permissions?.includes('perfo
       )
     : baseAllowed;
 
+  // SISTEM KAYITLARI: yalnizca sirket kadrosu (yonetim) gorur.
+  // Testci/moderator rollerinde "logs" izni olsa bile engellenir.
+  const mayViewLogs = canViewLogs(currentUser?.role);
+  const visibleTabs = mayViewLogs
+    ? allowedTabs
+    : allowedTabs.filter((pid) => pid !== 'logs');
+
   const handleLogin = (member: Member) => {
     // Gelen uyeyi izinleriyle birlikte listeye ISLE.
     //
@@ -863,7 +870,12 @@ const canEditPerformance = isAdmin || (currentUser?.permissions?.includes('perfo
   };
 
   // Kullanıcının yetkisi olmayan bir sekmede kalması engellenir
-  const activeTab = allowedTabs.includes(currentTab as PermissionId) ? currentTab : allowedTabs[0];
+  // Kullanici yetkisiz oldugu icin (ornegin sirket kadrosu disi biri
+  // "logs" sekmesine dogrudan girmeye calisirsa) erisilebilir sekme
+  // listesinden dusurulur ve ekranda gosterilmez.
+  const activeTab = visibleTabs.includes(currentTab as PermissionId)
+    ? currentTab
+    : visibleTabs[0];
 
   // Rol adini roller listesinden cek (yeni roller de dogru gosterilsin)
   const roleName = roles.find((r) => r.id === currentUser.role)?.name ?? currentUser.role;
@@ -917,7 +929,7 @@ const canEditPerformance = isAdmin || (currentUser?.permissions?.includes('perfo
       <Sidebar
         currentTab={activeTab}
         onSelectTab={setCurrentTab}
-        allowedTabs={allowedTabs}
+        allowedTabs={visibleTabs}
         currentUser={currentUser}
         isAdmin={isAdmin}
         onLogout={handleLogout}
@@ -1071,7 +1083,7 @@ const canEditPerformance = isAdmin || (currentUser?.permissions?.includes('perfo
 
           {activeTab === 'roles' && <RolesView roles={roles} members={members} />}
 
-          {activeTab === 'logs' && <LogsView logs={logs} members={members} />}
+          {activeTab === 'logs' && mayViewLogs && <LogsView logs={logs} members={members} />}
 
           {activeTab === 'sheets' && (
             <SheetsView

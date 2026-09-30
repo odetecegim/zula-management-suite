@@ -2,7 +2,7 @@ import React from 'react';
 import type { Member, TestSession, ActivityLog, Performance, RegionType } from '../types';
 import { Users, Bug, CheckCircle, Trophy, Activity, Zap, TrendingUp, AlertTriangle, Globe, MapPin, Crown } from 'lucide-react';
 import { calculateScore } from '../lib/time';
-import { performanceMembers } from '../lib/roles';
+import { performanceMembers, canViewLogs } from '../lib/roles';
 
 interface DashboardProps {
   members: Member[];
@@ -358,7 +358,8 @@ export const DashboardView: React.FC<DashboardProps> = ({
         </div>
       </div>
 
-      {/* Activity Logs */}
+      {/* Activity Logs - yalnizca sirket kadrosu (yonetim) gorur */}
+      {canViewLogs(currentUser?.role) && (
       <div className="bg-slate-900/40 border border-slate-800/80 rounded-2xl p-6">
         <h3 className="font-bold text-white flex items-center gap-2 text-sm mb-4">
           <AlertTriangle className="w-4 h-4 text-purple-400" />
@@ -377,6 +378,7 @@ export const DashboardView: React.FC<DashboardProps> = ({
           ))}
         </div>
       </div>
+      )}
     </div>
   );
 };

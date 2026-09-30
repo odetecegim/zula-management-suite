@@ -28,6 +28,18 @@ export function isCompanyStaff(member: Pick<Member, 'role'>): boolean {
 }
 
 /**
+ * SİSTEM KAYITLARINI GÖREBİLİR Mİ?
+ *
+ * Loglar yalnızca şirket kadrosuna (yönetim) açıktır. Testçi ve
+ * moderatör üyeler sistem kayıtlarını göremez — menüde görünmez,
+ * doğrudan adres girilse bile ekran açılmaz.
+ */
+export function canViewLogs(role: string | undefined): boolean {
+  if (!role) return false;
+  return COMPANY_STAFF_ROLES.includes(role as RoleId);
+}
+
+/**
  * PERFORMANS LİSTELERİ İÇİN FİLTRELENMİŞ ÜYELER
  *
  * Şirket kadrosu (yönetim) üyeleri performans listelerinde ve
