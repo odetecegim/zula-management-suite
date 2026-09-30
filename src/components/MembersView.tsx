@@ -59,13 +59,64 @@ function suggestUsername(nick: string, existing: Member[] = []): string {
 }
 
 /**
- * Gecici sifre. Kullanici adindan turetilir; boylece yonetici
- * sifreyi ekranda gormeye calismasa bile "kullaniciadi + 123"
- * kuralini bilerek iletebilir. (Rastgele sifre unutuluyordu.)
+ * Güvenli geçici şifre üretir.
+ *
+ * Kullanıcının isteği: tahmin edilebilir "kullanıcıadı + 123"
+ * yerine rastgele şifre. Rastgele şifre tahmin edilemez; üretim
+ * kriptografik olarak güçlü olmayan `Math.random()` yerine
+ * `crypto.getRandomValues()` ile yapılır.
+ *
+ * Kurallar:
+ *   - 10 karakter (panelin şifre alanı gereksinimini karşılar)
+ *   - Büyük/küçük harf + rakam + sembolden en az birer tane
+ *   - Karışması kolay karakterler (0/O, 1/l/I) kullanılmaz
+ *   - Kullanıcı adı şifrenin içinde yer almaz (kolay tahmin edilmesin)
  */
+const PW_LOWER = 'abcdefghijkmnopqrstuvwxyz'; // l ve i yok
+const PW_UPPER = 'ABCDEFGHJKLMNPQRSTUVWXYZ'; // I ve O yok
+const PW_DIGITS = '23456789'; // 0 ve 1 yok
+const PW_SYMBOLS = '!@#$%&*?-_';
+
+function randomInt(max: number): number {
+  if (max <= 0) return 0;
+  if (typeof crypto !== 'undefined' && crypto.getRandomValues) {
+    const buf = new Uint32Array(1);
+    crypto.getRandomValues(buf);
+    return buf[0] % max;
+  }
+  return Math.floor(Math.random() * max);
+}
+
+function pick(charset: string): string {
+  return charset[randomInt(charset.length)];
+}
+
+/** Rastgele, tahmin edilemez geçici şifre üretir. */
 function suggestPassword(username: string): string {
-  const base = (username || 'uye').toLowerCase().replace(/[^a-z0-9]/g, '').slice(0, 6);
-  return base + '123';
+  const LEN = 10;
+  const all = PW_LOWER + PW_UPPER + PW_DIGITS + PW_SYMBOLS;
+
+  // Her kategoriden en az bir karakter garanti edilir.
+  const required = [pick(PW_LOWER), pick(PW_UPPER), pick(PW_DIGITS), pick(PW_SYMBOLS)];
+  const rest: string[] = [];
+  for (let i = required.length; i < LEN; i++) rest.push(pick(all));
+
+  // Karıştır (kategori sırası ele vermesin)
+  const chars = [...required, ...rest];
+  for (let i = chars.length - 1; i > 0; i--) {
+    const j = randomInt(i + 1);
+    [chars[i], chars[j]] = [chars[j], chars[i]];
+  }
+
+  let password = chars.join('');
+
+  // Kullanici adi sifrenin icinde geciyorsa degistir
+  const u = (username || '').toLowerCase();
+  if (u.length >= 3 && password.toLowerCase().includes(u)) {
+    password = password.slice(0, LEN - 2) + pick(PW_LOWER) + pick(PW_DIGITS);
+  }
+
+  return password;
 }
 
 export const MembersView: React.FC<MembersProps> = ({
@@ -988,24 +1039,40 @@ export const MembersView: React.FC<MembersProps> = ({
                       ? 'Değiştirmek istemiyorsanız boş bırakın — mevcut şifre korunur.'
                       : 'Boş bırakılırsa geçici şifre atanır.'}
                   </p>
-                      <div className="relative">
-                        <input
-                          type={showPassword ? 'text' : 'password'}
-                          placeholder="Boş bırakılırsa geçici şifre atanır"
-                          value={formPassword}
-                          onChange={(e) => setFormPassword(e.target.value)}
-                          className="w-full bg-slate-950 border border-slate-800 rounded-xl pl-3 pr-9 py-2 text-sm text-white outline-none font-mono"
-                        />
-                        <button
-                          type="button"
-                          onClick={() => setShowPassword((v) => !v)}
-                          className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-300 cursor-pointer"
-                          title={showPassword ? 'Şifreyi gizle' : 'Şifreyi göster'}
-                        >
-                          {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                        </button>
-                      </div>
-                      {errorFor('password')}
+                  <div className="flex gap-2">
+                    <div className="relative flex-1">
+                      <input
+                        type={showPassword ? 'text' : 'password'}
+                        placeholder="Boş bırakılırsa rastgele şifre atanır"
+                        value={formPassword}
+                        onChange={(e) => setFormPassword(e.target.value)}
+                        className="w-full bg-slate-950 border border-slate-800 rounded-xl pl-3 pr-9 py-2 text-sm text-white outline-none font-mono"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowPassword((v) => !v)}
+                        className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-300 cursor-pointer"
+                        title={showPassword ? 'Şifreyi gizle' : 'Şifreyi göster'}
+                      >
+                        {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                      </button>
+                    </div>
+                    {/* Rastgele güçlü şifre üret */}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setFormPassword(suggestPassword(formUsername || formGameNickname));
+                        setShowPassword(true);
+                        setErrors((e) => ({ ...e, password: '' }));
+                      }}
+                      className="px-3 py-2 bg-slate-800 hover:bg-indigo-600/30 border border-slate-700 hover:border-indigo-500/50 rounded-xl text-slate-300 transition-colors cursor-pointer flex items-center gap-1.5"
+                      title="Rastgele güçlü şifre üret"
+                    >
+                      <KeyRound className="w-4 h-4" />
+                      <span className="text-[10px] font-bold uppercase tracking-wide">Üret</span>
+                    </button>
+                  </div>
+                  {errorFor('password')}
                     </div>
                   </div>
 
