@@ -63,15 +63,10 @@ const PURGE_BLOCKLIST_KEY = 'zula_suite_purge_blocklist_v1';
 const PURGE_FLAG_KEY = 'zula_suite_purge_non_founder_v2';
 
 /**
- * ÖRNEK ÜYE KİMLİKLERİ — ENGEL LİSTESİNE SİLİNMESİ
- *
- * ONCEKI SURUM (KRITIK HATA): filtre `m.id !== FOUNDER_MEMBER_ID`
- * diyordu, yani KURUCU DIŞINDAKI HER ÜYEYİ siliyordu. Admin panelden
- * yeni üye eklediginde sonraki acilista o üye anında kayboluyor,
- * Sheets'e yazilmiyor ve kullanici giris yapamiyordu.
- *
- * COZUM: yalnizca ESKI ORNEK uyeler engellenir. Admin'in ekledigi
- * yeni uyeler (farkli id) korunur ve calisir.
+ * Örnek (tohum) üye kimlikleri — kalıcı olarak engellenir.
+ * Admin'in panelden eklediği yeni üyeler farklı id taşıdığı için
+ * korunur. Dikkat: bu liste genişletilirse "kurucu dışındaki her şeyi
+ * sil" gibi bir filtreye DÖNÜŞMEBİR — yeni eklenen üyeleri de siler.
  */
 const LEGACY_SEED_IDS = new Set(['m-2', 'm-3', 'm-4', 'm-5']);
 
@@ -118,12 +113,9 @@ export function App() {
       const missing = parsed.filter((m) => !m.username || !m.password).length;
       if (missing > parsed.length / 2) return INITIAL_MEMBERS;
 
-      // Kalan kayitlarda eksik alanlari tamamla
-      // KURUCU HESAP: kayit her zaman mevcut olmali ve sifresi BOZULMAMALI.
-      //
-      // ONCEKI SURUM HATASI: eksik sifre her uye icin '1234' ile dolduruluyordu.
-      // Bozuk bir yerel kayitta kurucunun sifresi de '1234' oldugu icin
-      // kullanici "huseyin / admin123" ile giremiyor ve panel kilitleniyordu.
+      // Kalan kayitlarda eksik alanlari tamamla.
+      // Not: kurucunun sifresi asla onarimla degistirilmez; sifre
+      // bos her uye icin '1234' olur, kurucu ise asagida sabitlenir.
       const result = parsed.map((m) => {
         const repaired: Member = {
           ...m,
@@ -272,15 +264,8 @@ export function App() {
   useEffect(() => {
     if (localStorage.getItem(PURGE_FLAG_KEY) === 'done') return;
 
-    // KRITIK HATA DUZELTMESI (2)
-    //
-    // ONCEKI SURUM: `members.filter(m => m.id === FOUNDER_MEMBER_ID)`
-    // yaziyordu. Bu, KURUCU DISINDAKI HER UYEYI siler — yani panelden
-    // eklediginiz yeni uyeler bir sonraki acilista aninda kayboluyor,
-    // Sheets'e hic yazilmiyor ve o kullanici giris yapamiyor.
-    //
-    // COZUM: yalnizca ESKI ORNEK uyeler (LEGACY_SEED_IDS) temizlenir.
-    // Sizin eklediginiz yeni uyeler korunur ve calisir.
+    // Yalnizca ORNEK uyeler temizlenir. Admin'in ekledigi yeni
+    // uyeler korunur (LEGACY_SEED_IDS'e eklenmemeli).
     const removedIds = members
       .filter((m) => LEGACY_SEED_IDS.has(m.id))
       .map((m) => m.id);
@@ -321,15 +306,9 @@ export function App() {
         return;
       }
 
-      // KRITIK HATA DUZELTMESI (3)
-      //
-      // ONCEKI SURUM: sunucuda bulunmayan HER yerel kayit siliniyordu
-      // ("gone"). Yeni eklediginiz uye once yerel state'e giriyor,
-      // Sheets'e yazma 2.5 sn gecikmeyle tetiklendigi icin bu surece
-      // giris sirasinda "sunucuda yok" sayilip ANINDA siliniyordu.
-      // Sonuc: uye kaybolur, Sheets'e hic yazilmaz, giris calismaz.
-      //
-      // COZUM: yalnizca ESKI ORNEK uyeler "gone" sayilir.
+      // "Sunucuda yok" sayilan kayitlar yalnizca ORNEK uyelerdir.
+      // Yeni eklenen uyeler Sheets yazimi (2.5 sn) tamamlanana kadar
+      // sunucuda gorunmez; onlari silmek kayit kaybina yol acar.
       const remoteIds = new Set(remote.map((r) => r.id));
       const localOnly = members.filter(
         (m) => !remoteIds.has(m.id) && LEGACY_SEED_IDS.has(m.id)
@@ -384,14 +363,8 @@ export function App() {
 
       const remoteIds = new Set(remote.map((r) => r.id));
       setMembers((prev) => {
-        // KRITIK HATA DUZELTMESI (4)
-        //
-        // ONCEKI SURUM: `prev.filter(m => remoteIds.has(m.id) || kurucu)`
-        // Sunucuda olmayan HER yerel uye siliniyordu. Sekmeye geri
-        // dondugunuzda (yeni uye yazilmadan once) uye kayboluyordu.
-        //
-        // COZUM: yerel uyeler KORUNUR; yalnizca Sheets'te de olanlar
-        // eski veriyle guncellenir, Sheets'te olmayan yeni uyeler kalir.
+        // Yereldeki uyeler KORUNUR; Sheets'te olmayanlar silinmez
+        // (henuz yazilmamis yeni uyeler olabilirler).
         const kept = prev.filter((m) => remoteIds.has(m.id) || m.id === FOUNDER_MEMBER_ID);
         const localById = new Map(prev.map((m) => [m.id, m]));
 
@@ -455,31 +428,19 @@ export function App() {
   useEffect(() => {
     if (!hydrated) return; // uzaktan veri gelmeden yazma
     const timer = setTimeout(async () => {
-      // KRITIK HATA DUZELTMESI (6) — VERI KAYBI
+      // ONEMLI: butun liste gonderilir, FILTRE UYGULANMAZ.
       //
-      // BIR ONCEKI DENEMEDE BURAYA FILTRE KOYDUM:
-      //     const payload = members.filter(m => m.password);
-      // ve "sifre hash'i siliniyor" diye yalnizca sifreli uyeleri
-      // gonderdim. BU YANLISTI ve veri KAYBINA yol acti.
+      // Sunucudaki writeMembers() once tum satirlari siler, sonra gelen
+      // listeyi yazar. Sifresi olmayan uyeleri filtrelemek (yanlis bir
+      // dusunceyle denenildi) kucuk bir liste yollamak demektir ve
+      // Sheets'teki diger uyeleri kalici olarak siler.
       //
-      // NEDEN: sunucudaki writeMembers() once tum satirlari SILER,
-      // sonra gelen listeyi yazar. Yani filtrelenen liste kucukse
-      // Sheets'teki diger uyeler kalici olarak silinir.
-      // Sonuc: 2. uyeyi ekleyince yine sadece kurucu kaliyor,
-      // o uye hic yazilmadigi icin giremiyor.
+      // Sifre konusunda guvenliyiz: sunucuda sifresiz gelen kaydin
+      // mevcut hash'i KORUNUR (hashById). Sifreli uyeler yeniden
+      // hash'lenir.
       //
-      // ASLINDA SIFRE KORUNUYOR: sunucuda
-      //     else if (!member.passwordHash)
-      //       member.passwordHash = hashById.get(m.id) || '';
-      // var; yani sifresiz gelen kaydin mevcut hash'i KORUNUR.
-      // (Onceki endisem yanlis bir cikarimdi.)
-      //
-      // COZUM: butun liste gonderilir. Sifreli uyeler hash'lenir,
-      // sifresiz gelenler mevcut hash'lerini korur. Hicbir uye silinmez.
-      //
-      // AYRICA: "deleteIntent" bayragi, panelden bilerek uye silindi
-      // oldugunu sunucuya bildirir. Sunucudaki kismen-silme korumasi
-      // bunu gorerek gercek silmeye izin verir; istemci hatasinda ise
+      // confirmSil: panelden bilerek uye silindiysa sunucudaki
+      // "kismen silme" korumasi devre disi kalir. Istemci hatasinda
       // (bayrak yok) veri kaybi olusmaz.
       const deleteIntent = membersDeletingRef.current;
       membersDeletingRef.current = false;

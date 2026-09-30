@@ -28,20 +28,29 @@ npm start          # API + derlenmiş paneli birlikte sunar
 
 ## Giriş Hesapları
 
-Panel giriş ekranında **hiçbir hazır hesap gösterilmez** — kullanıcı adları
-ve şifreler ekrana basılmaz.
+### Yönetici hesabı (kurucu)
 
-Başlangıçta yönetici dahil örnek hesaplar `src/data/initialData.ts` içinde
-tohum veri olarak tanımlıdır. **Bu bilgiler dokümantasyonda yayımlanmaz.**
+| Alan | Değer |
+|---|---|
+| Kullanıcı adı | `huseyin` |
+| Şifre | `admin123` |
+| E-posta | `admin@madbytegames.com` |
 
-> ⚠️ Canlıya almadan önce tüm şifreleri değiştirin. Yönetici bilgilerini
-> giriş yaptıktan sonra **Üye & Personel Listesi → Düzenle → Panel Girişi &
-> Erişim Yetkileri** bölümünden güncelleyebilirsiniz.
->
-> Şifreler düz metin `localStorage`'da tutulduğu için, internet üzerinden
-> gerçek kullanım öncesi bir backend + hash'li şifre önerilir.
+Bu hesap `src/App.tsx` içinde her açılışta sabitlenir; tarayıcı verisi
+bozulsa bile giriş her zaman çalışır. **Canlıya almadan önce şifreyi
+değiştirin** (Üye & Personel Listesi → Düzenle → Panel Girişi & Erişim
+Yetkileri).
+
+### Diğer kullanıcılar
+
+Panelde **hiçbir hazır hesap gösterilmez.** Yeni kullanıcıları yönetici
+ekler ve kullanıcı adı/şifre/erişim yetkilerini o sırada belirler.
 
 Giriş; kullanıcı adı, üye kodu (`ZULA-001`) veya e-posta ile yapılabilir.
+
+> ⚠️ Şifreler düz metin `localStorage`'da tutulur. Gerçek kullanım öncesi
+> backend + hash'li şifre önerilir. Canlıda şifre doğrulaması sunucuda
+> (scrypt) yapılır; düz şifre hiçbir zaman tabloya yazılmaz.
 
 ### Panel yetkileri
 
