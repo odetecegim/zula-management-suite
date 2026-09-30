@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { AlertTriangle } from 'lucide-react';
 import { Sidebar } from './components/Sidebar';
 import { LoginScreen } from './components/LoginScreen';
@@ -441,6 +441,10 @@ export function App() {
   // Cozum: fetch bitene kadar HIC BIR yazma yapilmaz.
   const [hydrated, setHydrated] = useState(false);
 
+  // Panelden bilerek uye silindiginde sunucuya bildirilir; boylece
+  // "kismen silme" korumasi gercek silmeyi engellemez.
+  const membersDeletingRef = useRef(false);
+
   useEffect(() => {
     // Sunucu yanit vermese bile (ag kesik / backend kapali) kilidi ac;
     // yoksa panel hicbir zaman degisiklik gonderemezdi.
@@ -451,36 +455,35 @@ export function App() {
   useEffect(() => {
     if (!hydrated) return; // uzaktan veri gelmeden yazma
     const timer = setTimeout(async () => {
-      // KRITIK HATA DUZELTMESI (5)
+      // KRITIK HATA DUZELTMESI (6) — VERI KAYBI
       //
-      // ONCEKI SURUM: `pushRemoteMembers(members)` dogrudan gonderiliyordu.
-      // Tarayiciya Sheets'ten gelen uyelerde `password` alani YOKTUR
-      // (sunucu yalnizca hash saklar). Bu uyeler tekrar yazildiginda
-      // sunucu "sifre yok" gorup passwordHash'i BOS BIRAKIYORDU.
-      // Sonuc: uye listede gorunuyor ama KIMSE o hesapla giremiyordu.
+      // BIR ONCEKI DENEMEDE BURAYA FILTRE KOYDUM:
+      //     const payload = members.filter(m => m.password);
+      // ve "sifre hash'i siliniyor" diye yalnizca sifreli uyeleri
+      // gonderdim. BU YANLISTI ve veri KAYBINA yol acti.
       //
-      // COZUM: SIFRESI BILINMEYEN uyeler gonderilmez. Sunucudaki
-      // hash'leri korunur; yeni eklenen uyeler (sifresi olan) yazilir.
+      // NEDEN: sunucudaki writeMembers() once tum satirlari SILER,
+      // sonra gelen listeyi yazar. Yani filtrelenen liste kucukse
+      // Sheets'teki diger uyeler kalici olarak silinir.
+      // Sonuc: 2. uyeyi ekleyince yine sadece kurucu kaliyor,
+      // o uye hic yazilmadigi icin giremiyor.
       //
-      // Ayrica: Sheets'ten okunan uyelerin sifresi sunucuda hash'li
-      // saklandigi icin istemciye GONDERILMEZ. Bu yuzden onlari
-      // yeniden yazmak hash'i yok ederdi. Sifresi olmayan uyeler
-      // sunucuda zaten kayitlidir, atlanmalarindadir.
+      // ASLINDA SIFRE KORUNUYOR: sunucuda
+      //     else if (!member.passwordHash)
+      //       member.passwordHash = hashById.get(m.id) || '';
+      // var; yani sifresiz gelen kaydin mevcut hash'i KORUNUR.
+      // (Onceki endisem yanlis bir cikarimdi.)
       //
-      // DIKKAT: Bu, "sadece admin yazabilir" gibi bir kural DEGILDIR.
-      // Sirket calisani ("members" yetkisi olan herkes) da uye
-      // ekleyip yazabilmelidir; buradaki filtre yalnizca SIFRE
-      // alani bulunmayan kayitlari korur.
-      const payload = members.filter(
-        (m) => typeof m.password === 'string' && m.password.length > 0
-      );
-      if (payload.length === 0) {
-        setSyncOk(true);
-        setSyncError('');
-        return;
-      }
-
-      const ok = await pushRemoteMembers(payload);
+      // COZUM: butun liste gonderilir. Sifreli uyeler hash'lenir,
+      // sifresiz gelenler mevcut hash'lerini korur. Hicbir uye silinmez.
+      //
+      // AYRICA: "deleteIntent" bayragi, panelden bilerek uye silindi
+      // oldugunu sunucuya bildirir. Sunucudaki kismen-silme korumasi
+      // bunu gorerek gercek silmeye izin verir; istemci hatasinda ise
+      // (bayrak yok) veri kaybi olusmaz.
+      const deleteIntent = membersDeletingRef.current;
+      membersDeletingRef.current = false;
+      const ok = await pushRemoteMembers(members, { confirmSil: deleteIntent });
       if (ok) {
         setSyncOk(true);
         setSyncError('');
@@ -636,6 +639,8 @@ const canEditPerformance = isAdmin || (currentUser?.permissions?.includes('perfo
 
   const handleDeleteMember = (id: string) => {
     const target = members.find((m) => m.id === id);
+    // Sunucudaki "kismen silme" korumasina bildir: bu kasitli bir silme.
+    membersDeletingRef.current = true;
     setMembers((prev) => prev.filter((item) => item.id !== id));
     setPerformances((prev) => prev.filter((p) => p.memberId !== id));
 

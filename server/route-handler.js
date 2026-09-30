@@ -172,6 +172,39 @@ export async function handleApi(method, segments, body = {}) {
           return fail(400, 'members dizisi bos gonderilemez; tum kayitlar silinirdi.');
         }
 
+        // GUARD 2: KISMEN SILME KORUMASI
+        //
+        // writeMembers() once tum satirlari SILER, sonra gelen listeyi
+        // yazar. Bu yuzden istemci yanlislikla filtrelenmis/eksik bir
+        // liste gonderirse tablodaki diger uyeler kalici olarak silinir.
+        //
+        // Gercek kullanici silme islemi (panelden "uye sil") de bu
+        // endpoint'i kullandigi icin, kasitli silmeleri ayirt etmemiz
+        // gerekiyor. Bunun icin:
+        //   - confirmSil (istemcinin bu istegi KASITLI oldugunu
+        //     bildirdigi bayrak) varsa koruma devre disi kalir,
+        //   - aksi halde mevcut kayitlarin yarisindan azi geliyorsa
+        //     islem reddedilir.
+        //
+        // NOT: Bu bayrak bir guvenlik onlemi DEGIL, sadece "kullanici
+        // bunu istiyor" bilgisidir; yetkilendirme zaten ayri tutuluyor.
+        if (body?.confirmSil !== true) {
+          try {
+            const existingCount = (await readMembers({ spreadsheetId, tabName })).length;
+            const incomingCount = body.members.length;
+            if (existingCount > 0 && incomingCount < existingCount * 0.5) {
+              return fail(
+                400,
+                `Guvenlik: mevcut ${existingCount} uye varken ${incomingCount} uye gonderildi. ` +
+                  `Islem iptal edildi (veri kaybi olustururdu). Uye silmek icin paneli kullanin.`,
+                'REFUSED_MASS_DELETE'
+              );
+            }
+          } catch (e) {
+            // Okuma basarisiz olursa yazmaya devam et (gercek hata asagida yakalanir)
+          }
+        }
+
         const out = await writeMembers({ spreadsheetId, members: body.members, tabName });
         return ok({ ok: true, ...out });
       }

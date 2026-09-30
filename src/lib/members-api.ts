@@ -94,11 +94,18 @@ export async function fetchRemoteMembers(): Promise<Member[] | null> {
  * Uye listesini sunucuya yazar.
  * Sifreler sunucuda hash'lenir; duz sifre tabloya yazilmaz.
  */
-export async function pushRemoteMembers(members: Member[]): Promise<boolean> {
+export async function pushRemoteMembers(
+  members: Member[],
+  opts: { confirmSil?: boolean } = {}
+): Promise<boolean> {
   if (!Array.isArray(members) || members.length === 0) return false;
   const data = await call<{ ok: boolean }>('/api/sheets/members', {
     spreadsheetId: currentSpreadsheetId(),
     members,
+    // Sunucudaki "kismen silme" korumasi: yalnizca liste mevcut
+    // kayitlarin yarisindan azini iceriyorsa reddeder. Kullanici
+    // panelden bilerek uye sildiginde bu bayrak gonderilir.
+    confirmSil: opts.confirmSil === true,
   });
   return !!data?.ok;
 }
