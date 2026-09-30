@@ -315,34 +315,43 @@ export const MembersView: React.FC<MembersProps> = ({
       // Boylece "uye eklendi ama giremiyor" durumu bir daha olmaz;
       // hata olursa yoneticiye tam sebep gosterilir.
       void (async () => {
-        // Sheets yazimi 2.5 sn gecikmeli; biraz bekle
-        await new Promise((r) => setTimeout(r, 3200));
-        const res = await remoteLogin(info.username, info.password);
-        setCreatedCredentials((prev) => {
-          if (!prev) return prev;
-          if (res.status === 'ok') {
+        // Yazma gecikmeli + birlestirme eklenince 3.2 sn yetersiz kaldi.
+        // 5 sn sonra ve gerekirse 2 kez daha dene.
+        const tryVerify = async (attempt: number) => {
+          const res = await remoteLogin(info.username, info.password);
+          setCreatedCredentials((prev) => {
+            if (!prev) return prev;
+            if (res.status === 'ok') {
+              return {
+                ...prev,
+                verified: true,
+                verifyMessage: 'Giriş testi BAŞARILI — bu kullanıcı panele girebilir.',
+              };
+            }
+            if (res.status === 'unavailable') {
+              return {
+                ...prev,
+                verified: null,
+                verifyMessage: 'Sunucuya ulaşılamadı, doğrulanamadı. Sayfayı yenileyip tekrar deneyin.',
+              };
+            }
+            // invalid: Sheets'e yazma gecikmeli olabilir, tekrar dene
             return {
               ...prev,
-              verified: true,
-              verifyMessage: 'Giriş testi BAŞARILI — bu kullanıcı panele girebilir.',
-            };
-          }
-          if (res.status === 'invalid') {
-            return {
-              ...prev,
-              verified: false,
+              verified: attempt >= 2 ? false : null,
               verifyMessage:
-                'Giriş testi BAŞARISIZ: kullanıcı adı veya şifre Sheets\'te bulunamadı. ' +
-                'Üyeyi Düzenle ekranından tekrar kaydedin.',
+                attempt >= 2
+                  ? 'Giriş testi BAŞARISIZ. Üyeyi Düzenle ile tekrar kaydedin.'
+                  : 'Kaydediliyor, tekrar deneniyor...',
             };
+          });
+          if (res.status === 'invalid' && attempt < 3) {
+            setTimeout(() => void tryVerify(attempt + 1), 2500);
           }
-          return {
-            ...prev,
-            verified: null,
-            verifyMessage:
-              'Sunucuya ulaşılamadı, doğrulanamadı. Sayfayı yenileyip tekrar deneyin.',
-          };
-        });
+        };
+
+        await new Promise((r) => setTimeout(r, 3000));
+        void tryVerify(1);
       })();
     }
     setIsModalOpen(false);

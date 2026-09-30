@@ -458,9 +458,40 @@ export function App() {
       // confirmSil: panelden bilerek uye silindiysa sunucudaki
       // "kismen silme" korumasi devre disi kalir. Istemci hatasinda
       // (bayrak yok) veri kaybi olusmaz.
+      // ---- KRITIK: YAZMADAN ONCE SUNUCUYLA BIRLESTIR ----
+      //
+      // SORUN: `members` yalnizca BU tarayicidaki liste; baska bir
+      // cihazda eklenen uyeler burada yok. Tum liste gonderildiginde
+      // sunucu once satirlari SILIP gelen listeyi yazdigindan, eklenen
+      // her uye digerlerini SILERDI ("mihri" kayboldu gibi).
+      //
+      // COZUM: once sunucudan gecerli listeyi cek, yerel ile birlestir,
+      // sonra yaz. Boylece hicbir uye kaybolmaz.
+      let toWrite = members;
+      try {
+        const server = await fetchRemoteMembers();
+        if (server && server.length > 0) {
+          const serverById = new Map(server.map((s) => [s.id, s]));
+          const localById = new Map(members.map((m) => [m.id, m]));
+
+          // Yereldeki her uye: sunucuda varsa alanlari tazele,
+          // yoksa (yeni eklenmis) yerel kaydi kullan.
+          const merged = members.map((m) => {
+            const s = serverById.get(m.id);
+            return s ? { ...m, ...s, password: m.password } : m;
+          });
+
+          // Sunucuda olup yerelde olmayanlar KORUNUR.
+          const onlyOnServer = server.filter((s) => !localById.has(s.id));
+          toWrite = [...merged, ...onlyOnServer];
+        }
+      } catch {
+        // Sunucu okunamazsa yerel listeyle devam et
+      }
+
       const deleteIntent = membersDeletingRef.current;
       membersDeletingRef.current = false;
-      const ok = await pushRemoteMembers(members, { confirmSil: deleteIntent });
+      const ok = await pushRemoteMembers(toWrite, { confirmSil: deleteIntent });
       if (ok) {
         setSyncOk(true);
         setSyncError('');
