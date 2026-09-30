@@ -498,8 +498,20 @@ export function App() {
   }, [currentUserId]);
 
   // Giriş yapan kullanıcı
+  //
+  // İzinler burada da normalize edilir: sayfa yenilendiğinde oturum
+  // localStorage'dan geri gelir ve izinler metin ("a,b,c") olarak
+  // okunabilir. Normalize edilmezse allowedTabs boş kalır ve kullanıcı
+  // tekrar giriş ekranına düşer.
   const currentUser = currentUserId
-    ? members.find((m) => m.id === currentUserId) ?? null
+    ? (() => {
+        const found = members.find((m) => m.id === currentUserId);
+        if (!found) return null;
+        return {
+          ...found,
+          permissions: normalizePermissions(found.permissions, found.role),
+        } as Member;
+      })()
     : null;
 
   const isAdmin = currentUser?.role === 'super_admin' || currentUser?.role === 'company_manager';
@@ -541,7 +553,25 @@ const canEditPerformance = isAdmin || (currentUser?.permissions?.includes('perfo
     : baseAllowed;
 
   const handleLogin = (member: Member) => {
-    setCurrentUserId(member.id);
+    // Gelen uyeyi izinleriyle birlikte listeye ISLE.
+    //
+    // ONCEKI SURUM: yalnizca currentUserId set ediliyordu. currentUser
+    // `members.find(...)` ile bulundugu icin, kullanici listede yoksa
+    // veya izinleri bos ("") ise currentUser null kaliyor ve giris
+    // ekranina GERI DONUYORdu — kullanici "giris yapamiyorum" saniyordu.
+    // Kurucu (huseyin) her zaman listede oldugu icin yalnizca o giriyordu.
+    const withPermissions: Member = {
+      ...member,
+      permissions: normalizePermissions(member.permissions, member.role),
+    };
+    setMembers((prev) => {
+      const exists = prev.some((m) => m.id === withPermissions.id);
+      return exists
+        ? prev.map((m) => (m.id === withPermissions.id ? { ...m, ...withPermissions } : m))
+        : [withPermissions, ...prev];
+    });
+
+    setCurrentUserId(withPermissions.id);
     setCurrentTab('dashboard');
     const newLog: ActivityLog = {
       id: 'log-' + Date.now(),
@@ -568,8 +598,13 @@ const canEditPerformance = isAdmin || (currentUser?.permissions?.includes('perfo
     setCurrentTab('dashboard');
   };
 
-  // Oturum yoksa login ekranını göster
-  if (!currentUser || currentUser.status === 'Pasif' || allowedTabs.length === 0) {
+  // Oturum yoksa veya hesap pasifse login ekranını göster.
+  //
+  // DIKKAT: `allowedTabs.length === 0` kontrolu KALDIRILDI. Izinler
+  // normalize edildiginden bu artik yalnizca gercekten yetkisiz
+  // hesaplarda olur; ama bir eslesme hatasinda kullaniciyi panelden
+  // atiyordu. Izin kontrolu zaten LoginScreen'de (finish) yapiliyor.
+  if (!currentUser || currentUser.status === 'Pasif') {
     return (
       <>
         <LanguageSelectionOverlay />
