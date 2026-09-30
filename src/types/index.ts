@@ -3,6 +3,7 @@
 export type RoleId =
   | 'super_admin'
   | 'company_manager'
+  | 'company_staff'
   | 'academy_lead'
   | 'academy_member'
   | 'fedai_member'
@@ -51,11 +52,17 @@ export interface Member {
   username: string;
   password: string;
   permissions: PermissionId[];
+  /** Üye pasife alındığında girilen gerekçe */
+  deactivationReason?: string;
+  /** Durumun en son değiştiği tarih (ISO) */
+  statusChangedAt?: string;
 }
 
 export interface ActivityLog {
   id: string;
   memberId?: string;
+  /** Eski kayitlarla uyumluluk (Sinan paneli semasi) */
+  userId?: string;
   actor: string;
   action: string;
   category: 'User' | 'Performance' | 'Role' | 'System';
