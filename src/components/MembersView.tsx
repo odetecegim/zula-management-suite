@@ -217,7 +217,15 @@ export const MembersView: React.FC<MembersProps> = ({
     setFormScore(m.participationScore);
     setFormNotes(m.notes);
     setFormUsername(m.username);
-    setFormPassword(m.password);
+    // DIKKAT: Sheets'ten gelen uyede `password` YOKTUR (sunucu hash'li
+    // saklar, istemciye gondermez). Onceki surumde buraya undefined
+    // yaziliyordu; kaydederken "sifre bos" sanilip otomatik kural
+    // (kullaniciadi+123) uygulaniyor ve GERCEK sifre degisiyordu —
+    // boylece panelin gosterdigi sifre gercekle uyusmuyordu.
+    //
+    // COZUM: sifre alanini DOLDURMA. Bos birakilirsa mevcut sifre
+    // korunur; sadece yonetici bilerek degistirmek isterse yazar.
+    setFormPassword('');
     setFormPermissions(m.permissions);
     setShowPassword(false);
     setErrors({});
@@ -252,9 +260,13 @@ export const MembersView: React.FC<MembersProps> = ({
         : '';
 
     const finalPassword = isAdmin
-      ? formPassword || suggestPassword(finalUsername)
+      ? formPassword
+        ? formPassword                                    // yonetici yeni sifre yazdi
+        : editingMember
+          ? ''                                           // DUZENLEME: mevcut sifre KORUNUR
+          : suggestPassword(finalUsername)               // YENI UYE: kural uygula
       : editingMember
-        ? editingMember.password
+        ? ''
         : '';
 
     const credentials = isAdmin
@@ -302,14 +314,23 @@ export const MembersView: React.FC<MembersProps> = ({
     // Bos birakilmis alanlarin degeri kullanicuya gosterilir; boylece
     // "hangi kullanici adi / sifre atandi" sorusu cevapsiz kalmaz.
     if (!editingMember && isAdmin && credentials.username) {
+      // YENI UYE: sifre her zaman uretilir, giris testi yapilabilir.
+      // DUZENLEME: sifre bos birakilmissa test yapilmaz.
+      const canVerify = Boolean(credentials.password);
       const info = {
         username: credentials.username,
         password: credentials.password,
         tagId: finalTagId,
-        verified: null as boolean | null,
-        verifyMessage: 'Kaydedildi, doğrulanıyor...',
+        verified: canVerify ? null : false,
+        verifyMessage: canVerify
+          ? 'Kaydedildi, doğrulanıyor...'
+          : 'Kaydedildi. Şifre değiştirilmediği için giriş testi yapılmadı.',
       };
       setCreatedCredentials(info);
+      if (!canVerify) {
+        setIsModalOpen(false);
+        return;
+      }
 
       // KALICI COZUM: kayittan sonra GERCEK giris denemesi yap.
       // Boylece "uye eklendi ama giremiyor" durumu bir daha olmaz;
@@ -579,11 +600,16 @@ export const MembersView: React.FC<MembersProps> = ({
                               onClick={() =>
                                 setCreatedCredentials({
                                   username: m.username,
-                                  password: m.password || `${m.username}123`,
+                                  // Sheets sifreleri hash'li saklar; duz metin
+                                  // YALNIZCA bu tarayicinin onbelleginde varsa
+                                  // gosterilebilir.
+                                  password: m.password || '',
                                   tagId: m.tagId,
                                   verified: null,
-                                  verifyMessage:
-                                    'Bu, sistemde kayıtlı olan şifredir. Kullanıcıya iletin veya Düzenle ile değiştirin.',
+                                  verifyMessage: m.password
+                                    ? 'Bu, sistemde kayıtlı olan şifredir. Kullanıcıya iletin.'
+                                    : 'Şifre sunucuda hash olarak saklanır, düz metin olarak okunamaz. ' +
+                                      'Değiştirmek için Düzenle ekranını açıp yeni şifre yazın.',
                                 })
                               }
                               className="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white transition-colors cursor-pointer"
@@ -671,20 +697,28 @@ export const MembersView: React.FC<MembersProps> = ({
                 </div>
 
                 <div>
-                  <div className="text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-1">Geçici Şifre</div>
-                  <div className="flex items-center gap-2">
-                    <div className="flex-1 px-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-sm text-white font-mono">
-                      {createdCredentials.password}
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => navigator.clipboard?.writeText(createdCredentials.password)}
-                      className="px-3 py-2 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded-xl text-slate-300 transition-colors cursor-pointer"
-                      title="Kopyala"
-                    >
-                      <Copy className="w-4 h-4" />
-                    </button>
+                  <div className="text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-1">
+                    Geçici Şifre
                   </div>
+                  {createdCredentials.password ? (
+                    <div className="flex items-center gap-2">
+                      <div className="flex-1 px-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-sm text-white font-mono">
+                        {createdCredentials.password}
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => navigator.clipboard?.writeText(createdCredentials.password)}
+                        className="px-3 py-2 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded-xl text-slate-300 transition-colors cursor-pointer"
+                        title="Kopyala"
+                      >
+                        <Copy className="w-4 h-4" />
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="px-3 py-2 bg-slate-950/50 border border-slate-800/60 rounded-xl text-xs text-slate-500 italic">
+                      Değiştirilmedi — mevcut şifre korunuyor
+                    </div>
+                  )}
                 </div>
               </div>
 
