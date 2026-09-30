@@ -451,7 +451,36 @@ export function App() {
   useEffect(() => {
     if (!hydrated) return; // uzaktan veri gelmeden yazma
     const timer = setTimeout(async () => {
-      const ok = await pushRemoteMembers(members);
+      // KRITIK HATA DUZELTMESI (5)
+      //
+      // ONCEKI SURUM: `pushRemoteMembers(members)` dogrudan gonderiliyordu.
+      // Tarayiciya Sheets'ten gelen uyelerde `password` alani YOKTUR
+      // (sunucu yalnizca hash saklar). Bu uyeler tekrar yazildiginda
+      // sunucu "sifre yok" gorup passwordHash'i BOS BIRAKIYORDU.
+      // Sonuc: uye listede gorunuyor ama KIMSE o hesapla giremiyordu.
+      //
+      // COZUM: SIFRESI BILINMEYEN uyeler gonderilmez. Sunucudaki
+      // hash'leri korunur; yeni eklenen uyeler (sifresi olan) yazilir.
+      //
+      // Ayrica: Sheets'ten okunan uyelerin sifresi sunucuda hash'li
+      // saklandigi icin istemciye GONDERILMEZ. Bu yuzden onlari
+      // yeniden yazmak hash'i yok ederdi. Sifresi olmayan uyeler
+      // sunucuda zaten kayitlidir, atlanmalarindadir.
+      //
+      // DIKKAT: Bu, "sadece admin yazabilir" gibi bir kural DEGILDIR.
+      // Sirket calisani ("members" yetkisi olan herkes) da uye
+      // ekleyip yazabilmelidir; buradaki filtre yalnizca SIFRE
+      // alani bulunmayan kayitlari korur.
+      const payload = members.filter(
+        (m) => typeof m.password === 'string' && m.password.length > 0
+      );
+      if (payload.length === 0) {
+        setSyncOk(true);
+        setSyncError('');
+        return;
+      }
+
+      const ok = await pushRemoteMembers(payload);
       if (ok) {
         setSyncOk(true);
         setSyncError('');

@@ -104,6 +104,15 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ members, onLogin }) =>
     setLoading(false);
   };
 
+  /** Giriş başarısız: kullanıcıya ne yapması gerektiğini söyleyen yardım metni */
+  const errorHint = (() => {
+    if (!error) return '';
+    const e = error.toLowerCase();
+    if (e.includes('şifre') || e.includes('sifre') || e.includes('password'))
+      return 'Kullanıcı adı büyük/küçük harfe duyarsızdır. Şifreyi girerken büyük harf (Shift) açık olabilir.';
+    return '';
+  })();
+
   return (
     <div className="min-h-screen flex items-center justify-center p-4 bg-slate-950 relative overflow-hidden">
       {/* Arka plan dekorları */}
@@ -155,9 +164,14 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ members, onLogin }) =>
           </div>
 
           {error && (
-            <div className="flex items-center gap-2 px-4 py-3 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-400 text-xs font-medium">
-              <AlertCircle className="w-4 h-4 shrink-0" />
-              {error}
+            <div className="space-y-2">
+              <div className="flex items-center gap-2 px-4 py-3 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-400 text-xs font-medium">
+                <AlertCircle className="w-4 h-4 shrink-0" />
+                {error}
+              </div>
+              {errorHint && (
+                <p className="text-[11px] text-slate-500 leading-relaxed px-1">{errorHint}</p>
+              )}
             </div>
           )}
 
