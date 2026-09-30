@@ -25,6 +25,43 @@ interface MembersProps {
   logs: ActivityLog[];
 }
 
+/**
+ * Bos birakilan uye kodunu otomatik uretir: ZULA-002, ZULA-003, ...
+ * Kullanicinin sadece ad soyad + oyun ici ismini yazmasi yeterli olur.
+ */
+function suggestTagId(others: Member[]): string {
+  const used = new Set(others.map((m) => m.tagId));
+  for (let n = 2; n <= 999; n++) {
+    const candidate = 'ZULA-' + String(n).padStart(3, '0');
+    if (!used.has(candidate)) return candidate;
+  }
+  return 'ZULA-' + String(others.length + 2).padStart(3, '0');
+}
+
+/**
+ * Bos birakilan kullanici adini oyun ici nick'ten turetir.
+ * Gecerli degilse sayisal bir son ekler (mihri2, mihri3, ...).
+ */
+function suggestUsername(nick: string, existing: Member[] = []): string {
+  const base = (nick || '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]/g, '')
+    .slice(0, 8);
+  if (base.length < 4) return base.padEnd(4, '0');
+  const used = new Set(existing.map((m) => (m.username || '').toLowerCase()));
+  if (!used.has(base)) return base;
+  for (let n = 2; n <= 99; n++) {
+    const candidate = (base.slice(0, 8 - String(n).length) + n).slice(0, 10);
+    if (!used.has(candidate)) return candidate;
+  }
+  return base;
+}
+
+/** Gecici sifre: kullanici sonra Düzenle ekranindan degistirebilir. */
+function suggestPassword(): string {
+  return 'zula' + String(Math.floor(1000 + Math.random() * 9000));
+}
+
 export const MembersView: React.FC<MembersProps> = ({
   members,
   roles,
@@ -41,6 +78,12 @@ export const MembersView: React.FC<MembersProps> = ({
   const [filterRegion, setFilterRegion] = useState<string>('ALL');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingMember, setEditingMember] = useState<Member | null>(null);
+  // Yeni uye icin otomatik uretilen giris bilgileri (kullaniciya gosterilir)
+  const [createdCredentials, setCreatedCredentials] = useState<{
+    username: string;
+    password: string;
+    tagId: string;
+  } | null>(null);
 
   const [formTagId, setFormTagId] = useState('');
   const [formFullName, setFormFullName] = useState('');
@@ -73,9 +116,10 @@ export const MembersView: React.FC<MembersProps> = ({
     const next: Record<string, string> = {};
     const others = editingMember ? members.filter((m) => m.id !== editingMember.id) : members;
 
-    const tagTrim = formTagId.trim();
-    if (!tagTrim) next.tagId = 'Üye kodu zorunludur.';
-    else if (!/^ZULA-\d{3}$/i.test(tagTrim)) next.tagId = 'Format ZULA-001 şeklinde olmalıdır.';
+    // UYE KODU: Bos birakilirsa otomatik uretilir (ZULA-002, ZULA-003, ...)
+    // Kullanicinin sadece ad soyad + oyun ici ismini yazmasi yeterli olur.
+    const tagTrim = formTagId.trim() || suggestTagId(others);
+    if (!/^ZULA-\d{3}$/i.test(tagTrim)) next.tagId = 'Format ZULA-001 şeklinde olmalıdır.';
     else if (others.some((m) => m.tagId.toLocaleLowerCase('tr-TR') === tagTrim.toLocaleLowerCase('tr-TR')))
       next.tagId = 'Bu üye kodu zaten kullanılıyor.';
 
@@ -96,21 +140,26 @@ export const MembersView: React.FC<MembersProps> = ({
         next.email = 'Bu e-posta adresi zaten kullanılıyor.';
     }
 
-    // Discord ID: Topluluk Moderatörü için zorunlu ve 17+ haneli olmalı
-
     // Panel girisi ve bolum izinleri (yalnizca admin duzenler)
     if (isAdmin) {
       if (formPermissions.length === 0) next.permissions = 'En az bir bölüm erişimi seçmelisiniz.';
 
-      const userTrim = formUsername.trim().toLowerCase();
+      // KULLANICI ADI: Bos birakilirsa oyun ici nick'ten turetilir.
+      // Boylece sadece ad + nick girmek yeterli olur.
+      const userTrim = (formUsername.trim() || suggestUsername(formGameNickname)).toLowerCase();
       if (!userTrim) next.username = 'Kullanıcı adı zorunludur.';
       else if (!/^[a-zA-Z0-9]{4,10}$/.test(userTrim))
         next.username = '4-10 karakter; yalnızca İngilizce harf ve rakam.';
       else if (others.some((m) => (m.username ?? '').toLowerCase() === userTrim))
         next.username = 'Bu kullanıcı adı zaten kullanılıyor.';
 
-      if (!formPassword) next.password = 'Şifre zorunludur.';
-      else if (formPassword.length < 4) next.password = 'Şifre en az 4 karakter olmalıdır.';
+      // SIFRE: Bos birakilirsa gecici sifre atanir; kullanici sonra
+      // Düzenle ekranından degistirebilir.
+      if (!formPassword) {
+        // hata yok - otomatik sifre atanir
+      } else if (formPassword.length < 4) {
+        next.password = 'Şifre en az 4 karakter olmalıdır.';
+      }
     }
 
     return next;
@@ -178,9 +227,23 @@ export const MembersView: React.FC<MembersProps> = ({
     setErrors(found);
     if (Object.keys(found).length > 0) return;
 
+    const others = editingMember ? members.filter((m) => m.id !== editingMember.id) : members;
+
+    // Bos birakilan alanlar otomatik tamamlanir. Kullanicinin sadece
+    // ad soyad + oyun ici ismini yazmasi kayit icin yeterlidir.
+    const finalTagId = formTagId.trim() || suggestTagId(others);
+
     // Admin değilse mevcut giriş bilgileri & yetkiler korunur
     const credentials = isAdmin
-      ? { username: formUsername.trim().toLowerCase(), password: formPassword, permissions: formPermissions }
+      ? {
+          username: (
+            formUsername.trim() || suggestUsername(formGameNickname, others)
+          ).toLowerCase(),
+          // Bos sifre birakildiysa gecici sifre uretilir; kullanici
+          // Düzenle ekranindan degistirebilir.
+          password: formPassword || suggestPassword(),
+          permissions: formPermissions,
+        }
       : editingMember
       ? { username: editingMember.username, password: editingMember.password, permissions: editingMember.permissions }
       : { username: '', password: '', permissions: ['dashboard'] as PermissionId[] };
@@ -188,7 +251,7 @@ export const MembersView: React.FC<MembersProps> = ({
     if (editingMember) {
       onUpdateMember({
         ...editingMember,
-        tagId: formTagId,
+        tagId: formTagId.trim() || editingMember.tagId,
         fullName: formFullName,
         gameNickname: formGameNickname,
         playerId: formPlayerId.trim(),
@@ -205,7 +268,7 @@ export const MembersView: React.FC<MembersProps> = ({
     } else {
       onAddMember({
         id: 'm-' + Date.now(),
-        tagId: formTagId,
+        tagId: finalTagId,
         fullName: formFullName,
         gameNickname: formGameNickname,
         playerId: formPlayerId.trim(),
@@ -220,6 +283,16 @@ export const MembersView: React.FC<MembersProps> = ({
         bugReportsCount: 0,
         notes: formNotes,
         ...credentials,
+      });
+    }
+
+    // Bos birakilmis alanlarin degeri kullanicuya gosterilir; boylece
+    // "hangi kullanici adi / sifre atandi" sorusu cevapsiz kalmaz.
+    if (!editingMember && isAdmin) {
+      setCreatedCredentials({
+        username: credentials.username,
+        password: credentials.password,
+        tagId: finalTagId,
       });
     }
     setIsModalOpen(false);
@@ -467,6 +540,94 @@ export const MembersView: React.FC<MembersProps> = ({
         </div>
       </div>
 
+      {/* Yeni uye olusturuldu: otomatik uretilen giris bilgileri */}
+      {createdCredentials && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm">
+          <div className="bg-slate-900 border border-slate-800 w-full max-w-md rounded-2xl shadow-2xl overflow-hidden">
+            <div className="p-5 border-b border-slate-800 bg-slate-950/60 flex items-center gap-2">
+              <Check className="w-5 h-5 text-emerald-400" />
+              <h3 className="text-base font-bold text-white">Üye oluşturuldu</h3>
+            </div>
+
+            <div className="p-5 space-y-4">
+              <p className="text-xs text-slate-400 leading-relaxed">
+                Boş bıraktığınız alanlar otomatik dolduruldu. Aşağıdaki bilgilerle
+                giriş yapabilirsiniz — kullanıcıya iletin veya sonradan
+                değiştirin.
+              </p>
+
+              <div className="space-y-3">
+                <div>
+                  <div className="text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-1">Üye Kodu</div>
+                  <div className="flex items-center gap-2">
+                    <div className="flex-1 px-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-sm text-white font-mono">
+                      {createdCredentials.tagId}
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => navigator.clipboard?.writeText(createdCredentials.tagId)}
+                      className="px-3 py-2 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded-xl text-slate-300 transition-colors cursor-pointer"
+                      title="Kopyala"
+                    >
+                      <Copy className="w-4 h-4" />
+                    </button>
+                  </div>
+                </div>
+
+                <div>
+                  <div className="text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-1">Kullanıcı Adı</div>
+                  <div className="flex items-center gap-2">
+                    <div className="flex-1 px-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-sm text-white font-mono">
+                      {createdCredentials.username}
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => navigator.clipboard?.writeText(createdCredentials.username)}
+                      className="px-3 py-2 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded-xl text-slate-300 transition-colors cursor-pointer"
+                      title="Kopyala"
+                    >
+                      <Copy className="w-4 h-4" />
+                    </button>
+                  </div>
+                </div>
+
+                <div>
+                  <div className="text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-1">Geçici Şifre</div>
+                  <div className="flex items-center gap-2">
+                    <div className="flex-1 px-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-sm text-white font-mono">
+                      {createdCredentials.password}
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => navigator.clipboard?.writeText(createdCredentials.password)}
+                      className="px-3 py-2 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded-xl text-slate-300 transition-colors cursor-pointer"
+                      title="Kopyala"
+                    >
+                      <Copy className="w-4 h-4" />
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              <p className="text-[11px] text-amber-400/80 bg-amber-500/5 border border-amber-500/20 rounded-lg p-2.5">
+                Güvenlik için bu şifreyi kullanıcıya iletin ve kendisinden
+                değiştirmesini isteyin.
+              </p>
+            </div>
+
+            <div className="p-4 border-t border-slate-800">
+              <button
+                type="button"
+                onClick={() => setCreatedCredentials(null)}
+                className="w-full bg-indigo-600 hover:bg-indigo-500 text-white font-semibold text-xs px-5 py-3 rounded-xl transition-colors cursor-pointer"
+              >
+                Tamam
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {isModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm">
           <div className="bg-slate-900 border border-slate-800 w-full max-w-xl rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
@@ -505,10 +666,10 @@ export const MembersView: React.FC<MembersProps> = ({
                   <label className="block text-xs font-semibold text-slate-400 mb-1">Üye Kodu</label>
                   <input
                     type="text"
-                    required
+                    placeholder="Boş bırakılırsa otomatik atanır"
                     value={formTagId}
                     onChange={(e) => setFormTagId(e.target.value)}
-                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-sm text-white outline-none"
+                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-sm text-white outline-none placeholder-slate-600"
                   />
                   {errorFor('tagId')}
                 </div>
@@ -674,7 +835,7 @@ export const MembersView: React.FC<MembersProps> = ({
                       <label className="block text-xs font-semibold text-slate-400 mb-1">Kullanıcı Adı</label>
                       <input
                         type="text"
-                        placeholder="orn: testci01"
+                        placeholder="Boş bırakılırsa nick'ten üretilir"
                         value={formUsername}
                         onChange={(e) => setFormUsername(e.target.value)}
                         className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-sm text-white outline-none font-mono"
@@ -686,7 +847,7 @@ export const MembersView: React.FC<MembersProps> = ({
                       <div className="relative">
                         <input
                           type={showPassword ? 'text' : 'password'}
-                          placeholder="Şifre belirleyin"
+                          placeholder="Boş bırakılırsa geçici şifre atanır"
                           value={formPassword}
                           onChange={(e) => setFormPassword(e.target.value)}
                           className="w-full bg-slate-950 border border-slate-800 rounded-xl pl-3 pr-9 py-2 text-sm text-white outline-none font-mono"
