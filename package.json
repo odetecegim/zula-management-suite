@@ -14,7 +14,8 @@
     "preview": "vite preview",
     "server": "node server/index.js",
     "dev:all": "node scripts/dev-all.js",
-    "start": "node server/index.js"
+    "start": "node server/index.js",
+    "pages:build": "vite build && node scripts/pages-postbuild.js"
   },
   "dependencies": {
     "@tailwindcss/vite": "^4.3.3",
