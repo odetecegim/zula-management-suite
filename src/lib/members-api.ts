@@ -52,7 +52,7 @@ async function call<T>(
   try {
     const res = await fetch(apiUrl(path), {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: authHeaders(),
       body: JSON.stringify(body),
       signal: controller.signal,
     });
@@ -85,6 +85,53 @@ async function call<T>(
 }
 
 const currentSpreadsheetId = (): string => loadSheetSettings().spreadsheetId;
+
+/* ------------------------------------------------------------------ */
+/* Oturum belirteci (session token)                                    */
+/* ------------------------------------------------------------------ */
+
+const TOKEN_KEY = 'zula_suite_session_token';
+
+/**
+ * Sunucu, basarili giriste bir belirtec verir. Tum veri isteklerinde
+ * `x-session-token` basligi ile gonderilir.
+ *
+ * ONCEDEN YOKTU: /api/sheets/* uclari sifre istemeden calisiyordu,
+ * yani internete acik herkes uye listesini okuyup istedigi rolu
+ * yazabiliyordu. Artik belirtec olmadan istek 401 doner.
+ *
+ * Not: Yazma istekleri icin ayrica sunucudaki ADMIN_API_KEY gerekir.
+ * O anahtar istemciye SIZDIRILMAZ; bu yuzden panel uzerinden yapilan
+ * yazma istekleri sunucuya gonderilmeden once engellenir.
+ */
+let sessionToken: string | null = null;
+
+try {
+  sessionToken = sessionStorage.getItem(TOKEN_KEY);
+} catch {
+  sessionToken = null;
+}
+
+export function setSessionToken(token: string | null): void {
+  sessionToken = token;
+  try {
+    if (token) sessionStorage.setItem(TOKEN_KEY, token);
+    else sessionStorage.removeItem(TOKEN_KEY);
+  } catch {
+    /* depolama kapali olabilir */
+  }
+}
+
+export function getSessionToken(): string | null {
+  return sessionToken;
+}
+
+/** Isteklere dogrulama basligi ekler. */
+const authHeaders = (extra: Record<string, string> = {}): Record<string, string> => ({
+  'Content-Type': 'application/json',
+  ...(sessionToken ? { 'x-session-token': sessionToken } : {}),
+  ...extra,
+});
 
 /* ------------------------------------------------------------------ */
 /* Uye listesi                                                         */
@@ -175,7 +222,7 @@ export async function remoteLogin(
   try {
     const res = await fetch(apiUrl('/api/sheets/login'), {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: authHeaders(),
       body: JSON.stringify({ spreadsheetId: currentSpreadsheetId(), username, password }),
       signal: controller.signal,
     });
@@ -200,10 +247,20 @@ export async function remoteLogin(
       }
     }
 
+    if (res.status === 401) {
+      setSessionToken(null);
+      return { status: 'unavailable' };
+    }
+
     if (!res.ok) return { status: 'unavailable' };
 
-    const data = (await res.json()) as { ok: boolean; member?: Member };
-    if (data?.ok && data.member) return { status: 'ok', member: data.member };
+    const data = (await res.json()) as { ok: boolean; member?: Member; token?: string };
+    if (data?.ok && data.member) {
+      // Sunucu artik oturum belirteci donuyor; sonraki isteklerde
+      // x-session-token basligi ile otomatik eklenir.
+      if (data.token) setSessionToken(data.token);
+      return { status: 'ok', member: data.member };
+    }
     return { status: 'unavailable' };
   } catch {
     return { status: 'unavailable' };

@@ -28,14 +28,45 @@ const PORT = Number(process.env.PORT || 8787);
 const app = express();
 
 /**
- * CORS: varsayilanda tum kaynaklara acik. Isterseniz kisitleyin:
- *   CORS_ORIGIN=https://<uygulama-adresiniz>
+ * CORS: varsayilanda tum kaynaklara acik.
+ *
+ * GUVENLIK: Open CORS, API uc noktalarinin tarayicidan dogrudan
+ * cagrilabilmesi demektir. Sifre gerektirmeyen bir uc noktaya
+ * (or. /api/sheets/login) siteler arasi istek atilabilir ve kurbanin
+ * tarayicisi kullanilarak kaba kuvvet denemesi yapilabilir.
+ *
+ * Guvenli varsayilan: yalnizca beyaz listedeki kaynaklara izin ver.
+ * Liste yoksa hicbir dis kaynaga izin verilmez (API yalnizca panelin
+ * kendi adresinden ve sunucudan cagrilabilir).
  */
 const corsOrigin = (process.env.CORS_ORIGIN || '').trim();
+const ALLOWED_ORIGINS = corsOrigin
+  ? corsOrigin.split(',').map((s) => s.trim()).filter(Boolean)
+  : [];
+
 app.use(
   cors({
-    origin: corsOrigin || true,
+    origin(origin, callback) {
+      // Sunucu ici / curl isteklerinde Origin header yoktur
+      if (!origin) return callback(null, true);
+
+      // Ayni sunucudan gelen istekler (yayin adresi) serbest
+      const selfOrigins = [
+        'https://zula-teskilat.vercel.app',
+        'https://odetecegim.github.io',
+      ];
+
+      if (selfOrigins.includes(origin)) return callback(null, true);
+      if (ALLOWED_ORIGINS.includes(origin)) return callback(null, true);
+
+      // Beyaz listede yoksa reddet
+      return callback(null, false);
+    },
     methods: ['GET', 'POST', 'OPTIONS'],
+    // Istemcinin sunucuya gonderdigi dogrulama basligi
+    allowedHeaders: ['Content-Type', 'x-session-token', 'x-api-key'],
+    credentials: false,
+    maxAge: 600,
   })
 );
 
@@ -48,7 +79,12 @@ app.use(express.json({ limit: '10mb' }));
 app.all(/^\/api\/(.*)$/, async (req, res) => {
   let segments = (req.params[0] || '').split('/').filter(Boolean);
   if (segments[0] === 'sheets') segments = segments.slice(1);
-  const { status, body } = await handleApi(req.method, segments, req.body || {});
+  const { status, body } = await handleApi(
+    req.method,
+    segments,
+    req.body || {},
+    req.headers || {}
+  );
   res.status(status).json(body);
 });
 

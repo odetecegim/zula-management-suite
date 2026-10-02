@@ -29,6 +29,28 @@ import {
   MEMBERS_TAB,
 } from './members-store.js';
 
+import {
+  requireAuth,
+  createSessionToken,
+  revokeSession,
+  clearFailedLogins,
+  isRateLimited,
+  registerFailedLogin,
+  pruneSessions,
+} from './auth.js';
+
+// Oturum belirtecleri biriktikce bellek sismesin
+pruneSessions();
+
+/**
+ * Dogrulama gerektirmeyen (herkese acik) uc noktalar.
+ * Bunlar veri DONDURMEZ, yalnizca oturum akisini baslatir.
+ */
+const PUBLIC_ENDPOINTS = new Set(['status', 'health', 'login', 'logout']);
+
+/** Yazma (veri degistiren) uc noktalar — en katı koruma. */
+const WRITE_ENDPOINTS = new Set(['write', 'members', 'member-delete', 'import']);
+
 const DEFAULT_SPREADSHEET = extractSpreadsheetId(process.env.SHEETS_SPREADSHEET_ID || '');
 
 /** Girdi (ID veya URL) guvenli sekilde tablo ID'sine cevrilir. */
@@ -49,11 +71,34 @@ const fail = (status, message, code = 'ERROR') => ({ status, body: { error: mess
  * @param {string[]} segments  'status' | ['test'] gibi uc nokta parcalari
  * @param {object} body     JSON govdesi
  */
-export async function handleApi(method, segments, body = {}) {
+export async function handleApi(method, segments, body = {}, headers = {}) {
   const endpoint = String(segments?.[0] || '').toLowerCase();
   const get = method === 'GET' || method === 'HEAD';
 
+  // ---- KIMLIK DOGRULAMA KAPISI ------------------------------------
+  // Once bu modul hicbir yetki kontrolu YAPMIYORDU. Arayuz katmanindaki
+  // kontroller yalnizca tarayicida calistigi icin, dogrudan HTTP istegi
+  // atmak tum korumayi atliyordu. Asagida her veri uc noktasi icin
+  // sunucu tarafi dogrulama yapilir.
+  if (!PUBLIC_ENDPOINTS.has(endpoint)) {
+    const isWrite = WRITE_ENDPOINTS.has(endpoint) || (!get && endpoint !== 'logout');
+    const auth = requireAuth(headers, { write: isWrite });
+    if (!auth.ok) {
+      return fail(auth.status, auth.error, auth.code);
+    }
+  }
+
   try {
+    // Hatali giris denemelerini sinirla (kaba kuvvet korumasi)
+    const rateKey = String(headers['x-forwarded-for'] || 'unknown').split(',')[0].trim();
+    if (endpoint === 'login' && isRateLimited(rateKey)) {
+      return fail(
+        429,
+        'Çok fazla hatalı giriş denemesi. Lütfen 10 dakika sonra tekrar deneyin.',
+        'RATE_LIMITED'
+      );
+    }
+
     switch (endpoint) {
       case 'health':
         return ok({ ok: true, configured: isConfigured() });
@@ -268,7 +313,8 @@ export async function handleApi(method, segments, body = {}) {
         );
 
         if (!found || !verifyPassword(body?.password, found.passwordHash)) {
-          return fail(401, 'Kullanıcı adı veya şifre hatalı.', 'BAD_CREDENTIALS');
+          registerFailedLogin(rateKey);
+          return fail(401, 'Kullanici adi veya sifre hatali.', 'BAD_CREDENTIALS');
         }
 
         // PASİF HESAP ENGELİ
@@ -291,8 +337,22 @@ export async function handleApi(method, segments, body = {}) {
         }
 
         // Sifre ozetini yanitta gonderme
+        clearFailedLogins(rateKey);
+
+        // Sifre ozetini yanitta gonderme
         const { passwordHash, ...safe } = found;
-        return ok({ ok: true, member: safe });
+
+        // Basarili giris: sunucu tarafi oturum belirteci uret.
+        // Bundan sonraki veri isteklerinde x-session-token gonderilir.
+        const token = createSessionToken(String(found.id));
+        return ok({ ok: true, member: safe, token, expiresIn: 12 * 60 * 60 });
+      }
+
+      // --- OTURUMU KAPAT ------------------------------------------------
+      case 'logout': {
+        const token = String(headers['x-session-token'] || headers['X-Session-Token'] || '').trim();
+        if (token) revokeSession(token);
+        return ok({ ok: true });
       }
 
       default:

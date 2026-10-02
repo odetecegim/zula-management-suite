@@ -30,7 +30,9 @@ export default async function handler(req, res) {
   const { status, body } = await handleApi(
     req.method || 'GET',
     segments,
-    req.body || {}
+    req.body || {},
+    // Dogrulama icin istek basliklari sunucuya aktarilir
+    req.headers || {}
   );
 
   res.status(status).json(body);
