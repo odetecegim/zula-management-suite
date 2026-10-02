@@ -95,8 +95,17 @@ export interface SheetProcessResult {
 
 export interface SheetsStatus {
   configured: boolean;
-  defaultSpreadsheetId: string;
+  /**
+   * Sunucuda varsayilan tablo kimligi TANIMLI MI.
+   * Degerinin kendisi bilerek dondurulmez (guvenlik: bu uc nokta
+   * herkese acik; tablo kimligi sizarsa biri tabloya erisme calisir).
+   */
+  hasDefaultSpreadsheet: boolean;
   defaultRange: string;
+  /** Slack baglantisi kurulu mu */
+  slackConfigured?: boolean;
+  /** Hangi yol: 'bot' | 'webhook' | 'none' */
+  slackMode?: string;
   fieldLabels: Record<string, string>;
 }
 

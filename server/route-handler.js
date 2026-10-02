@@ -177,7 +177,10 @@ export async function handleApi(method, segments, body = {}, headers = {}) {
       case 'status':
         return ok({
           configured: isConfigured(),
-          defaultSpreadsheetId: DEFAULT_SPREADSHEET,
+          // GUVENLIK: Tablo kimligi BURADA DONULMEZ. Bu uc nokta
+          // herkese acik; kimlik sizarsa biri tabloya dogrudan
+          // erisme calisir. Istemci kendi ID'sini zaten gonderiyor.
+          hasDefaultSpreadsheet: Boolean(DEFAULT_SPREADSHEET),
           defaultRange: rangeOf(),
           // Panel, Ayarlar ekraninda Slack durumunu gosterir.
           slackConfigured: isSlackConfigured(),
