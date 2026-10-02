@@ -1,10 +1,11 @@
-import React, { useState } from 'react';
+﻿import React, { useState } from 'react';
 import { ShieldCheck, Plus, Edit3, X, Check, KeyRound, Shield, Users, Trash2, Layers, AlertTriangle } from 'lucide-react';
 import { ALL_PERMISSIONS } from '../data/initialData';
 import { getRoleLevel, roleLevelLabel } from '../lib/roles';
 import type { Member, RoleDef, RoleId, PermissionId } from '../types';
 
 interface SettingsProps {
+  readOnly?: boolean;
   members: Member[];
   roles: RoleDef[];
   onAddRole: (role: RoleDef) => void;
@@ -25,6 +26,7 @@ const BADGE_PALETTE = [
 ];
 
 export const SettingsView: React.FC<SettingsProps> = ({
+  readOnly = false,
   members,
   roles,
   onAddRole,
@@ -44,6 +46,7 @@ export const SettingsView: React.FC<SettingsProps> = ({
   const memberCountFor = (roleId: RoleId) => members.filter((m) => m.role === roleId).length;
 
   const openNew = () => {
+    if (readOnly) return; // salt-okunur rol rol olusturamaz
     setEditing(null);
     setIsNew(true);
     setFormName('');
@@ -54,6 +57,7 @@ export const SettingsView: React.FC<SettingsProps> = ({
   };
 
   const openEdit = (role: RoleDef) => {
+    if (readOnly) return; // salt-okunur rol duzenleyemez
     setEditing(role);
     setIsNew(false);
     setFormName(role.name);
@@ -111,6 +115,7 @@ export const SettingsView: React.FC<SettingsProps> = ({
   };
 
   const toggleSim = (id: RoleId) => {
+    if (readOnly) return; // salt-okunur rol simule edemez
     onSimulateRoles(
       simulateRoles.includes(id) ? simulateRoles.filter((r) => r !== id) : [...simulateRoles, id]
     );

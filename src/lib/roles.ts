@@ -10,6 +10,21 @@ export const ACADEMY_ROLES: RoleId[] = ['academy_lead', 'academy_member', 'fedai
 export const REFEREE_ROLES: RoleId[] = ['referee_lead', 'referee'];
 
 /**
+ * SALT-OKUNUR (GORUNTULEYICI) ROLLER
+ *
+ * Akademi uyeleri panelde sadece GORUNTULER; hicbir seyi degistiremez:
+ * uye ekleme/duzenleme/silme, performans puani girisi, test oturumu
+ * olusturma/durum degistirme/silme, rol ve ayar degisiklikleri kapali.
+ */
+export const READ_ONLY_ROLES: RoleId[] = ['academy_lead', 'academy_member', 'fedai_member'];
+
+/** Bu roldeki uye salt-okunur mu? (sadece goruntuler, degistiremez) */
+export function isReadOnlyRole(role: string | undefined): boolean {
+  if (!role) return false;
+  return READ_ONLY_ROLES.includes(role as RoleId);
+}
+
+/**
  * ŞİRKET KADROSU ROLLERİ
  *
  * Bu roller yönetim kadrosudur; test/katılım performansı takip edilmez.

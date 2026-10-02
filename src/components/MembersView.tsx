@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+﻿import React, { useState } from 'react';
 import { Plus, Search, Trash2, Edit3, X, Check, Shield, UserCheck, KeyRound, Eye, EyeOff, Copy, AlertTriangle, Lock, ScrollText } from 'lucide-react';
 import { ALL_PERMISSIONS } from '../data/initialData';
 import { remoteLogin } from '../lib/members-api';
@@ -24,6 +24,8 @@ interface MembersProps {
   isAdmin: boolean;
   teamFilter: TeamFilter | null;
   logs: ActivityLog[];
+  readOnly?: boolean;
+  hideActions?: boolean;
 }
 
 /**
@@ -129,6 +131,8 @@ export const MembersView: React.FC<MembersProps> = ({
   isAdmin,
   teamFilter,
   logs,
+  readOnly = false,
+  hideActions = false,
 }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [filterGame, setFilterGame] = useState<string>('ALL');
@@ -505,6 +509,7 @@ export const MembersView: React.FC<MembersProps> = ({
             <option value="LATAM">LATAM</option>
           </select>
 
+          {!readOnly && (
           <button
             onClick={openNewModal}
             className="flex items-center gap-2 bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700 text-white font-semibold text-xs px-4 py-2.5 rounded-xl shadow-lg shadow-indigo-500/20 transition-all cursor-pointer"
@@ -512,6 +517,7 @@ export const MembersView: React.FC<MembersProps> = ({
             <Plus className="w-4 h-4" />
             Yeni Üye Ekle
           </button>
+          )}
         </div>
       </div>
 
@@ -527,7 +533,7 @@ export const MembersView: React.FC<MembersProps> = ({
                 <th className="px-5 py-4">Rol / Yetki</th>
                 <th className="px-5 py-4">Performans Skoru</th>
                 <th className="px-5 py-4">Durum</th>
-                <th className="px-5 py-4 text-right">İşlem</th>
+                {!hideActions && (<th className="px-5 py-4 text-right">İşlem</th>)}
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-800/60">
@@ -631,7 +637,7 @@ export const MembersView: React.FC<MembersProps> = ({
                         </span>
                       </td>
 
-                      <td className="px-5 py-4 text-right">
+                      {!hideActions && (<td className="px-5 py-4 text-right">
                         <div className="flex items-center justify-end gap-2">
                           <button
                             onClick={() => openEditModal(m)}
@@ -682,7 +688,7 @@ export const MembersView: React.FC<MembersProps> = ({
                             </span>
                           )}
                         </div>
-                      </td>
+                      </td>)}
                     </tr>
                   );
                 })

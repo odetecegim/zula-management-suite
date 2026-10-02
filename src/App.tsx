@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+﻿import { useState, useEffect } from 'react';
 import { AlertTriangle, CheckCircle } from 'lucide-react';
 import { Sidebar } from './components/Sidebar';
 import { LoginScreen } from './components/LoginScreen';
@@ -30,7 +30,7 @@ import {
   normalizePermissions,
   FOUNDER_MEMBER_ID,
 } from './data/initialData';
-import { ACADEMY_ROLES, REFEREE_ROLES, canViewLogs } from './lib/roles';
+import { ACADEMY_ROLES, REFEREE_ROLES, canViewLogs, isReadOnlyRole } from './lib/roles';
 import type { Member, TestSession, ActivityLog, Performance, RoleDef, RoleId, PermissionId } from './types';
 
 // Uye verisi icin localStorage anahtari (v2 = giris bilgisi semasi eklendi).
@@ -573,10 +573,6 @@ export function App() {
 
   const isAdmin = currentUser?.role === 'super_admin' || currentUser?.role === 'company_manager';
 
-// Performans duzenleme izni: admin VEYA "performance" bolum yetkisi olan herkes
-// (bolumunu menude gormesi yeterli degil, gercekten duzenleyebilmesi de gerekir)
-const canEditPerformance = isAdmin || (currentUser?.permissions?.includes('performance') ?? false);
-
   // Rol simulasyonu: admin baska bir rol gozuyle paneli gorebilir
   // (yalnizca gorunum; giris yapan kullanici degismez)
   const [simulateRoles, setSimulateRoles] = useState<RoleId[]>(() => {
@@ -593,6 +589,19 @@ const canEditPerformance = isAdmin || (currentUser?.permissions?.includes('perfo
   }, [simulateRoles]);
 
   const simulating = isAdmin && simulateRoles.length > 0;
+
+  // Akademi (ve buna benzer) salt-okunur roller: panelde sadece GORUNTULER,
+  // hicbir seyi degistiremez (uye ekle/sil/duzenle, puan girişi, test oturumu,
+  // rol/ayar degisikligi, Sheets aktarimi hep kapali).
+  // Rol simulasyonu acikken SIMULE edilen rol baz alinir; boylece admin,
+  // o rolun gercekten nasil gorundugunu test edebilir.
+  const effectiveRole = simulating ? (simulateRoles[0] ?? currentUser?.role) : currentUser?.role;
+  const isReadOnly = isReadOnlyRole(effectiveRole);
+
+// Performans duzenleme izni: admin VEYA "performance" bolum yetkisi olan herkes
+// (bolumunu menude gormesi yeterli degil, gercekten duzenleyebilmesi de gerekir)
+const canEditPerformance =
+    !isReadOnly && (isAdmin || (currentUser?.permissions?.includes('performance') ?? false));
 
   // Kullanıcının erişebileceği sekmeler (admin tümüne erişir)
   // Simulasyon aktifse: secimdeki roller birliginin izinleri gecerli olur (salt gorunum)
@@ -712,6 +721,7 @@ const canEditPerformance = isAdmin || (currentUser?.permissions?.includes('perfo
   };
 
   const handleAddMember = (m: Member) => {
+    if (isReadOnly) return; // salt-okunur rol uye ekleyemez
     setMembers((prev) => [m, ...prev]);
     // Kullaniciya "kaydediliyor" bildirimi; sonucu yazma islemi guncelleyecek.
     setSaveNotice({ name: m.fullName, ok: true });
@@ -727,6 +737,7 @@ const canEditPerformance = isAdmin || (currentUser?.permissions?.includes('perfo
   };
 
   const handleUpdateMember = (m: Member) => {
+    if (isReadOnly) return; // salt-okunur rol duzenleyemez
     setMembers((prev) => prev.map((item) => (item.id === m.id ? m : item)));
     const newLog: ActivityLog = {
       id: 'log-' + Date.now(),
@@ -740,6 +751,7 @@ const canEditPerformance = isAdmin || (currentUser?.permissions?.includes('perfo
   };
 
   const handleDeleteMember = (id: string) => {
+    if (isReadOnly) return; // salt-okunur rol silemez
     const target = members.find((m) => m.id === id);
     setMembers((prev) => prev.filter((item) => item.id !== id));
     setPerformances((prev) => prev.filter((p) => p.memberId !== id));
@@ -769,6 +781,7 @@ const canEditPerformance = isAdmin || (currentUser?.permissions?.includes('perfo
     performances: Performance[];
     summary: string;
   }) => {
+    if (isReadOnly) return; // salt-okunur rol ic ice aktaramaz
     setMembers(payload.members);
     setPerformances((prev) => {
       const next = [...prev];
@@ -785,6 +798,7 @@ const canEditPerformance = isAdmin || (currentUser?.permissions?.includes('perfo
   };
 
   const handleSavePerformance = (perf: Performance) => {
+    if (isReadOnly) return; // salt-okunur rol puan giremez
     setPerformances((prev) => {
       const idx = prev.findIndex((p) => p.memberId === perf.memberId && p.period === perf.period);
       if (idx > -1) {
@@ -807,6 +821,7 @@ const canEditPerformance = isAdmin || (currentUser?.permissions?.includes('perfo
   };
 
   const handleAddRole = (role: RoleDef) => {
+    if (isReadOnly) return; // salt-okunur rol degisiklik yapamaz
     setRoles((prev) => [...prev, role]);
     const newLog: ActivityLog = {
       id: 'log-' + Date.now(),
@@ -819,6 +834,7 @@ const canEditPerformance = isAdmin || (currentUser?.permissions?.includes('perfo
   };
 
   const handleUpdateRole = (role: RoleDef) => {
+    if (isReadOnly) return; // salt-okunur rol degisiklik yapamaz
     setRoles((prev) => prev.map((r) => (r.id === role.id ? role : r)));
     const newLog: ActivityLog = {
       id: 'log-' + Date.now(),
@@ -831,6 +847,7 @@ const canEditPerformance = isAdmin || (currentUser?.permissions?.includes('perfo
   };
 
   const handleDeleteRole = (id: string) => {
+    if (isReadOnly) return; // salt-okunur rol degisiklik yapamaz
     const target = roles.find((r) => r.id === id);
     setRoles((prev) => prev.filter((r) => r.id !== id));
     if (target) {
@@ -862,6 +879,7 @@ const canEditPerformance = isAdmin || (currentUser?.permissions?.includes('perfo
   };
 
   const handleAddSession = (s: TestSession) => {
+    if (isReadOnly) return; // salt-okunur rol oturum acamaz
     setSessions((prev) => [s, ...prev]);
     const newLog: ActivityLog = {
       id: 'log-' + Date.now(),
@@ -877,6 +895,7 @@ const canEditPerformance = isAdmin || (currentUser?.permissions?.includes('perfo
     id: string,
     status: 'Planlandı' | 'Devam Ediyor' | 'Tamamlandı'
   ) => {
+    if (isReadOnly) return; // salt-okunur rol durum degistiremez
     setSessions((prev) =>
       prev.map((s) => (s.id === id ? { ...s, status } : s))
     );
@@ -884,6 +903,7 @@ const canEditPerformance = isAdmin || (currentUser?.permissions?.includes('perfo
 
   // Test oturumu duzenleme (baslik, surum, oyun, tarih, durum)
   const handleUpdateSession = (id: string, patch: Partial<TestSession>) => {
+    if (isReadOnly) return; // salt-okunur rol duzenleyemez
     setSessions((prev) => prev.map((s) => (s.id === id ? { ...s, ...patch } : s)));
     const newLog: ActivityLog = {
       id: 'log-' + Date.now(),
@@ -897,6 +917,7 @@ const canEditPerformance = isAdmin || (currentUser?.permissions?.includes('perfo
 
   // Test oturumu silme
   const handleDeleteSession = (id: string) => {
+    if (isReadOnly) return; // salt-okunur rol silemez
     const target = sessions.find((s) => s.id === id);
     setSessions((prev) => prev.filter((s) => s.id !== id));
     const newLog: ActivityLog = {
@@ -1028,6 +1049,13 @@ const canEditPerformance = isAdmin || (currentUser?.permissions?.includes('perfo
               <span className="text-slate-300 font-medium">Sistem Çevrimiçi</span>
             </div>
 
+            {isReadOnly && (
+              <div className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-amber-500/10 border border-amber-500/30 text-xs">
+                <span className="w-2 h-2 rounded-full bg-amber-400 animate-pulse" />
+                <span className="text-amber-300 font-medium">Salt Okunur — sadece görüntüleme</span>
+              </div>
+            )}
+
             <div className="flex items-center gap-3 pl-2 border-l border-slate-800">
               <div className="text-right hidden sm:block">
                 <div className="text-xs font-bold text-slate-200">{currentUser.fullName}</div>
@@ -1065,6 +1093,8 @@ const canEditPerformance = isAdmin || (currentUser?.permissions?.includes('perfo
               onDeleteMember={handleDeleteMember}
               currentUser={currentUser}
               isAdmin={isAdmin}
+              readOnly={isReadOnly}
+              hideActions={isReadOnly}
               teamFilter={null}
               logs={logs}
             />
@@ -1079,6 +1109,8 @@ const canEditPerformance = isAdmin || (currentUser?.permissions?.includes('perfo
               onDeleteMember={handleDeleteMember}
               currentUser={currentUser}
               isAdmin={isAdmin}
+              readOnly={isReadOnly}
+              hideActions={isReadOnly}
               teamFilter={academyFilter}
               logs={logs}
             />
@@ -1093,6 +1125,8 @@ const canEditPerformance = isAdmin || (currentUser?.permissions?.includes('perfo
               onDeleteMember={handleDeleteMember}
               currentUser={currentUser}
               isAdmin={isAdmin}
+              readOnly={isReadOnly}
+              hideActions={isReadOnly}
               teamFilter={refereeFilter}
               logs={logs}
             />
@@ -1112,6 +1146,7 @@ const canEditPerformance = isAdmin || (currentUser?.permissions?.includes('perfo
           {activeTab === 'tests' && (
             <TestSessionsView
               sessions={sessions}
+              readOnly={isReadOnly}
               onAddSession={handleAddSession}
               onUpdateStatus={handleUpdateSessionStatus}
               onUpdateSession={handleUpdateSession}
@@ -1127,6 +1162,7 @@ const canEditPerformance = isAdmin || (currentUser?.permissions?.includes('perfo
 
           {activeTab === 'sheets' && (
             <SheetsView
+              readOnly={isReadOnly}
               members={members}
               performances={performances}
               onApplyImport={handleSheetsImport}
@@ -1135,6 +1171,7 @@ const canEditPerformance = isAdmin || (currentUser?.permissions?.includes('perfo
 
           {activeTab === 'settings' && (
             <SettingsView
+              readOnly={isReadOnly}
               members={members}
               roles={roles}
               onAddRole={handleAddRole}

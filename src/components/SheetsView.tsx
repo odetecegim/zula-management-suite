@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+﻿import React, { useEffect, useMemo, useState } from 'react';
 import {
   Sheet, CloudDownload, RefreshCw, Plug, AlertTriangle, CheckCircle2, Loader2,
   Upload, Table2, Link2, Info, X, Layers,
@@ -14,6 +14,7 @@ import type {
 import type { Member, Performance, GameType, RegionType, StatusType, RoleId, PerfEntry } from '../types';
 
 interface SheetsViewProps {
+  readOnly?: boolean;
   members: Member[];
   performances: Performance[];
   onApplyImport: (payload: { members: Member[]; performances: Performance[]; summary: string }) => void;
@@ -61,7 +62,7 @@ const ROLES: RoleId[] = ['super_admin', 'company_manager', 'academy_lead', 'acad
 
 const fmt = (n: number) => n.toLocaleString('tr-TR');
 
-export const SheetsView: React.FC<SheetsViewProps> = ({ members, performances, onApplyImport }) => {
+export const SheetsView: React.FC<SheetsViewProps> = ({ readOnly = false, members, performances, onApplyImport }) => {
   const [settings, setSettings] = useState<SheetSettings>(() => loadSheetSettings());
   const [status, setStatus] = useState<SheetsStatus | null>(null);
   const [busy, setBusy] = useState<
@@ -224,6 +225,7 @@ export const SheetsView: React.FC<SheetsViewProps> = ({ members, performances, o
 
   /** Panele aktarilacak veri (coklu sayfa oncelikli). */
   const doImport = () => {
+    if (readOnly) return; // salt-okunur rol aktarma yapamaz
     if (activeRows.length === 0) return;
     setBusy('import'); setError(null); setInfo(null);
     try {

@@ -4,6 +4,7 @@ import { Activity, Plus, Play, CheckCircle2, Calendar, Edit3, Trash2 } from 'luc
 
 interface TestSessionsProps {
   sessions: TestSession[];
+  readOnly?: boolean;
   onAddSession: (session: TestSession) => void;
   onUpdateStatus: (id: string, status: 'Planlandı' | 'Devam Ediyor' | 'Tamamlandı') => void;
   onUpdateSession: (id: string, patch: Partial<TestSession>) => void;
@@ -15,6 +16,7 @@ const GAMES: GameType[] = ['Zula PC', 'Zula Strike', 'Wolfteam'];
 
 export const TestSessionsView: React.FC<TestSessionsProps> = ({
   sessions,
+  readOnly = false,
   onAddSession,
   onUpdateStatus,
   onUpdateSession,
@@ -85,6 +87,7 @@ export const TestSessionsView: React.FC<TestSessionsProps> = ({
           <h2 className="text-base font-bold text-white">Test Oturumları & Senaryo Takibi</h2>
           <p className="text-xs text-slate-400">Yeni oyun güncellemeleri, harita ve silah test süreçleri</p>
         </div>
+        {!readOnly && (
         <button
           onClick={openCreate}
           className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-500 text-white font-semibold text-xs px-4 py-2.5 rounded-xl shadow-lg shadow-indigo-600/20 cursor-pointer"
@@ -92,6 +95,7 @@ export const TestSessionsView: React.FC<TestSessionsProps> = ({
           <Plus className="w-4 h-4" />
           Yeni Test Başlat
         </button>
+        )}
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
@@ -136,7 +140,7 @@ export const TestSessionsView: React.FC<TestSessionsProps> = ({
               </div>
 
               <div className="flex items-center gap-1">
-                {s.status !== 'Devam Ediyor' && (
+                {!readOnly && s.status !== 'Devam Ediyor' && (
                   <button
                     onClick={() => onUpdateStatus(s.id, 'Devam Ediyor')}
                     className="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-amber-400 cursor-pointer"
@@ -145,7 +149,7 @@ export const TestSessionsView: React.FC<TestSessionsProps> = ({
                     <Play className="w-3.5 h-3.5" />
                   </button>
                 )}
-                {s.status !== 'Tamamlandı' && (
+                {!readOnly && s.status !== 'Tamamlandı' && (
                   <button
                     onClick={() => onUpdateStatus(s.id, 'Tamamlandı')}
                     className="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-emerald-400 cursor-pointer"
@@ -154,20 +158,20 @@ export const TestSessionsView: React.FC<TestSessionsProps> = ({
                     <CheckCircle2 className="w-3.5 h-3.5" />
                   </button>
                 )}
-                <button
+                {!readOnly && (<button
                   onClick={() => openEdit(s)}
                   className="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white transition-colors cursor-pointer"
                   title="Düzenle"
                 >
                   <Edit3 className="w-3.5 h-3.5" />
-                </button>
-                <button
+                </button>)}
+                {!readOnly && (<button
                   onClick={() => setDeleteId(s.id)}
                   className="p-1.5 rounded-lg bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 hover:text-rose-300 transition-colors cursor-pointer"
                   title="Sil"
                 >
                   <Trash2 className="w-3.5 h-3.5" />
-                </button>
+                </button>)}
               </div>
             </div>
           </div>
