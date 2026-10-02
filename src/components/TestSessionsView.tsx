@@ -1,9 +1,11 @@
 ﻿import React, { useState } from 'react';
-import type { TestSession, GameType } from '../types';
-import { Activity, Plus, Play, CheckCircle2, Calendar, Edit3, Trash2 } from 'lucide-react';
+import type { TestSession, GameType, Member } from '../types';
+import { SessionDetailModal } from './SessionDetailModal';
+import { Activity, Plus, Play, CheckCircle2, Calendar, Edit3, Trash2, ChevronRight, Users, Bug } from 'lucide-react';
 
 interface TestSessionsProps {
   sessions: TestSession[];
+  members: Member[];
   readOnly?: boolean;
   onAddSession: (session: TestSession) => void;
   onUpdateStatus: (id: string, status: 'Planlandı' | 'Devam Ediyor' | 'Tamamlandı') => void;
@@ -16,6 +18,7 @@ const GAMES: GameType[] = ['Zula PC', 'Zula Strike', 'Wolfteam'];
 
 export const TestSessionsView: React.FC<TestSessionsProps> = ({
   sessions,
+  members,
   readOnly = false,
   onAddSession,
   onUpdateStatus,
@@ -30,6 +33,8 @@ export const TestSessionsView: React.FC<TestSessionsProps> = ({
   const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
   const [status, setStatus] = useState<TestSession['status']>('Devam Ediyor');
   const [deleteId, setDeleteId] = useState<string | null>(null);
+  // Katilimci/hata detayini gosteren oturum (kart basligina tiklanir)
+  const [detailId, setDetailId] = useState<string | null>(null);
 
   const openCreate = () => {
     setEditingId(null);
@@ -134,10 +139,18 @@ export const TestSessionsView: React.FC<TestSessionsProps> = ({
             </div>
 
             <div className="pt-3 border-t border-slate-800/80 flex items-center justify-between">
-              <div className="text-xs text-slate-400">
-                <span className="font-bold text-slate-200">{s.participantsCount}</span> Katılımcı |{' '}
+              <button
+                onClick={() => setDetailId(s.id)}
+                className="group/det text-left text-xs text-slate-400 flex items-center gap-1.5 hover:text-indigo-300 transition-colors cursor-pointer"
+                title="Katilimci ve hata detayini gor"
+              >
+                <Users className="w-3.5 h-3.5 text-slate-500" />
+                <span className="font-bold text-slate-200">{s.participantsCount}</span> Katılımcı
+                <span className="text-slate-600">|</span>
+                <Bug className="w-3.5 h-3.5 text-slate-500" />
                 <span className="font-bold text-rose-400">{s.reportedBugs}</span> Hata
-              </div>
+                <ChevronRight className="w-3.5 h-3.5 opacity-0 group-hover/det:opacity-100 transition-opacity" />
+              </button>
 
               <div className="flex items-center gap-1">
                 {!readOnly && s.status !== 'Devam Ediyor' && (
@@ -268,6 +281,17 @@ export const TestSessionsView: React.FC<TestSessionsProps> = ({
             </form>
           </div>
         </div>
+      )}
+
+      {/* Katilimci / hata detayi */}
+      {detailId && sessions.some((s) => s.id === detailId) && (
+        <SessionDetailModal
+          session={sessions.find((s) => s.id === detailId) as TestSession}
+          members={members}
+          readOnly={readOnly}
+          onClose={() => setDetailId(null)}
+          onUpdate={(patch) => onUpdateSession(detailId, patch)}
+        />
       )}
 
       {/* Silme onayi */}

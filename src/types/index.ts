@@ -69,6 +69,30 @@ export interface ActivityLog {
   timestamp: string;
 }
 
+export type SeverityType = 'Düşük' | 'Orta' | 'Yüksek' | 'Kritik';
+export type BugStatusType = 'Açık' | 'İnceleniyor' | 'Çözüldü';
+
+/**
+ * Test oturumuna bildirilen tek bir hata.
+ *
+ * Eski sema yalnizca SAYI tutuyordu (reportedBugs: 0); kimin ne
+ * bildirdigi, onemin ve durumu saklanmiyordu. Detay ekrani icin
+ * hatalarin kendisi artik kayitli.
+ */
+export interface SessionBug {
+  id: string;
+  /** Hata basligi / kisa aciklamasi */
+  title: string;
+  /** Bildiren uye (Member.id); eger liste disindaysa bos birakilir */
+  reporterId?: string;
+  severity: SeverityType;
+  status: BugStatusType;
+  /** YYYY-MM-DD */
+  date: string;
+  /** Serbest metin not (adimlar, ekran goruntusu linki vb.) */
+  notes?: string;
+}
+
 export interface TestSession {
   id: string;
   title: string;
@@ -78,6 +102,15 @@ export interface TestSession {
   status: 'Planlandı' | 'Devam Ediyor' | 'Tamamlandı';
   participantsCount: number;
   reportedBugs: number;
+  /**
+   * Katilimci uye kimlikleri (Member.id).
+   *
+   * Yoksa/boseysa participantsCount kullanilir; boylece eski kayitlar
+   * (sayi bilen ama liste bilmeyen) bozulmaz.
+   */
+  participants?: string[];
+  /** Bu oturumda bildirilen hatalar */
+  bugs?: SessionBug[];
 }
 
 export interface RefDayEntry {

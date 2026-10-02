@@ -1146,6 +1146,7 @@ const canEditPerformance =
           {activeTab === 'tests' && (
             <TestSessionsView
               sessions={sessions}
+              members={members}
               readOnly={isReadOnly}
               onAddSession={handleAddSession}
               onUpdateStatus={handleUpdateSessionStatus}
