@@ -190,45 +190,44 @@ export function safeCompare(a, b) {
 export function requireAuth(headers, { write = false } = {}) {
   const h = headers || {};
 
-  // Yazma istekleri yalnizca yonetici anahtari ile yapilabilir.
-  // Bu anahtar sunucuda kalir; istemciye SIZDIRILMAZ.
-  if (write) {
-    const adminKey = ADMIN_API_KEY();
-    if (!adminKey) {
-      // Anahtar tanimli degilse yazma tamamen kapatilir (fail-closed).
-      return {
-        ok: false,
-        status: 503,
-        error: 'Sunucu yazma icin yapilandirilmadi (ADMIN_API_KEY eksik).',
-        code: 'NO_ADMIN_KEY',
-      };
-    }
-    const provided = String(h['x-api-key'] || h['X-Api-Key'] || '').trim();
-    if (!provided || !safeCompare(provided, adminKey)) {
-      return {
-        ok: false,
-        status: 401,
-        error: 'Yetkisiz istek.',
-        code: 'UNAUTHORIZED',
-      };
-    }
-    return { ok: true, memberId: 'admin' };
-  }
-
-  // Okuma istekleri: yonetici anahtari VEYA gecerli oturum belirteci
   const adminKey = ADMIN_API_KEY();
   const provided = String(h['x-api-key'] || h['X-Api-Key'] || '').trim();
+
+  // Yonetici anahtarla yapilan istekler her zaman gecerlidir
+  // (otomatik testler ve sunucu ici araclar icin).
   if (adminKey && provided && safeCompare(provided, adminKey)) {
-    return { ok: true, memberId: 'admin' };
+    return { ok: true, memberId: 'admin', viaKey: true };
   }
 
   const token = String(h['x-session-token'] || h['X-Session-Token'] || '').trim();
   const memberId = verifySessionToken(token);
+
+  // Yazma istekleri de oturum belirteciyle yapilabilir; ancak BU
+  // durumda yazma yetkisi route-handler'da ayrica ROL kontroluyle
+  // (super_admin) dogrulanir. Boylece:
+  //   - ADMIN_API_KEY ortam degiskenini ayarlamaya GEREK KALMAZ
+  //   - anahtar istemciye sizdirilmaz (en kritik nokta)
+  //   - her giris yapan kullanici yazamaz; sadece yonetici yazar
+  if (write) {
+    if (!memberId) {
+      return {
+        ok: false,
+        status: 401,
+        error: 'Yazma yetkisi icin yonetici olarak giris yapmalisiniz.',
+        code: 'NO_SESSION',
+      };
+    }
+    // Rol kontrolu burada DEGIL: memberId doner, karar route-handler'da
+    // verilir (rol bilgisi Google Sheets'ten okunmalidir).
+    return { ok: true, memberId, needsAdminRole: true };
+  }
+
+  // Okuma istekleri: yalnizca gecerli oturum belirteci
   if (!memberId) {
     return {
       ok: false,
       status: 401,
-      error: 'Oturum gerekli. Lütfen tekrar giriş yapın.',
+      error: 'Oturum gerekli. Lutfen tekrar giris yapin.',
       code: 'NO_SESSION',
     };
   }

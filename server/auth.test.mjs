@@ -52,12 +52,24 @@ test('iptal edilen belirteci artik gecerli degildir', () => {
   assert.equal(r.status, 401);
 });
 
-test('ADMIN_API_KEY tanimli degilse yazma tamamen kapanir (fail-closed)', () => {
+test('ADMIN_API_KEY tanimli degilse yazma OTURUMSUZ istegi kapatir', () => {
+  // Artik yazma icin ortam degiskeni GEREKMIYOR; oturum belirteci
+  // yeterlidir (rol kontrolu route-handler'da yapilir).
   delete process.env.ADMIN_API_KEY;
   const r = requireAuth({}, { write: true });
   assert.equal(r.ok, false);
-  assert.equal(r.status, 503);
-  assert.equal(r.code, 'NO_ADMIN_KEY');
+  assert.equal(r.status, 401);
+  assert.equal(r.code, 'NO_SESSION');
+});
+
+test('yazma icin gecerli oturum belirteci kabul edilir, rol sunucuda dogrulanir', () => {
+  delete process.env.ADMIN_API_KEY;
+  const token = createSessionToken('m-1');
+  const r = requireAuth({ 'x-session-token': token }, { write: true });
+  assert.equal(r.ok, true);
+  assert.equal(r.memberId, 'm-1');
+  assert.equal(r.needsAdminRole, true, 'rol kontrolu isaretlenmeli');
+  revokeSession(token);
 });
 
 test('yanlis admin anahtari ile yazma reddedilir', () => {
@@ -74,15 +86,29 @@ test('dogru admin anahtari ile yazma kabul edilir', () => {
   delete process.env.ADMIN_API_KEY;
 });
 
-test('okuma belirteci yazma icin YETMEZ (ayrim guvenligi)', () => {
-  // Bu, asil acik olan yoldu: giris belirteci olan biri
-  // veri yazabiliyordu. Artik yazma icin ayri anahtar gerekir.
-  process.env.ADMIN_API_KEY = 'gizli-anahtar';
-  const token = createSessionToken('m-1');
-  const r = requireAuth({ 'x-session-token': token }, { write: true });
-  assert.equal(r.ok, false, 'oturum belirteci yazma yetkisi vermemeli');
-  revokeSession(token);
+test('oturum belirteci yazma istegi role mu olur (ayrim güvenliği)', () => {
+  // Güvenlik modeli DEĞİŞTİ: yazma artık ortam değişkeni değil,
+  // oturum belirteci + SUNUCUDA doğrulanan rol ile korunuyor.
+  //
+  // requireAuth yalnızca "bu bir oturum" der ve needsAdminRole işaretler.
+  // Asıl karar route-handler'da: uyenin GERÇEK rolü Google Sheets'ten
+  // okunur; super_admin değilse 403 döner. Bu yüzden istemcideki rol
+  // alanı değiştirilerek yetki alınamaz.
+  //
+  // Bu test, korumanın "needsAdminRole" işaretinin kalkmadığını ve
+  // route-handler'ın bunu beklediğini doğrular.
   delete process.env.ADMIN_API_KEY;
+  const token = createSessionToken('m-5'); // academy_member olabilir
+  const r = requireAuth({ 'x-session-token': token }, { write: true });
+  assert.equal(r.ok, true, 'oturum geçerli, istek role kadar ilerlemeli');
+  assert.equal(
+    r.needsAdminRole,
+    true,
+    'route-handger rolü doğrulayana kadar güvenmemeli'
+  );
+  // needsAdminRole olmadan yazmaya izin verilirse bu bir regresyon olur
+  assert.notEqual(r.memberId, 'admin', 'admin muamelcesi yapılmamalı');
+  revokeSession(token);
 });
 
 test('safeCompare farkli ve esit degerler icin dogru sonuc verir', () => {

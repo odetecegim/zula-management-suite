@@ -100,6 +100,37 @@ export async function handleApi(method, segments, body = {}, headers = {}) {
     if (!auth.ok) {
       return fail(auth.status, auth.error, auth.code);
     }
+
+    /*
+      YAZMA YETKISI — SUNUCU TARAFI ROL DOGRULAMASI
+      ------------------------------------------------
+      Oturum belirteci olan herkes okuyabilir; ama yazabilmek icin
+      giris yapan uyenin gercek rolu Google Sheets'ten okunup
+      super_admin (ya da company_manager) olmasi gerekir.
+
+      Neden onemli: istemcideki "super_admin" kontrolu yalnizca
+      gorunur bir rozet; biri tarayici konsolundan rol degeri
+      "super_admin" yazarak isteği taklit edebilirdi. Buradaki kontrol
+      SUNUCUDA, GERCEK veriyle yapildigi icin atlanamaz.
+    */
+    if (auth.needsAdminRole && !auth.viaKey) {
+      const spreadsheetId = resolveId(body);
+      const rows = await readMembers({
+        spreadsheetId,
+        tabName: body?.tab || MEMBERS_TAB,
+      });
+      const actor = rows.find((m) => String(m.id || '') === String(auth.memberId));
+      const actorRole = String(actor?.role || '').trim();
+      const ADMIN_ROLES = ['super_admin', 'company_manager'];
+
+      if (!actor || !ADMIN_ROLES.includes(actorRole)) {
+        return fail(
+          403,
+          'Bu işlem için yönetici yetkisi gerekiyor.',
+          'ADMIN_ROLE_REQUIRED'
+        );
+      }
+    }
   }
 
   try {

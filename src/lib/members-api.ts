@@ -58,11 +58,36 @@ async function call<T>(
     });
     if (!res.ok) {
       let detail = '';
+      let code = '';
       try {
-        detail = (await res.text()).slice(0, 200);
+        const raw = await res.text();
+        detail = raw.slice(0, 200);
+        // Sunucu JSON hata govdesi donuyorsa kodunu al
+        try {
+          code = (JSON.parse(raw) as { code?: string }).code ?? '';
+        } catch {
+          /* JSON degilse kod yok */
+        }
       } catch {
         /* govde okunamadi */
       }
+
+      // 403 ADMIN_ROLE_REQUIRED: kullanici yonetici degil.
+      // Bu bir gecici hata degil; butun panel boyunca surecek bir
+      // durum. Kullaniciya ne yapacagini soylemek gerekir.
+      if (res.status === 403 && code === 'ADMIN_ROLE_REQUIRED') {
+        lastSyncError =
+          'Google Sheets’e yazmak için yönetici yetkisi gerekiyor. Verilerin tarayıcında güvende, yalnızca paylaşımlı tabloya aktarılamadı.';
+        return null;
+      }
+
+      // 401: oturum dusundu / token gecersiz
+      if (res.status === 401) {
+        setSessionToken(null);
+        lastSyncError = 'Oturumunuz sona erdi. Yeniden giriş yapın.';
+        return null;
+      }
+
       lastSyncError = `Sunucu ${res.status}${detail ? `: ${detail}` : ''}`;
       return null;
     }
