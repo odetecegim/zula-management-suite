@@ -122,6 +122,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
 }) => {
   const { t, i18n } = useTranslation();
   const [langOpen, setLangOpen] = React.useState(false);
+  // Logoya tiklayinca acilan cikis butonunun gorunur olmasi
+  const [logoutOpen, setLogoutOpen] = React.useState(false);
 
   const allMenuItems: { id: PermissionId; labelKey: string; icon: typeof LayoutDashboard; groupKey?: string }[] = [
     { id: 'dashboard', labelKey: 'navDashboard', icon: LayoutDashboard },
@@ -177,7 +179,21 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
         {/* Brand */}
       <div className="space-y-6">
-        <div className="flex items-center gap-3 px-2 pt-2">
+        {/*
+          MOBILDE CIKIS BUTONU:
+          Once buton profil kartinin en altindaydi; mobilde yanlis
+          yonlendirmis, ekranin dibinde kalip ulasilmaz oluyordu.
+          Artik LOGOYA dokununca profil kartinin hemen altinda beliren
+          bir cikis butonu acilir. Logonun yaninda kucuk bir isaret
+          cikar ("cikis burada") kullanicinin nereye dokunacagini
+          gosterir.
+        */}
+        <button
+          onClick={() => setLogoutOpen((v) => !v)}
+          aria-expanded={logoutOpen}
+          className="w-full flex items-center gap-3 px-2 pt-2 text-left rounded-xl hover:bg-slate-900/60 active:scale-[0.99] transition-all cursor-pointer"
+          title="Çıkış seçenekleri"
+        >
           <img
             src="/zula-logo.png"
             srcSet="/zula-logo@2x.png 2x, /zula-logo@3x.png 3x"
@@ -186,11 +202,31 @@ export const Sidebar: React.FC<SidebarProps> = ({
             alt="Zula"
             className="h-9 w-auto object-contain drop-shadow-[0_2px_12px_rgba(245,158,11,0.45)]"
           />
-          <div className="min-w-0">
+          <div className="min-w-0 flex-1">
             <div className="font-extrabold text-sm tracking-wide text-white uppercase">Zula Teşkilat</div>
             <div className="text-[11px] text-indigo-400 font-medium">Akademi</div>
           </div>
-        </div>
+          <LogOut
+            className={
+              'w-4 h-4 shrink-0 transition-all ' +
+              (logoutOpen ? 'text-rose-400 rotate-0' : 'text-slate-600')
+            }
+          />
+        </button>
+
+        {/* Logoya tiklayinca acilan cikis butonu */}
+        {logoutOpen && (
+          <button
+            onClick={() => {
+              setLogoutOpen(false);
+              onLogout();
+            }}
+            className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-xl bg-rose-500/15 border border-rose-500/30 text-rose-300 hover:bg-rose-500/25 hover:text-rose-200 text-xs font-bold transition-all cursor-pointer"
+          >
+            <LogOut className="w-4 h-4" />
+            Oturumu Kapat
+          </button>
+        )}
 
         {/* Navigation */}
         <nav className="space-y-1">
@@ -209,6 +245,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 <button
                   onClick={() => {
                     onSelectTab(item.id);
+                    setLogoutOpen(false); // cikis menusu acik kalmasin
                     onCloseMobile(); // mobilde secim sonrasi menuyu kapat
                   }}
                   className={
@@ -287,9 +324,15 @@ export const Sidebar: React.FC<SidebarProps> = ({
               {isAdmin && <span className="ml-1 text-emerald-400 font-bold">· ADMIN</span>}
             </div>
           </div>
+          {/*
+            Profil kartindaki cikis butonu artik YALNIZCA masaustunde
+            gorunur. Mobilde cikis, logonun altinda acilan butonla
+            yapilir; buradaki buton ekranin dibinde kalip erisilemez
+            oldugu icin lg:hidden ile gizlenir.
+          */}
           <button
             onClick={onLogout}
-            className="p-2 rounded-lg bg-slate-800 hover:bg-rose-500/20 text-slate-400 hover:text-rose-400 transition-all cursor-pointer"
+            className="hidden lg:block p-2 rounded-lg bg-slate-800 hover:bg-rose-500/20 text-slate-400 hover:text-rose-400 transition-all cursor-pointer"
             title={t('logout')}
           >
             <LogOut className="w-4 h-4" />
