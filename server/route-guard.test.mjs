@@ -141,3 +141,45 @@ t('401 alinca belirtec temizleniyor (dongu kirilmaz)', () => {
 });
 
 console.log('\n' + d + ' koruma testi gecti, ' + f + ' kaldi.\n');
+
+/*
+  KULLANICI YOLU — "Nerden giris yapacagim?" sorusunun cevabi
+  ------------------------------------------------------------
+  Panel 401 dondugunde "Panele yeniden giriş yapin" mesaji gosteriyordu
+  ama cikis dugmesi sol menusunun altinda gizliydi. Kullanici bu hatayi
+  alinca nereden cikacagini bilmiyordu.
+
+  Artik hata mesajinin altinda dogrudan "Oturumu Yenile" dugmesi var.
+*/
+const settingsSrc = readFileSync(join(here, '..', 'src', 'components', 'SettingsView.tsx'), 'utf8');
+const appSrc = readFileSync(join(here, '..', 'src', 'App.tsx'), 'utf8');
+
+console.log('\n== Oturum yenileme yolu ==');
+
+t('Ayarlar ekraninda giris ekranina donen dugme var', () => {
+  assert.ok(
+    /onForceRelogin/.test(settingsSrc),
+    'Ayarlar ekraninda oturum yenileme dugmesi yok'
+  );
+  assert.ok(
+    /needsLogin/.test(settingsSrc),
+    'hata metnine gore dugmenin gorunurlugu belirlenmiyor'
+  );
+});
+
+t('App.tsx oturumu gercekten temizliyor', () => {
+  const idx = appSrc.indexOf('handleForceRelogin');
+  assert.ok(idx !== -1, 'handleForceRelogin tanimli degil');
+  const block = appSrc.slice(idx, idx + 1200);
+  assert.ok(/setSessionToken\(null\)/.test(block), 'oturum belirteci temizlenmiyor');
+  assert.ok(/setCurrentUserId\(null\)/.test(block), 'kullanici oturumu kapatilmiyor');
+});
+
+t('SettingsViewa gerekli prop geciriliyor', () => {
+  assert.ok(
+    /onForceRelogin=\{handleForceRelogin\}/.test(appSrc),
+    'App, SettingsViewa onForceRelogin gecirmiyor'
+  );
+});
+
+console.log('\n' + d + ' koruma testi gecti, ' + f + ' kaldi.\n');

@@ -8,6 +8,8 @@ import type { TeamFilter } from './components/MembersView';
 import { PerformanceView } from './components/PerformanceView';
 import type { LogFn } from './components/PerformanceView';
 import { notifyMemberEvent } from './lib/slack';
+import { apiUrl } from './lib/sheets';
+import { authHeaders, setSessionToken } from './lib/session-token';
 import {
   fetchRemoteMembers,
   pushRemoteMembers,
@@ -694,6 +696,35 @@ const canEditPerformance =
     setLogs((prev) => [newLog, ...prev]);
   };
 
+  /*
+    ZORLA OTURUM YENILEME
+    ----------------------
+    Sunucu bir uctan "401 / oturum gerekli" dondugunde kullaniciya sadece
+    "yeniden giris yapin" mesaji gosteriliyordu. Ama panelde cikis dugmesi
+    sol menusunun altinda, kucuk ve gizli bir konumda; kullanici bu
+    hatayi alinca NEREDEN cikacagini bilmiyor ve ayni hatayi defalarca
+    tekrar ediyordu.
+
+    Cozum: Ayarlar ekranindaki hata mesajinin altinda dogrudan
+    "Oturumu Yenile" dugmesi gorunur; tiklayinca giris ekranina gecilir.
+  */
+  const handleForceRelogin = () => {
+    // Sunucudaki eski oturumu da kapat (best-effort; hata yutulur).
+    try {
+      void fetch(apiUrl('/api/sheets/logout'), {
+        method: 'POST',
+        headers: authHeaders(),
+        body: JSON.stringify({}),
+      });
+    } catch {
+      /* sunucu kapali olabilir; onemsiz */
+    }
+    // Yerel oturumu da temizle ki yeni giris temiz baslasin.
+    setSessionToken(null);
+    setCurrentUserId(null);
+    setCurrentTab('dashboard');
+  };
+
   const handleLogout = () => {
     if (currentUser) {
       const newLog: ActivityLog = {
@@ -1289,6 +1320,7 @@ const canEditPerformance =
               onReorderRoles={handleReorderRoles}
               simulateRoles={simulateRoles}
               onSimulateRoles={setSimulateRoles}
+              onForceRelogin={handleForceRelogin}
             />
           )}
         </main>

@@ -1,5 +1,5 @@
 ﻿import React, { useState } from 'react';
-import { ShieldCheck, Plus, Edit3, X, Check, KeyRound, Shield, Users, Trash2, Layers, AlertTriangle, GripVertical, ArrowUp, ArrowDown, Send, Loader2, CheckCircle2 } from 'lucide-react';
+import { ShieldCheck, Plus, Edit3, X, Check, KeyRound, Shield, Users, Trash2, Layers, AlertTriangle, GripVertical, ArrowUp, ArrowDown, Send, Loader2, CheckCircle2, LogIn } from 'lucide-react';
 import { ALL_PERMISSIONS } from '../data/initialData';
 import { getRoleLevel, roleLevelLabel } from '../lib/roles';
 import { testSlackConnection, sendManualMessage, checkSlackToken } from '../lib/slack';
@@ -23,6 +23,13 @@ interface SettingsProps {
   onReorderRoles: (ordered: RoleId[]) => void;
   simulateRoles: RoleId[];
   onSimulateRoles: (roles: RoleId[]) => void;
+  /**
+   * Oturum gecersiz oldugunda kullaniciyi dogrudan giris ekranina
+   * gonderir. once sadece "yeniden giris yapin" mesaji gosteriliyordu
+   * ama paneldeki cikis dugmesi sol menusunun altinda gizliydi;
+   * kullanici hatayi alinca nereden cikacagini bilmiyordu.
+   */
+  onForceRelogin: () => void;
 }
 
 const BADGE_PALETTE = [
@@ -45,6 +52,7 @@ export const SettingsView: React.FC<SettingsProps> = ({
   onReorderRoles,
   simulateRoles,
   onSimulateRoles,
+  onForceRelogin,
 }) => {
   const [editing, setEditing] = useState<RoleDef | null>(null);
   const [isNew, setIsNew] = useState(false);
@@ -60,6 +68,14 @@ export const SettingsView: React.FC<SettingsProps> = ({
   const [slackSending, setSlackSending] = useState(false);
 const [slackChecking, setSlackChecking] = useState(false);
   const [slackNotice, setSlackNotice] = useState<{ ok: boolean; text: string } | null>(null);
+
+  // Hata "yeniden giriş yapın" gerektiriyor mu? (401 / oturum gerekli)
+  // Öyleyse kullanıcıya sadece mesaj değil, ÇÖZÜM DÜĞMESİ gösterilir.
+  const needsLogin = Boolean(
+    slackNotice &&
+      !slackNotice.ok &&
+      /oturum|giriş yap|401/i.test(slackNotice.text)
+  );
 
   const handleSlackTest = async () => {
     if (readOnly) return;
@@ -398,6 +414,17 @@ const handleSlackSend = async () => {
                 )}
                 {slackNotice.text}
               </div>
+            )}
+
+            {/* Oturum hatasinda dogrudan cozum: giris ekranina gec */}
+            {needsLogin && (
+              <button
+                onClick={onForceRelogin}
+                className="flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-amber-500/20 hover:bg-amber-500/30 text-amber-200 text-xs font-bold border border-amber-500/30 transition-colors cursor-pointer"
+              >
+                <LogIn className="w-4 h-4" />
+                Oturumu Yenile — Giriş Ekranına Dön
+              </button>
             )}
 
             {/* Kurulum yardimi */}
