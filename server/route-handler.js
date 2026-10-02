@@ -47,6 +47,7 @@ import {
   isSlackConfigured,
   slackMode,
   getSlackError,
+  clearSlackError,
   sendSlackMessage,
   notifyMemberChange,
   notifyTestSession,
@@ -472,6 +473,7 @@ export async function handleApi(method, segments, body = {}, headers = {}) {
               'projeyi yeniden deploy edin. Alternatif: SLACK_WEBHOOK_URL da olur.',
           });
         }
+        clearSlackError();
         const sent = await sendSlackMessage(
           ':wave: Zula Teşkilat Yönetim Paneli ile Slack baglantisi basarili.'
         );
@@ -480,7 +482,7 @@ export async function handleApi(method, segments, body = {}, headers = {}) {
           configured: true,
           message: sent
             ? 'Test mesaji gonderildi. Kanali kontrol et.'
-            : 'Webhook adresine ulasilamadi. URL dogru mu?',
+            : (getSlackError() || 'Bilinmeyen hata'),
         });
       }
 
@@ -492,11 +494,12 @@ export async function handleApi(method, segments, body = {}, headers = {}) {
         }
         const text = String(body?.text || '').trim();
         if (!text) return fail(400, 'Mesaj bos.');
+        clearSlackError();
         const sent = await sendSlackMessage(text);
         return ok({
           ok: sent,
           configured: true,
-          message: sent ? 'Bildirim gonderildi.' : 'Gonderilemedi.',
+          message: sent ? 'Bildirim gonderildi.' : (getSlackError() || 'Gonderilemedi.'),
         });
       }
 
