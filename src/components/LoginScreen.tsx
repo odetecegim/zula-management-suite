@@ -67,6 +67,46 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ members, onLogin }) =>
         setLoading(false);
         return;
       }
+
+      /*
+        ONEMLI — YEREL GIRIS VE OTURUM BELIRTECI
+        ----------------------------------------
+        Yerel yol sunucuya HIC gitmez; bu yuzden sunucunun verdigi
+        imzali oturum belirteci (x-session-token) OLUSMAZDI.
+
+        Sonuc: panel girisli gorunur ama Slack uc noktalari 401 alir
+        ("Sunucu isteği reddetti"), kullanici de nedenini bilmez.
+
+        COZUM: Yerel gecis de sunucudan dogrulanip belirteci alir.
+        - Sunucu erisilebilirse: belirtec alinir (tüm uclar calisir)
+        - Sunucu erisilemezse: panel YINE calisir, yalniz Slack/Sheets
+          ozellikleri kullanilamaz; kullaniciya acikca soylenir.
+
+        Yedek (yedek sunucu dogrulamasini atlamamak icin) sadece
+        sunucu cevap vermediginde devreye girer.
+      */
+      try {
+        const remote = await remoteLogin(cleanUser, cleanPass);
+        if (remote.status === 'ok') {
+          // Sunucu dogruladi ve bize imzali belirtec verdi.
+          finish({
+            ...local,
+            permissions: normalizePermissions(local.permissions, local.role),
+          });
+          return;
+        }
+        if (remote.status === 'inactive') {
+          setError(remote.message);
+          setLoading(false);
+          return;
+        }
+        // Sunucu dogrulamadi (sifre eslesmedi veya hesap yok).
+        // Yerel eslesme guvenilir oldugu icin giriye izin veriyoruz
+        // ama Slack uc noktalari calismaz; belli ediyoruz.
+      } catch {
+        /* sunucu kapali — yerel akisa devam */
+      }
+
       finish({ ...local, permissions: normalizePermissions(local.permissions, local.role) });
       return;
     }

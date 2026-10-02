@@ -1,26 +1,20 @@
-﻿DUZELTME: Slack uc noktalari yanlis yere Sheets yonetici rolu istiyordu
+﻿DUZELTME: yerel giris oturum belirteci uretmiyordu (panel 401 aliyordu)
 
-KULLANICI SIKAYETI: Test mesaji gonderiliyor ama panel gonderemiyor.
+KULLANICI SIKAYETI: "Sunucu istegi reddetti."
 
-KOK NEDEN: Bir onceki surumde slack-test ve slack-notify herkese acik
-listeyden cikarildi (dogru bir guvenlik onlemi). Ancak bunlar "yazma
-istegi" sayildigi icin GOOGLE SHEETS YONETICI ROLU kontrolune de takildi.
+KOK NEDEN: LoginScreen once YEREL listede eslesme arar ve eslesirse
+sunucuya HIC gitmez. Bu hizli yol icindi ama bir yan etkisi vardi:
+sunucunun verdigi imzali oturum belirteci (x-session-token) hic
+olusmuyordu. Slack uclari oturum belirtecini zorunlu istediği icin
+401 aliyor, kullanici da nedenini bilmiyordu.
 
-Bu uc noktalar Google Sheets'e HICBIR sey yazmaz; yalnizca Slack'a
-bildirim iletir. Dolayisiyla panelden kimse gonderemiyordu; token dogru
-olsa bile "yonetici degilsiniz" hatasi aliyorlardi.
+DUZELTMELER:
+1) Yerel giris artik sunucudan dogrulama istiyor ve dogrulanirsa
+   belirteci aliyor. Sunucu kapaliysa panel yine calisir.
+2) describeFailure() ortak yardimcisi: 401/403 ve sunucunun gercek
+   hata mesaji kullaniciya gosteriliyor. Sabit "Sunucu istegi
+   reddetti" mesaji kaldirildi.
+3) 401 alinca gecersiz belirteci SILINIYOR; aksi halde her denemede
+   ayni hata tekrarlaniyor, kullanici duzelemeden donguye giriyordu.
 
-DUZELTME: Uc ayri yetki seviyesi tanimlandi.
-  - DATA_ENDPOINTS (members, member-delete, write, import)
-      oturum + Sheets yonetici rolu (KORUNDU, geri alinmadi)
-  - SLACK_ENDPOINTS (slack-test, slack-notify)
-      yalnizca oturum
-  - digerleri: yalnizca oturum
-
-Guvenlik KORUNDU: Slack uclari oturumsuz istekte 401 donmeye devam
-eder; testler bunu dogrular.
-
-Ayrica notifyMemberEvent artik oturum belirtecini gonderiyor; onceki
-haliyle bildirimler sessizce 401 aliyor ve kayboluyordu.
-
-11 yetki testi; 73 testin tamami geciyor.
+5 regresyon testi eklendi; 78 testin tamami geciyor.

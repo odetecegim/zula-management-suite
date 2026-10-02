@@ -76,3 +76,68 @@ t('kayitli olmayan kullanici icin ayri kod var', () => {
 });
 
 console.log('\n' + d + ' koruma testi gecti, ' + f + ' kaldi.\n');
+
+/*
+  OTURUM BELIRTECI KAYBI — REGRESYON TESTI
+  -----------------------------------------
+  Panel yerel listeden giris yaparken sunucuya hic gitmiyordu; bu
+  yuzden imzali oturum belirteci (x-session-token) OLUSMUYORDU.
+
+  Sonuc: panel girisli gorunuyor ama Slack uc noktalari 401 aliyor ve
+  kullanici belirsiz bir "Sunucu istegi reddetti" mesaji goruyordu.
+
+  Bu test, yerel giris yolunun da sunucudan dogrulama istedigini
+  ve belirteci edinmesini gerektigini kilitler.
+*/
+const loginSrc = readFileSync(join(here, '..', 'src', 'components', 'LoginScreen.tsx'), 'utf8');
+const slackSrc = readFileSync(join(here, '..', 'src', 'lib', 'slack.ts'), 'utf8');
+
+console.log('\n== Oturum belirteci kaybi onlemi ==');
+
+t('yerel giris de sunucudan dogrulama istiyor', () => {
+  const idx = loginSrc.indexOf('local.password === cleanPass');
+  assert.ok(idx !== -1, 'yerel giris blogu bulunamadi');
+  const block = loginSrc.slice(idx, idx + 2000);
+  assert.ok(
+    /remoteLogin\(/.test(block),
+    'YEREL GIRIS SUNUCUDAN DOGRULANMIYOR -> oturum belirteci olusmaz (asil hata)'
+  );
+});
+
+t('yerel giris, sunucu dogrularsa belirteci aliyor', () => {
+  const idx = loginSrc.indexOf('local.password === cleanPass');
+  const block = loginSrc.slice(idx, idx + 2000);
+  assert.ok(
+    /remote\.status === 'ok'/.test(block),
+    'sunucu dogrulandiginda giris tamamlanmiyor'
+  );
+});
+
+t('pasif hesap engeli yerel yolda da korunuyor', () => {
+  const idx = loginSrc.indexOf('local.password === cleanPass');
+  const block = loginSrc.slice(idx, idx + 2000);
+  assert.ok(
+    /pasif/i.test(block),
+    'yerel yolda pasif hesap kontrolu kalkmis olabilir'
+  );
+});
+
+t('belirsiz hata mesaji kaldirilmis (gercek neden gosteriliyor)', () => {
+  assert.ok(
+    !/message: 'Sunucu isteği reddetti\.'/.test(slackSrc),
+    'hata mesaji yine sabit metin; kullanici 401 nedenini ogrenemez'
+  );
+  assert.ok(
+    /describeFailure/.test(slackSrc),
+    'ortak hata ayristirici kullanilmiyor'
+  );
+});
+
+t('401 alinca belirtec temizleniyor (dongu kirilmaz)', () => {
+  assert.ok(
+    /setSessionToken\(null\)/.test(slackSrc),
+    '401 sonrasi belirtec silinmiyor; her denemede ayni hata tekrarlanir'
+  );
+});
+
+console.log('\n' + d + ' koruma testi gecti, ' + f + ' kaldi.\n');

@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Slack bildirim istemcisi (src/lib/slack.ts)
  *
  * GUVENLIK: Webhook adresi BURADA YOKTUR ve olmamalidir.
@@ -8,7 +8,7 @@
  */
 
 import { apiUrl } from './sheets';
-import { authHeaders } from './session-token';
+import { authHeaders, setSessionToken } from './session-token';
 
 /** Sunucu Slack'a bagli mi? */
 let serverConfigured = false;
@@ -33,6 +33,66 @@ interface SlackResult {
  * "sadece kontrol et" yolu var: Slack `auth.test` ucu cagrilir,
  * token gecerli mi diye bakilir, kanala HICBIR sey yazilmaz.
  */
+/**
+ * Ortak hata ayristirici — HTTP durum kodunu KULLANICIYA ANLATIR.
+ *
+ * ONCEKI SURUMDE uc fonksiyon da `res.ok` false ise ayni belirsiz
+ * mesaji donuyordu ("Sunucu isteği reddetti"). Kullanici 401 aldiginda
+ * (oturum dolmus) bunun sebebini ogrenemiyor, saatlerce ayni tusa
+ * basiyordu.
+ *
+ * @returns {string} kullaniciya gosterilecek mesaj
+ */
+async function describeFailure(res: Response): Promise<string> {
+  let detail = '';
+  let code = '';
+  try {
+    const raw = await res.text();
+    detail = raw.slice(0, 300);
+    try {
+      code = ((JSON.parse(raw) as { code?: string }).code) ?? '';
+    } catch {
+      /* JSON degilse kod yok */
+    }
+  } catch {
+    /* govde okunamadi */
+  }
+
+  // Sunucu, gecerli JSON hata govdesi donduyse onu tercih et
+  try {
+    const parsed = JSON.parse(detail) as { error?: string; code?: string };
+    if (parsed?.error && parsed.error.length > 3 && res.status !== 401) {
+      return parsed.error;
+    }
+    if (parsed?.code) code = parsed.code;
+  } catch {
+    /* JSON degil */
+  }
+
+  if (res.status === 401) {
+    // Belirteci SIL: yoksa her denemede ayni 401 tekrarlanir ve
+    // kullanici cikis yapmadan duzelemez.
+    setSessionToken(null);
+    return code === 'NO_SESSION'
+      ? 'Oturum gerekli. Panele yeniden giriş yapın.'
+      : 'Sunucu isteği reddetti (401). Oturumunuz sona ermiş olabilir — yeniden giriş yapın.';
+  }
+
+  if (res.status === 403) {
+    return 'Sunucu yetki vermedi (403). Bu işlem için yönetici yetkisi gerekiyor.';
+  }
+
+  return 'Sunucu isteği reddetti (' + res.status + ')' + (detail ? ': ' + detail.slice(0, 160) : '.');
+}
+
+/**
+ * Token tanilamasi — KANALA MESAJ GONDERMEZ.
+ *
+ * `slack-test` her denemede kanala gercek bir mesaj yaziyordu; ayar
+ * yaparken kanala onlarca test mesaji birikiyordu. Bu yuzen ayri bir
+ * "sadece kontrol et" yolu var: Slack `auth.test` ucu cagrilir,
+ * token gecerli mi diye bakilir, kanala HICBIR sey yazilmaz.
+ */
 export async function checkSlackToken(): Promise<SlackResult> {
   try {
     const res = await fetch(apiUrl('/api/sheets/slack-check'), {
@@ -40,6 +100,13 @@ export async function checkSlackToken(): Promise<SlackResult> {
       headers: authHeaders(),
       body: JSON.stringify({}),
     });
+    if (!res.ok) {
+      return {
+        ok: false,
+        configured: serverConfigured,
+        message: await describeFailure(res),
+      };
+    }
     const data = (await res.json()) as { ok: boolean; mode: string; detail: string };
     setSlackConfigured(data.mode !== 'none');
     return {
@@ -54,29 +121,7 @@ export async function checkSlackToken(): Promise<SlackResult> {
       message: 'Sunucuya ulasilamadi.',
     };
   }
-}
 
-/**
- * Panelden el ile mesaj gonderir.
- */
-export async function sendManualMessage(text: string): Promise<SlackResult> {
-  try {
-    const res = await fetch(apiUrl('/api/sheets/slack-notify'), {
-      method: 'POST',
-      headers: authHeaders(),
-      body: JSON.stringify({ text }),
-    });
-    if (!res.ok) {
-      return { ok: false, configured: serverConfigured, message: 'Sunucu isteği reddetti.' };
-    }
-    return (await res.json()) as SlackResult;
-  } catch {
-    return {
-      ok: false,
-      configured: serverConfigured,
-      message: 'Sunucuya ulasilamadi.',
-    };
-  }
 }
 
 /**
@@ -92,6 +137,13 @@ export async function testSlackConnection(): Promise<SlackResult> {
       headers: authHeaders(),
       body: JSON.stringify({}),
     });
+    if (!res.ok) {
+      return {
+        ok: false,
+        configured: serverConfigured,
+        message: await describeFailure(res),
+      };
+    }
     const data = (await res.json()) as SlackResult;
     setSlackConfigured(Boolean(data.configured));
     return data;
@@ -146,3 +198,30 @@ function buildMemberText(
     actor || 'Bilinmiyor'
   }`;
 }
+/**
+ * Panelden el ile mesaj gonderir.
+ */
+export async function sendManualMessage(text: string): Promise<SlackResult> {
+  try {
+    const res = await fetch(apiUrl('/api/sheets/slack-notify'), {
+      method: 'POST',
+      headers: authHeaders(),
+      body: JSON.stringify({ text }),
+    });
+    if (!res.ok) {
+      return {
+        ok: false,
+        configured: serverConfigured,
+        message: await describeFailure(res),
+      };
+    }
+    return (await res.json()) as SlackResult;
+  } catch {
+    return {
+      ok: false,
+      configured: serverConfigured,
+      message: 'Sunucuya ulasilamadi.',
+    };
+  }
+}
+
