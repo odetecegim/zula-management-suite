@@ -142,7 +142,7 @@ export const SessionDetailModal: React.FC<Props> = ({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm"
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm modal-full-mobile"
       onClick={onClose}
     >
       <div
@@ -322,7 +322,7 @@ export const SessionDetailModal: React.FC<Props> = ({
 
             <div className="space-y-4">
               {/* Durum ozeti */}
-              <div className="grid grid-cols-3 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 {BUG_STATUSES.map((st) => {
                   const n = bugs.filter((b) => b.status === st).length;
                   return (

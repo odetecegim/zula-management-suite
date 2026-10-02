@@ -524,8 +524,9 @@ export const MembersView: React.FC<MembersProps> = ({
 
 
       <div className="bg-slate-900/40 border border-slate-800/80 rounded-2xl overflow-hidden shadow-xl backdrop-blur-md">
-        <div className="overflow-x-auto">
-          <table className="w-full text-left text-sm">
+        <div className="overflow-x-auto scroll-thin table-scroll-hint">
+          {/* mobilde tabloyu ezmeden yatay kaydirilabilir yapan minimum genislik */}
+          <table className="w-full min-w-[820px] text-left text-sm">
             <thead className="bg-slate-950/80 text-slate-400 text-xs uppercase tracking-wider border-b border-slate-800">
               <tr>
                 <th className="px-5 py-4">Üye / Bilgi</th>
@@ -825,7 +826,7 @@ export const MembersView: React.FC<MembersProps> = ({
       )}
 
       {isModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm modal-full-mobile">
           <div className="bg-slate-900 border border-slate-800 w-full max-w-xl rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
             <div className="p-5 border-b border-slate-800 flex items-center justify-between bg-slate-950/60">
               <h3 className="text-base font-bold text-white flex items-center gap-2">
@@ -857,7 +858,7 @@ export const MembersView: React.FC<MembersProps> = ({
                   {errors.form}
                 </div>
               )}
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-xs font-semibold text-slate-400 mb-1">Üye Kodu</label>
                   <input
@@ -883,7 +884,7 @@ export const MembersView: React.FC<MembersProps> = ({
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-xs font-semibold text-slate-400 mb-1">Oyun İçi Nick</label>
                   <input
@@ -923,7 +924,7 @@ export const MembersView: React.FC<MembersProps> = ({
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-xs font-semibold text-slate-400 mb-1">E-Posta</label>
                   <input
@@ -950,7 +951,7 @@ export const MembersView: React.FC<MembersProps> = ({
                 </div>
               </div>
 
-              <div className="grid grid-cols-3 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                 <div>
                   <label className="block text-xs font-semibold text-slate-400 mb-1">Oyun</label>
                   <select
@@ -1026,7 +1027,7 @@ export const MembersView: React.FC<MembersProps> = ({
                     </span>
                   </div>
 
-                  <div className="grid grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div>
                       <label className="block text-xs font-semibold text-slate-400 mb-1">Kullanıcı Adı</label>
                       <input

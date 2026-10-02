@@ -266,8 +266,8 @@ export const ReportsView: React.FC<ReportsPageProps> = ({ members, performances 
 
       {/* Siralama tablosu */}
       <div className="bg-slate-900/40 border border-slate-800/80 rounded-2xl overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full text-left text-sm">
+        <div className="overflow-x-auto scroll-thin table-scroll-hint">
+          <table className="w-full min-w-[720px] text-left text-sm">
             <thead className="bg-slate-950/80 text-slate-400 text-[11px] uppercase tracking-wider border-b border-slate-800">
               <tr>
                 <th className="px-4 py-4">Sıra</th>
@@ -359,7 +359,7 @@ export const ReportsView: React.FC<ReportsPageProps> = ({ members, performances 
 
       {/* Puan dokumu modali */}
       {detail && detail.perf && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm modal-full-mobile">
           <div className="bg-slate-900 border border-slate-800 w-full max-w-lg rounded-2xl shadow-2xl overflow-hidden">
             <div className="p-5 border-b border-slate-800 flex items-center justify-between bg-slate-950/60">
               <div>

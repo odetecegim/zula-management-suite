@@ -5,5 +5,79 @@
     @apply bg-slate-950 text-slate-100 antialiased selection:bg-indigo-500 selection:text-white font-sans;
     margin: 0;
     min-height: 100vh;
+    /* iOS'ta yatay kaydirilirken sayfa sicramasin */
+    overflow-x: hidden;
+    -webkit-text-size-adjust: 100%;
+  }
+
+  /* Mobilde dokunma hedefleri en az 40px olsun (WCAG) */
+  @media (pointer: coarse) {
+    button:not([class*='p-0']) {
+      min-height: 40px;
+    }
+  }
+}
+
+@layer utilities {
+  /* --------------------------------------------------
+     MOBIL UYUMLULUK KATMANI
+     Masaustu (lg ve ustu) tamamen ayni kalir.
+     -------------------------------------------------- */
+
+  /* Ince kaydirma cubugu (tablo kaydirma yerleri) */
+  .scroll-thin {
+    scrollbar-width: thin;
+    scrollbar-color: #334155 transparent;
+  }
+  .scroll-thin::-webkit-scrollbar {
+    height: 8px;
+    width: 8px;
+  }
+  .scroll-thin::-webkit-scrollbar-thumb {
+    background: #334155;
+    border-radius: 999px;
+  }
+
+  /* Uzun metinlerin (oyuncu id, aciklama) tasmasini onle */
+  .break-anywhere {
+    overflow-wrap: anywhere;
+    word-break: break-word;
+  }
+
+  @media (max-width: 1023px) {
+    /* Modallar mobilde kenardan kenara, tam yukseklikte */
+    .modal-full-mobile {
+      padding: 0.75rem !important;
+      align-items: flex-end !important;
+    }
+    .modal-full-mobile > div {
+      max-width: 100% !important;
+      max-height: 88vh !important;
+      border-radius: 1rem 1rem 0.75rem 0.75rem !important;
+    }
+
+    /* Baslik ve filtre satirlari alt alta gecsin */
+    .stack-mobile {
+      display: flex;
+      flex-direction: column;
+      gap: 0.75rem;
+    }
+  }
+
+  /* Yatay kaydirma ipucu: tablonun altina ince bir golge */
+  @media (max-width: 1023px) {
+    .table-scroll-hint {
+      position: relative;
+    }
+    .table-scroll-hint::after {
+      content: '';
+      position: absolute;
+      top: 0;
+      right: 0;
+      bottom: 0;
+      width: 28px;
+      pointer-events: none;
+      background: linear-gradient(to left, rgba(2, 6, 23, 0.85), transparent);
+    }
   }
 }

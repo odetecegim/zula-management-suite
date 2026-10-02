@@ -658,8 +658,8 @@ export const SheetsView: React.FC<SheetsViewProps> = ({ readOnly = false, member
               <div className="p-4 border-b border-slate-800 text-xs font-bold text-white">
                 Sayfa Bazlı Özet
               </div>
-              <div className="overflow-x-auto">
-                <table className="w-full text-left text-sm">
+              <div className="overflow-x-auto scroll-thin table-scroll-hint">
+                <table className="w-full min-w-[680px] text-left text-sm">
                   <thead className="bg-slate-950/80 text-slate-400 text-[11px] uppercase tracking-wider border-b border-slate-800">
                     <tr>
                       <th className="px-4 py-3">Sayfa</th>
@@ -748,8 +748,8 @@ export const SheetsView: React.FC<SheetsViewProps> = ({ readOnly = false, member
               </div>
             </div>
 
-            <div className="overflow-x-auto">
-              <table className="w-full text-left text-sm">
+            <div className="overflow-x-auto scroll-thin table-scroll-hint">
+              <table className="w-full min-w-[680px] text-left text-sm">
                 <thead className="bg-slate-950/80 text-slate-400 text-[11px] uppercase tracking-wider border-b border-slate-800">
                   <tr>
                     <th className="px-4 py-3">Satır</th>

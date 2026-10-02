@@ -192,7 +192,7 @@ export const TestSessionsView: React.FC<TestSessionsProps> = ({
       </div>
 
       {isModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm modal-full-mobile">
           <div className="bg-slate-900 border border-slate-800 w-full max-w-md rounded-2xl shadow-2xl p-6 space-y-4">
             <h3 className="text-base font-bold text-white flex items-center gap-2">
               <Activity className="w-5 h-5 text-indigo-400" />
@@ -211,7 +211,7 @@ export const TestSessionsView: React.FC<TestSessionsProps> = ({
                 />
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-xs font-semibold text-slate-400 mb-1">Versiyon</label>
                   <input
@@ -297,7 +297,7 @@ export const TestSessionsView: React.FC<TestSessionsProps> = ({
       {/* Silme onayi */}
       {deleteId && (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm"
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm modal-full-mobile"
           onClick={() => setDeleteId(null)}
         >
           <div

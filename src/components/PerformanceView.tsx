@@ -485,7 +485,7 @@ export const PerformanceView: React.FC<PerformanceProps> = ({
                   <div className="text-[10px] text-slate-500 uppercase">puan</div>
                 </div>
               </div>
-              <div className="grid grid-cols-4 gap-2 text-center">
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-center">
                 <div className="bg-slate-950/60 rounded-lg py-1.5">
                   <div className="text-xs font-bold text-slate-200">{perf.testParticipation}</div>
                   <div className="text-[9px] text-slate-500 uppercase">Test</div>
@@ -511,7 +511,7 @@ export const PerformanceView: React.FC<PerformanceProps> = ({
 
       {/* Duzenleme modali */}
       {draft && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm modal-full-mobile">
           <div className="bg-slate-900 border border-slate-800 w-full max-w-5xl rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[92vh]">
             <div className="p-5 border-b border-slate-800 flex items-center justify-between bg-slate-950/60">
               <div>

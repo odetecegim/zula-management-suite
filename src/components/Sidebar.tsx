@@ -15,6 +15,7 @@ import {
   Sheet,
   Globe,
   Check,
+  X,
 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { languages } from '../i18n';
@@ -104,6 +105,9 @@ interface SidebarProps {
   currentUser: Member;
   isAdmin: boolean;
   onLogout: () => void;
+  /** Mobilde menunun acik kapali durumu */
+  mobileOpen: boolean;
+  onCloseMobile: () => void;
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({
@@ -113,6 +117,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
   currentUser,
   isAdmin,
   onLogout,
+  mobileOpen,
+  onCloseMobile,
 }) => {
   const { t, i18n } = useTranslation();
   const [langOpen, setLangOpen] = React.useState(false);
@@ -142,8 +148,34 @@ export const Sidebar: React.FC<SidebarProps> = ({
     .toUpperCase();
 
   return (
-    <aside className="w-72 bg-slate-950/90 border-r border-slate-800/80 flex flex-col justify-between p-4 shrink-0 h-screen sticky top-0 backdrop-blur-xl">
-      {/* Brand */}
+    <>
+      {/* MOBIL: arkadaki karartma -> dokununca menu kapanir */}
+      {mobileOpen && (
+        <div
+          onClick={onCloseMobile}
+          className="lg:hidden fixed inset-0 z-40 bg-black/60 backdrop-blur-sm"
+          aria-hidden="true"
+        />
+      )}
+
+      <aside
+        className={
+          'w-72 bg-slate-950/95 border-r border-slate-800/80 flex flex-col justify-between p-4 h-screen shrink-0 backdrop-blur-xl ' +
+          // masaustunde sabit kolon, mobilde sagdan acilan cekmece
+          'fixed lg:sticky top-0 left-0 z-50 transition-transform duration-300 ease-out ' +
+          (mobileOpen ? 'translate-x-0 shadow-2xl shadow-black/60' : '-translate-x-full lg:translate-x-0')
+        }
+      >
+        {/* Mobilde kapatma butonu */}
+        <button
+          onClick={onCloseMobile}
+          className="lg:hidden absolute top-4 right-4 p-2 rounded-xl bg-slate-900 border border-slate-800 text-slate-400 hover:text-white cursor-pointer"
+          aria-label="Menüyü kapat"
+        >
+          <X className="w-5 h-5" />
+        </button>
+
+        {/* Brand */}
       <div className="space-y-6">
         <div className="flex items-center gap-3 px-2 pt-2">
           <img
@@ -175,7 +207,10 @@ export const Sidebar: React.FC<SidebarProps> = ({
                   </div>
                 )}
                 <button
-                  onClick={() => onSelectTab(item.id)}
+                  onClick={() => {
+                    onSelectTab(item.id);
+                    onCloseMobile(); // mobilde secim sonrasi menuyu kapat
+                  }}
                   className={
                     'w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-semibold transition-all cursor-pointer ' +
                     (isActive
@@ -296,7 +331,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
           </div>
         </div>
       </div>
-    </aside>
+      </aside>
+    </>
   );
 };
 

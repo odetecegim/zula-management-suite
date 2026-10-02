@@ -1,5 +1,5 @@
 ﻿import { useState, useEffect } from 'react';
-import { AlertTriangle, CheckCircle } from 'lucide-react';
+import { AlertTriangle, CheckCircle, Menu, Eye } from 'lucide-react';
 import { Sidebar } from './components/Sidebar';
 import { LoginScreen } from './components/LoginScreen';
 import { DashboardView } from './components/DashboardView';
@@ -102,6 +102,8 @@ export const APP_VERSION = '2.0.0-member-clean';
 
 export function App() {
   const [currentTab, setCurrentTab] = useState('dashboard');
+  // Mobilde sol menunun cekmece olarak acik kapali olmasi
+  const [sidebarOpen, setSidebarOpen] = useState(false);
 
   // Oturum: giriş yapan üye (localStorage'da saklanır)
   const [currentUserId, setCurrentUserId] = useState<string | null>(() => {
@@ -1022,16 +1024,26 @@ const canEditPerformance =
         currentUser={currentUser}
         isAdmin={isAdmin}
         onLogout={handleLogout}
+        mobileOpen={sidebarOpen}
+        onCloseMobile={() => setSidebarOpen(false)}
       />
 
       {/* Main Content Area */}
       <div className="flex-1 flex flex-col min-w-0 overflow-y-auto">
         {/* Header Bar */}
-        <header className="h-16 border-b border-slate-800/80 bg-slate-950/80 backdrop-blur-md px-8 flex items-center justify-between sticky top-0 z-30">
-          <div className="flex items-center gap-2">
-            <span className="text-xs font-semibold uppercase tracking-wider text-slate-400">Panel</span>
-            <span className="text-slate-600">/</span>
-            <span className="text-xs font-bold text-white capitalize">
+        <header className="h-14 sm:h-16 border-b border-slate-800/80 bg-slate-950/80 backdrop-blur-md px-3 sm:px-4 lg:px-8 flex items-center justify-between gap-2 sticky top-0 z-30">
+          <div className="flex items-center gap-2 sm:gap-3 min-w-0">
+            {/* MOBIL MENU BUTONU */}
+            <button
+              onClick={() => setSidebarOpen(true)}
+              className="lg:hidden p-2 -ml-1 rounded-xl border border-slate-800 bg-slate-900 text-slate-300 active:scale-95 transition-transform cursor-pointer shrink-0"
+              aria-label="Menüyü aç"
+            >
+              <Menu className="w-5 h-5" />
+            </button>
+            <span className="hidden sm:inline text-xs font-semibold uppercase tracking-wider text-slate-400">Panel</span>
+            <span className="hidden sm:inline text-slate-600">/</span>
+            <span className="text-xs sm:text-sm font-bold text-white truncate">
               {activeTab === 'dashboard'
                 ? 'Genel Bakış'
                 : activeTab === 'members'
@@ -1056,9 +1068,9 @@ const canEditPerformance =
             </span>
           </div>
 
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-2 sm:gap-4 shrink-0">
             {simulating && (
-              <div className="hidden md:flex items-center gap-2 px-3 py-1.5 rounded-xl bg-amber-500/10 border border-amber-500/30 text-xs">
+              <div className="hidden lg:flex items-center gap-2 px-3 py-1.5 rounded-xl bg-amber-500/10 border border-amber-500/30 text-xs">
                 <span className="w-2 h-2 rounded-full bg-amber-400 animate-pulse" />
                 <span className="text-amber-300 font-medium">
                   Simülasyon: {simulateRoles.map((r) => roles.find((x) => x.id === r)?.name ?? r).join(', ')}
@@ -1072,20 +1084,30 @@ const canEditPerformance =
                 </button>
               </div>
             )}
-            <div className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-slate-900 border border-slate-800 text-xs">
+            <div className="hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-xl bg-slate-900 border border-slate-800 text-xs">
               <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
               <span className="text-slate-300 font-medium">Sistem Çevrimiçi</span>
             </div>
 
             {isReadOnly && (
-              <div className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-amber-500/10 border border-amber-500/30 text-xs">
+              <div className="hidden md:flex items-center gap-2 px-3 py-1.5 rounded-xl bg-amber-500/10 border border-amber-500/30 text-xs">
                 <span className="w-2 h-2 rounded-full bg-amber-400 animate-pulse" />
                 <span className="text-amber-300 font-medium">Salt Okunur — sadece görüntüleme</span>
               </div>
             )}
 
-            <div className="flex items-center gap-3 pl-2 border-l border-slate-800">
-              <div className="text-right hidden sm:block">
+            {/* Mobilde salt-okunur rozeti (tek ikon) */}
+            {isReadOnly && (
+              <div
+                className="md:hidden p-2 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-400"
+                title="Salt Okunur — sadece görüntüleme"
+              >
+                <Eye className="w-4 h-4" />
+              </div>
+            )}
+
+            <div className="flex items-center gap-2 sm:gap-3 pl-2 border-l border-slate-800">
+              <div className="text-right hidden lg:block">
                 <div className="text-xs font-bold text-slate-200">{currentUser.fullName}</div>
                 <div className="text-[10px] text-indigo-400">
                   @{currentUser.username}
@@ -1100,7 +1122,7 @@ const canEditPerformance =
         </header>
 
         {/* Tab Body */}
-        <main className="p-6 sm:p-8 flex-1">
+        <main className="p-3 sm:p-5 lg:p-8 flex-1 min-w-0">
           {activeTab === 'dashboard' && (
             <DashboardView
               members={members}
