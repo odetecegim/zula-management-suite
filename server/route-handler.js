@@ -56,8 +56,15 @@ import {
 pruneSessions();
 
 /**
- * Dogrulama gerektirmeyen (herkese acik) uc noktalar.
- * Bunlar veri DONDURMEZ, yalnizca oturum akisini baslatir.
+ * Veri DONDURMEYEN, salt-okunur uc noktalar.
+ *
+ * Bunlar hicbir uye/tablo SATIRI sizdirmaz; yalnizca baglanti
+ * sagligini ve alan etiketlerini (sozluk sablonlari) bildirir.
+ * Panelde "Google Sheets baglantisi saglam mi?" kontrolu icin
+ * kullanilir; giris yapmadan calisir.
+ *
+ * DIKKAT: 'members', 'fetch', 'fetch-all' gibi UYE VERISI donen
+ * uc noktalar burada YOK - onlar oturum belirteci ister.
  */
 const PUBLIC_ENDPOINTS = new Set([
   'status',
@@ -66,6 +73,9 @@ const PUBLIC_ENDPOINTS = new Set([
   'logout',
   'slack-test',
   'slack-notify',
+  // --- Salt-okunur tani uclari (uye satiri sizdirmaz) ---
+  'test',      // Sheets erisimi var mi? (okuma yapar, yazma yok)
+  'headers',   // sutun basliklari — yalnizca alan adlari
 ]);
 
 /**
