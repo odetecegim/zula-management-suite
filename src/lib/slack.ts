@@ -8,6 +8,7 @@
  */
 
 import { apiUrl } from './sheets';
+import { authHeaders } from './session-token';
 
 /** Sunucu Slack'a bagli mi? */
 let serverConfigured = false;
@@ -25,13 +26,44 @@ interface SlackResult {
 }
 
 /**
+ * Token tanilamasi — KANALA MESAJ GONDERMEZ.
+ *
+ * `slack-test` her denemede kanala gercek bir mesaj yaziyordu; ayar
+ * yaparken kanala onlarca test mesaji birikiyordu. Bu yuzen ayri bir
+ * "sadece kontrol et" yolu var: Slack `auth.test` ucu cagrilir,
+ * token gecerli mi diye bakilir, kanala HICBIR sey yazilmaz.
+ */
+export async function checkSlackToken(): Promise<SlackResult> {
+  try {
+    const res = await fetch(apiUrl('/api/sheets/slack-check'), {
+      method: 'POST',
+      headers: authHeaders(),
+      body: JSON.stringify({}),
+    });
+    const data = (await res.json()) as { ok: boolean; mode: string; detail: string };
+    setSlackConfigured(data.mode !== 'none');
+    return {
+      ok: Boolean(data.ok),
+      configured: data.mode !== 'none',
+      message: data.detail || 'Bilgi alinamadi.',
+    };
+  } catch {
+    return {
+      ok: false,
+      configured: serverConfigured,
+      message: 'Sunucuya ulasilamadi.',
+    };
+  }
+}
+
+/**
  * Panelden el ile mesaj gonderir.
  */
 export async function sendManualMessage(text: string): Promise<SlackResult> {
   try {
     const res = await fetch(apiUrl('/api/sheets/slack-notify'), {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: authHeaders(),
       body: JSON.stringify({ text }),
     });
     if (!res.ok) {
@@ -49,12 +81,15 @@ export async function sendManualMessage(text: string): Promise<SlackResult> {
 
 /**
  * Baglantiyi test eder: sunucu kanala kucuk bir mesaj gonderir.
+ *
+ * NOT: Bu GERCEKTEN kanala yazar. Tokeni sadece kontrol etmek icin
+ * `checkSlackToken()` kullanin.
  */
 export async function testSlackConnection(): Promise<SlackResult> {
   try {
     const res = await fetch(apiUrl('/api/sheets/slack-test'), {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: authHeaders(),
       body: JSON.stringify({}),
     });
     const data = (await res.json()) as SlackResult;

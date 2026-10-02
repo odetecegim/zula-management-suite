@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Paylasilan uye deposu (Google Sheets) istemcisi.
  *
  * TASARIM: Bu modul ASLA hata firlatmaz. Ag, sunucu veya Google erisilemezse
@@ -10,6 +10,7 @@
  */
 import type { Member } from '../types';
 import { loadSheetSettings, apiUrl } from './sheets';
+import { authHeaders, setSessionToken } from './session-token';
 
 /**
  * Zaman asimi (ms).
@@ -138,53 +139,8 @@ async function call<T>(
 }
 
 const currentSpreadsheetId = (): string => loadSheetSettings().spreadsheetId;
-
-/* ------------------------------------------------------------------ */
-/* Oturum belirteci (session token)                                    */
-/* ------------------------------------------------------------------ */
-
-const TOKEN_KEY = 'zula_suite_session_token';
-
-/**
- * Sunucu, basarili giriste bir belirtec verir. Tum veri isteklerinde
- * `x-session-token` basligi ile gonderilir.
- *
- * ONCEDEN YOKTU: /api/sheets/* uclari sifre istemeden calisiyordu,
- * yani internete acik herkes uye listesini okuyup istedigi rolu
- * yazabiliyordu. Artik belirtec olmadan istek 401 doner.
- *
- * Not: Yazma istekleri icin ayrica sunucudaki ADMIN_API_KEY gerekir.
- * O anahtar istemciye SIZDIRILMAZ; bu yuzden panel uzerinden yapilan
- * yazma istekleri sunucuya gonderilmeden once engellenir.
- */
-let sessionToken: string | null = null;
-
-try {
-  sessionToken = sessionStorage.getItem(TOKEN_KEY);
-} catch {
-  sessionToken = null;
-}
-
-export function setSessionToken(token: string | null): void {
-  sessionToken = token;
-  try {
-    if (token) sessionStorage.setItem(TOKEN_KEY, token);
-    else sessionStorage.removeItem(TOKEN_KEY);
-  } catch {
-    /* depolama kapali olabilir */
-  }
-}
-
-export function getSessionToken(): string | null {
-  return sessionToken;
-}
-
-/** Isteklere dogrulama basligi ekler. */
-const authHeaders = (extra: Record<string, string> = {}): Record<string, string> => ({
-  'Content-Type': 'application/json',
-  ...(sessionToken ? { 'x-session-token': sessionToken } : {}),
-  ...extra,
-});
+/* Oturum belirteci yonetimi ./session-token modulune tasindi (tek kaynak). */
+export { setSessionToken, getSessionToken } from './session-token';
 
 /* ------------------------------------------------------------------ */
 /* Uye listesi                                                         */

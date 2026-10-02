@@ -51,6 +51,7 @@ import {
   sendSlackMessage,
   notifyMemberChange,
   notifyTestSession,
+diagnoseSlack,
   notifySecurity,
 } from './slack.js';
 
@@ -73,8 +74,15 @@ const PUBLIC_ENDPOINTS = new Set([
   'health',
   'login',
   'logout',
-  'slack-test',
-  'slack-notify',
+  // GUVENLIK: 'slack-test' ve 'slack-notify' ONCEDEN burada idi.
+  // Yani internete acik HERKES panelin gonderdigi uyari metinleri
+  // istedigi metinle Slack kanalina yazabiliyordu (kanal spam'i).
+  // Artik oturum belirteci + gercek yonetici rolu ister.
+  //
+  // 'slack-check' ise SALT-OKUNUR tani ucudur: mesaj GONDERMEZ,
+  // yalnizca token'in gecerli olup olmadigini soyler ve hicbir sirri
+  // istemciye dondurmez; bu yuzden acik birakilmistir.
+  'slack-check',
   // --- Salt-okunur tani uclari (uye satiri sizdirmaz) ---
   'test',      // Sheets erisimi var mi? (okuma yapar, yazma yok)
   'headers',   // sutun basliklari — yalnizca alan adlari
@@ -492,6 +500,25 @@ export async function handleApi(method, segments, body = {}, headers = {}) {
       /* ==========================================================
          SLACK
          ========================================================== */
+
+      /*
+        SALT-OKUNUR TOKEN TANILAMASI (mesaj GONDERMEZ)
+        ------------------------------------------------
+        Once tek secenek vardi: "Baglantiyi Test Et" tiklamak, o da
+        kanala GERCEK bir test mesaji atiyordu. Ayarlar yaparken
+        kanala onlarca test mesaji birikiyordu ve token gecerli mi
+        yoksa kanal hatasi mi var anlamak zor oluyordu.
+
+        Bu uc Slack'in `auth.test` API'sini cagirir:
+          - KANALA MESAJ YAZMAZ
+          - Tokenin gercekten gecerli olup olmadigini soyler
+          - Bot adini ve workspace'i dondurur
+        Guvenlik: tokenin KENDISI asla dondurulmez.
+      */
+      case 'slack-check': {
+        const out = await diagnoseSlack();
+        return ok(out);
+      }
 
       // Panelde "Baglantiyi Test Et" butonu bunu cagirir.
       case 'slack-test': {

@@ -17,6 +17,7 @@ import {
   notifyMemberChange,
   notifyTestSession,
   notifySecurity,
+  diagnoseSlack,
   SLACK_COLORS,
 } from './slack.js';
 
@@ -120,6 +121,72 @@ test('bildirim hatasi asla istisna firlatmaz (panel bozulmaz)', async () => {
   const ok = await sendSlackMessage('test');
   assert.equal(ok, false, 'hata yakalanip false donmeli');
   delete process.env.SLACK_WEBHOOK_URL;
+});
+
+/*
+  TOKEN TANILAMASI — KANALA MESAJ GONDERMEZ
+  -------------------------------------------
+  Ayarlar ekraninda tek secenek vardi: "Baglantiyi Test Et" tiklamak,
+  o da kanala GERCEK bir mesaj atiyordu. Ayar yaparken kanala onlarca
+  test mesaji birikiyor ve token gecerli mi anlamak zor oluyordu.
+
+  Bu testler diagnoseSlack()'in dogru tani verdigini ve HICBIR ortam
+  degerini (token/webhook) istemciye sizdirmadigini kanitlar.
+*/
+
+test('yapilandirilmamisken token tanilamasi ne yapacagini soyler', async () => {
+  delete process.env.SLACK_BOT_TOKEN;
+  delete process.env.SLACK_CHANNEL_ID;
+  delete process.env.SLACK_WEBHOOK_URL;
+  const r = await diagnoseSlack();
+  assert.equal(r.ok, false);
+  assert.equal(r.mode, 'none');
+  assert.match(r.detail, /Environment Variables/);
+});
+
+test('xoxp- (user token) tespit edilir, xoxb- gerekir', async () => {
+  process.env.SLACK_BOT_TOKEN = 'xoxp-1234-abc';
+  process.env.SLACK_CHANNEL_ID = 'C123';
+  const r = await diagnoseSlack();
+  assert.equal(r.ok, false);
+  assert.match(r.detail, /USER TOKEN/);
+  assert.match(r.detail, /xoxb-/);
+});
+
+test('xoxb- oneki olmayan deger erken reddedilir (ag cagrisi yapilmaz)', async () => {
+  process.env.SLACK_BOT_TOKEN = 'rastgele-bir-metin';
+  process.env.SLACK_CHANNEL_ID = 'C123';
+  const r = await diagnoseSlack();
+  assert.equal(r.ok, false);
+  assert.match(r.detail, /hatali bicimde/);
+});
+
+test('webhook adresi bicimi dogrulanir', async () => {
+  delete process.env.SLACK_BOT_TOKEN;
+  delete process.env.SLACK_CHANNEL_ID;
+  process.env.SLACK_WEBHOOK_URL = 'https://example.com/yanlis';
+  const r = await diagnoseSlack();
+  assert.equal(r.ok, false);
+  assert.equal(r.mode, 'webhook');
+  assert.match(r.detail, /gecersiz/);
+});
+
+test('gecerli webhook adresi tanilamadan gecer', async () => {
+  process.env.SLACK_WEBHOOK_URL = 'https://hooks.slack.com/services/T000/B000/xxx';
+  const r = await diagnoseSlack();
+  assert.equal(r.ok, true);
+  assert.equal(r.mode, 'webhook');
+});
+
+test('ONEMLI: tanilama hicbir sirri istemciye sizdirmaz', async () => {
+  process.env.SLACK_BOT_TOKEN = 'xoxb-GIZLI-DEGER-123456';
+  process.env.SLACK_CHANNEL_ID = 'C123';
+  delete process.env.SLACK_WEBHOOK_URL;
+  const r = await diagnoseSlack();
+  assert.ok(
+    !JSON.stringify(r).includes('GIZLI-DEGER'),
+    'SONUC: token degeri istemciye sizdi!'
+  );
 });
 
 test('SLACK_COLORS gecerli hex renkler iceriyor', () => {

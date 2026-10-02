@@ -2,7 +2,7 @@
 import { ShieldCheck, Plus, Edit3, X, Check, KeyRound, Shield, Users, Trash2, Layers, AlertTriangle, GripVertical, ArrowUp, ArrowDown, Send, Loader2, CheckCircle2 } from 'lucide-react';
 import { ALL_PERMISSIONS } from '../data/initialData';
 import { getRoleLevel, roleLevelLabel } from '../lib/roles';
-import { testSlackConnection, sendManualMessage } from '../lib/slack';
+import { testSlackConnection, sendManualMessage, checkSlackToken } from '../lib/slack';
 import type { Member, RoleDef, RoleId, PermissionId } from '../types';
 
 /** Slack'in resmi 4 nokta logosu (lucide'de marka ikonu yok). */
@@ -58,6 +58,7 @@ export const SettingsView: React.FC<SettingsProps> = ({
   const [slackStatus, setSlackStatus] = useState<'idle' | 'testing' | 'ready' | 'error'>('idle');
   const [slackMessage, setSlackMessage] = useState('');
   const [slackSending, setSlackSending] = useState(false);
+const [slackChecking, setSlackChecking] = useState(false);
   const [slackNotice, setSlackNotice] = useState<{ ok: boolean; text: string } | null>(null);
 
   const handleSlackTest = async () => {
@@ -77,7 +78,17 @@ export const SettingsView: React.FC<SettingsProps> = ({
     }
   };
 
-  const handleSlackSend = async () => {
+  const handleSlackCheck = async () => {
+  if (readOnly) return;
+  setSlackChecking(true);
+  setSlackNotice(null);
+  const res = await checkSlackToken();
+  setSlackChecking(false);
+  setSlackNotice({ ok: res.ok, text: res.message });
+  if (res.ok) setSlackStatus('ready');
+};
+
+const handleSlackSend = async () => {
     if (readOnly || !slackMessage.trim()) return;
     setSlackSending(true);
     setSlackNotice(null);
@@ -306,6 +317,25 @@ export const SettingsView: React.FC<SettingsProps> = ({
                   ? 'Bağlantı Hatası'
                   : 'Bağlı Değil'}
               </span>
+              {/*
+                TOKEN KONTROLU (mesaj GONDERMEZ)
+                "Baglantiyi Test Et" kanala GERCEK bir mesaj yazar.
+                Ayar yaparken kanali kirletmemek ve tokenin gecerli olup
+                olmadigini net gormek icin ayri bir kontrol butonu var.
+              */}
+              <button
+                onClick={handleSlackCheck}
+                disabled={readOnly || slackChecking}
+                title="Kanala mesaj göndermeden tokenı kontrol eder"
+                className="flex items-center gap-2 px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {slackChecking ? (
+                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                ) : (
+                  <SlackIcon />
+                )}
+                Tokenı Kontrol Et
+              </button>
               <button
                 onClick={handleSlackTest}
                 disabled={readOnly || slackStatus === 'testing'}

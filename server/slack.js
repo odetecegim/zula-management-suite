@@ -142,13 +142,37 @@ function describeSlackError(data) {
       return 'SLACK_BOT_TOKEN geçersiz. Yeni bir bot token üretip Vercel’e tekrar ekleyin.';
     case 'channel_not_found':
       return 'SLACK_CHANNEL_ID bulunamadı. Kanal kimliğini kontrol edin.';
-    case 'missing_scope':
-      return 'Bot’un "chat:write" yetkisi yok. OAuth & Permissions → chat:write ekleyip yeniden kurun.';
     case 'account_inactive':
     case 'token_revoked':
       return 'Bot token iptal edilmiş. Yeni token üretin.';
     case 'no_permission':
       return 'Bot’un bu kanala mesaj atma yetkisi yok.';
+
+    /*
+      not_allowed_token_type — EN SIK GORULEN HATA
+      ------------------------------------------
+      Bu hata, Authorization basligindaki degerin bot tokeni OLMADIGINI
+      kanitlar. Yani gonderilen sey xoxb- degil; baska bir token turu.
+
+      Sik gorulen sebepler:
+        - User token (xoxp-) kullanilmis (bot token degil)
+        - "xoxb-" oneki olmadan, yalniz tokenin kendisi yapistirilmis
+        - App-level token (xapp-) kopyalanmis
+        - Eski / iptal edilmis bir token yapistirilmis
+
+      Kullaniciya NE YAPACAGINI soylemek icin ayri mesaj yazildi.
+    */
+    case 'not_allowed_token_type':
+      return (
+        'SLACK_BOT_TOKEN bir BOT TOKENI degil (Slack: not_allowed_token_type). ' +
+        'Değer "xoxb-" ile başlamalı. OAuth & Permissions → Bot Token Scopes → ' +
+        'Install to Workspace ile yeni xoxb- token üretip Vercel’e yapıştırın.'
+      );
+    case 'missing_scope':
+      return (
+        'Bot token’ın "chat:write" yetkisi yok (Slack: missing_scope). ' +
+        'OAuth & Permissions → Scopes → chat:write ekleyip uygulamayı yeniden kurun.'
+      );
     default:
       return 'Slack hatası: ' + (data.error || 'bilinmiyor');
   }
@@ -183,6 +207,116 @@ export async function sendSlackMessage(text) {
   } catch {
     // Bildirim hatasi ASLA ana akisi bozmamali; sessizce gec.
     return false;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+/**
+ * Token ve kanal yapilandirmasini DIAGNOSTIK OLARAK dogrular.
+ *
+ * NEDEN GEREKLI:
+ * Once kullanici yalnizca "Baglantiyi Test Et" tiklayabiliyordu; bu da
+ * kanala GERCEKTEN bir mesaj atiyordu. Ayarlar yaparken kanala bir
+ * suru "test mesaji" birikmesi hem kirletici hem de hatayi gormek
+ * icin kotu bir yontemdi.
+ *
+ * `auth.test` ucu:
+ *   - Mesaj GONDERMEZ (kanal temiz kalir)
+ *   - Tokenin GECERLI OLUP OLMADIGINI soyler
+ *   - Botun hangi workspace'e bagli oldugunu dondurur
+ *
+ * @returns {Promise<{ok:boolean, mode:string, detail:string}>}
+ */
+export async function diagnoseSlack() {
+  const mode = slackMode();
+
+  if (mode === 'none') {
+    return {
+      ok: false,
+      mode,
+      detail:
+        'SLACK_BOT_TOKEN + SLACK_CHANNEL_ID veya SLACK_WEBHOOK_URL tanimli degil. ' +
+        'Vercel > Settings > Environment Variables altina ekleyip redeploy edin.',
+    };
+  }
+
+  // Webhook yolunda Slack dogrulama ucu sunmaz; ancak adresin bicimi
+  // kontrol edilebilir.
+  if (mode === 'webhook') {
+    const url = webhookUrl();
+    if (!/^https:\/\/hooks\.slack\.com\/services\//.test(url)) {
+      return {
+        ok: false,
+        mode,
+        detail:
+          'SLACK_WEBHOOK_URL gecersiz gorunuyor. Beklenen bicim: ' +
+          'https://hooks.slack.com/services/T.../B.../...',
+      };
+    }
+    return {
+      ok: true,
+      mode,
+      detail:
+        'Webhook adresi bicimi dogru. Kanaldan gorunuyorsa baglanti kuruludur.',
+    };
+  }
+
+  // --- Bot token yolu: gercek dogrulama ---
+  const token = botToken();
+
+  // Bicim kontrolu SUNUCUDA yapilir; token istemciye ASLA sizmaz.
+  if (!token.startsWith('xoxb-')) {
+    const tur = token.startsWith('xoxp-')
+      ? 'Bu bir USER TOKEN (xoxp-); bot tokeni (xoxb-) gerekiyor.'
+      : token.startsWith('xapp-')
+        ? 'Bu bir APP-LEVEL TOKEN (xapp-); bot tokeni (xoxb-) gerekiyor.'
+        : 'Deger "xoxb-" ile baslamiyor.';
+    return {
+      ok: false,
+      mode,
+      detail:
+        'SLACK_BOT_TOKEN hatali bicimde. ' + tur +
+        ' Slack > API Apps > OAuth & Permissions > Bot Token Scopes >' +
+        ' "Add a Bot Token" ile yeni token uretin.',
+    };
+  }
+
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), SLACK_TIMEOUT_MS);
+  try {
+    const res = await fetch('https://slack.com/api/auth.test', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json; charset=utf-8',
+        Authorization: 'Bearer ' + token,
+      },
+      signal: controller.signal,
+    });
+    const data = await res.json().catch(() => null);
+
+    if (data && data.ok === true) {
+      const who = String(data.user || data.bot_id || 'bot').replace(/"/g, '');
+      const team = String(data.team || '?').replace(/"/g, '');
+      return {
+        ok: true,
+        mode,
+        detail:
+          'Token gecerli. Bot: "' + who + '" | Workspace: "' + team + '". ' +
+          'Mesaj gondermeden dogrulandi.',
+      };
+    }
+
+    return { ok: false, mode, detail: describeSlackError(data) };
+  } catch (e) {
+    return {
+      ok: false,
+      mode,
+      detail:
+        e instanceof Error && e.name === 'AbortError'
+          ? 'Slack yanit vermedi (zaman asimi).'
+          : 'Slack baglanti hatasi: ' + (e?.message || 'bilinmiyor'),
+    };
   } finally {
     clearTimeout(timer);
   }
