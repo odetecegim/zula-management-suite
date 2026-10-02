@@ -447,11 +447,15 @@ export async function handleApi(method, segments, body = {}, headers = {}) {
       // Panelde "Baglantiyi Test Et" butonu bunu cagirir.
       case 'slack-test': {
         if (!isSlackConfigured()) {
+          // Kullaniciya HANGI degerleri ekleyecegini net soyleyelim.
+          // Iki yol var; kanal ID'si olan kullanici icin bot yolu daha uygun.
           return ok({
             ok: false,
             configured: false,
             message:
-              'Slack webhook adresi tanimli degil. Vercel ortam degiskenlerine SLACK_WEBHOOK_URL ekleyin.',
+              'Slack baglantisi kurulmadi. Vercel > Settings > Environment Variables altina ' +
+              'SLACK_BOT_TOKEN (xoxb- ile baslayan bot tokeni) ve SLACK_CHANNEL_ID (kanal kimligi) ekleyip ' +
+              'projeyi yeniden deploy edin. Alternatif: SLACK_WEBHOOK_URL da olur.',
           });
         }
         const sent = await sendSlackMessage(
