@@ -146,12 +146,16 @@ export async function remoteLogin(
   username: string,
   password: string
 ): Promise<RemoteLoginResult> {
-  // 401 "bilerek" gelir; bu bir hata degil, gecersiz kimlik demektir.
+  // 401 bilerek gelir; bu bir hata degil, gecersiz kimlik demektir.
+  // Backend kapaliysa sonsuza kadar bekleme: 4 sn zaman asimi.
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 4000);
   try {
     const res = await fetch(apiUrl('/api/sheets/login'), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ spreadsheetId: currentSpreadsheetId(), username, password }),
+      signal: controller.signal,
     });
     if (res.status === 401) return { status: 'invalid' };
 
@@ -181,5 +185,7 @@ export async function remoteLogin(
     return { status: 'unavailable' };
   } catch {
     return { status: 'unavailable' };
+  } finally {
+    clearTimeout(timer);
   }
 }

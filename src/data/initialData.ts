@@ -104,38 +104,7 @@ export const INITIAL_MEMBERS: Member[] = [
   },
 ];
 
-export const INITIAL_TEST_SESSIONS: TestSession[] = [
-  {
-    id: 'ts-1',
-    title: 'V2.14 Safranbolu Gece Modu & Ses İyileştirmeleri',
-    version: 'v2.14.0-rc3',
-    game: 'Zula PC',
-    date: '2026-03-25',
-    status: 'Tamamlandı',
-    participantsCount: 48,
-    reportedBugs: 19,
-  },
-  {
-    id: 'ts-2',
-    title: 'Yeni Sezon Silah Dengelemeleri & Spray Kontrolü',
-    version: 'v2.15.0-alpha',
-    game: 'Zula PC',
-    date: '2026-03-28',
-    status: 'Devam Ediyor',
-    participantsCount: 32,
-    reportedBugs: 11,
-  },
-  {
-    id: 'ts-3',
-    title: 'Mobil Cihaz Optimizasyonu & 120 FPS Testi',
-    version: 'v1.8.2',
-    game: 'Zula PC',
-    date: '2026-04-02',
-    status: 'Planlandı',
-    participantsCount: 65,
-    reportedBugs: 0,
-  },
-];
+export const INITIAL_TEST_SESSIONS: TestSession[] = [];
 
 export const INITIAL_PERFORMANCES: Performance[] = (() => {
   // Yasayan tohum: her zaman secicide gorunen mevcut ay + bir onceki ay
@@ -199,13 +168,6 @@ export const INITIAL_LOGS: ActivityLog[] = [
     action: 'V2.15.0 silah denge test oturumu başlatıldı.',
     category: 'Performance',
     timestamp: '28.09.2026 00:45',
-  },
-  {
-    id: 'log-3',
-    actor: 'Burak Serdar',
-    action: 'ZULA-004 Lucas Silva için test puanı güncellendi: 86.',
-    category: 'User',
-    timestamp: '27.09.2026 19:20',
   },
 ];
 

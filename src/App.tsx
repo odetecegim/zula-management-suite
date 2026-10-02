@@ -66,16 +66,17 @@ const FOUNDER_USERNAME = 'huseyin';
 const FOUNDER_PASSWORD = 'admin123';
 
 
-const PURGE_BLOCKLIST_KEY = 'zula_suite_purge_blocklist_v1';
-const PURGE_FLAG_KEY = 'zula_suite_purge_non_founder_v2';
+const PURGE_BLOCKLIST_KEY = 'zula_suite_purge_blocklist_v2';
+const PURGE_FLAG_KEY = 'zula_suite_purge_non_founder_v3';
 
 /**
  * Örnek (tohum) üye kimlikleri — kalıcı olarak engellenir.
  * Admin'in panelden eklediği yeni üyeler farklı id taşıdığı için
- * korunur. Dikkat: bu liste genişletilirse "kurucu dışındaki her şeyi
- * sil" gibi bir filtreye DÖNÜŞMEBİR — yeni eklenen üyeleri de siler.
+ * korunur. Dikkat: bu liste artik kullanilmiyor — temizlik "kurucu
+ * disindaki her sey" kuraliyla yapiliyor (kullanici istegi).
  */
-const LEGACY_SEED_IDS = new Set(['m-2', 'm-3', 'm-4', 'm-5']);
+const _LEGACY_SEED_IDS = new Set(['m-2', 'm-3', 'm-4', 'm-5']);
+void _LEGACY_SEED_IDS;
 
 function loadBlocklist(): string[] {
   try {
@@ -235,25 +236,37 @@ export function App() {
   });
 
   const [sessions, setSessions] = useState<TestSession[]>(() => {
-    const saved = localStorage.getItem('zula_suite_sessions');
-    if (!saved) return INITIAL_TEST_SESSIONS;
     try {
-      const parsed = JSON.parse(saved) as TestSession[];
-      if (!Array.isArray(parsed)) return INITIAL_TEST_SESSIONS;
-      // Eski/kaldirilmis oyun etiketlerini gecir (orn. "Zula Mobile", "Zula")
-      const VALID = ['Zula PC', 'Zula Strike', 'Wolfteam'];
-      return parsed.map((s) => ({
-        ...s,
-        game: (VALID.includes(s.game) ? s.game : 'Zula PC') as TestSession['game'],
-      }));
-    } catch {
-      return INITIAL_TEST_SESSIONS;
-    }
+      const saved = localStorage.getItem('zula_suite_sessions');
+      if (saved) {
+        const parsed = JSON.parse(saved) as TestSession[];
+        if (!Array.isArray(parsed)) return INITIAL_TEST_SESSIONS;
+        // Eski ornek oturumlari (ts-1..3) dusur; yoksa yeni uye girince
+        // "test varmis gibi" eski demo oturumlar gorunur.
+        const cleaned = parsed.filter((s) => s && !['ts-1', 'ts-2', 'ts-3'].includes(s.id));
+        const VALID = ['Zula PC', 'Zula Strike', 'Wolfteam'];
+        return cleaned.map((s) => ({
+          ...s,
+          game: (VALID.includes(s.game) ? s.game : 'Zula PC') as TestSession['game'],
+        }));
+      }
+    } catch { /* yoksay */ }
+    return INITIAL_TEST_SESSIONS;
   });
 
   const [logs, setLogs] = useState<ActivityLog[]>(() => {
-    const saved = localStorage.getItem('zula_suite_logs');
-    return saved ? JSON.parse(saved) : INITIAL_LOGS;
+    try {
+      const saved = localStorage.getItem('zula_suite_logs');
+      if (saved) {
+        const parsed = JSON.parse(saved) as ActivityLog[];
+        if (!Array.isArray(parsed)) return INITIAL_LOGS;
+        // Eski ornek kaydi (log-3 / Burak Serdar) dusur.
+        return parsed.filter(
+          (l) => l && l.id !== 'log-3' && l.actor !== 'Burak Serdar'
+        );
+      }
+    } catch { /* yoksay */ }
+    return INITIAL_LOGS;
   });
 
   // Performans kayitlari (uye + donem birlesimi)
@@ -283,10 +296,11 @@ export function App() {
   useEffect(() => {
     if (localStorage.getItem(PURGE_FLAG_KEY) === 'done') return;
 
-    // Yalnizca ORNEK uyeler temizlenir. Admin'in ekledigi yeni
-    // uyeler korunur (LEGACY_SEED_IDS'e eklenmemeli).
+    // Yalnizca ORNEK (tohum) uyeler temizlenir — kurucu disinda localStorage'da
+    // kalan HER kayit dusurulur (m-2..m-5 dahil). Admin'in panelden ekledigi
+    // yeni uyeler korunur (LEGACY_SEED_IDS'e eklenmemeli).
     const removedIds = members
-      .filter((m) => LEGACY_SEED_IDS.has(m.id))
+      .filter((m) => m.id !== FOUNDER_MEMBER_ID)
       .map((m) => m.id);
 
     if (removedIds.length > 0) {
@@ -355,8 +369,7 @@ export function App() {
       const pendingIds = new Set(
         members
           .filter((m) => !remoteIds.has(m.id))
-          // Örnek (tohum) üyeler her zaman düşülür
-          .filter((m) => !LEGACY_SEED_IDS.has(m.id))
+          .filter((m) => m.id !== FOUNDER_MEMBER_ID)
           .map((m) => m.id)
       );
       const pending = members.filter((m) => pendingIds.has(m.id));
@@ -408,7 +421,7 @@ export function App() {
 
         // Sheets'te olmayanlar: yalnizca yeni yazilmamis uyeler kalir
         const pending = prev.filter(
-          (m) => !remoteIds.has(m.id) && !LEGACY_SEED_IDS.has(m.id)
+          (m) => !remoteIds.has(m.id) && m.id !== FOUNDER_MEMBER_ID
         );
 
         const next = [...synced, ...pending];

@@ -26,7 +26,15 @@ export const LogsView: React.FC<LogsProps> = ({ logs, members }) => {
   const [category, setCategory] = useState<'all' | ActivityLog['category']>('all');
   const [actor, setActor] = useState<string>('all');
 
-  const sorted = [...logs].sort((a, b) => (a.id < b.id ? 1 : -1));
+  // En yeni kayit en ustte: once zaman damgasina gore, esitse
+  // id'ye gore azalan sirala. Onceki surum yalnizca id'ye bakiyordu;
+  // ornek (tohum) kayitlar gercek islemlerin ustune cikiyordu.
+  const parseTs = (ts: string): number => {
+    const m = ts.match(/(\d{2})\.(\d{2})\.(\d{4})\s+(\d{2}):(\d{2})/);
+    if (!m) return 0;
+    return new Date(+m[3], +m[2] - 1, +m[1], +m[4], +m[5]).getTime();
+  };
+  const sorted = [...logs].sort((a, b) => parseTs(b.timestamp) - parseTs(a.timestamp) || (a.id < b.id ? 1 : -1));
 
   // Islem yapan benzersiz kullanicilar
   const actors = Array.from(new Set(sorted.map((l) => l.actor))).sort((a, b) =>

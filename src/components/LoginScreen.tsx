@@ -49,7 +49,30 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ members, onLogin }) =>
       return;
     }
 
-    // 1) SUNUCUDA DOGRULA (asil kaynak: Google Sheets)
+    // HIZLI YOL: once YEREL listeye bak (aninda doner).
+    // Backend kapaliyken `remoteLogin` 4 sn bekletiyordu; bu yuzden
+    // dogru sifrede bile ekran "giris yapiliyor"da takili kaliyordu.
+    // Yerel eslesme varsa sunucuya hic gidilmez.
+    const local = members.find(
+      (m) =>
+        (m.username ?? '').toLowerCase() === cleanUser ||
+        m.tagId.toLowerCase() === cleanUser ||
+        (m.email ?? '').toLowerCase() === cleanUser
+    );
+
+    if (local && local.password && local.password === cleanPass) {
+      // Pasif hesap yerel yoldan da reddedilir
+      if (String(local.status ?? '').toLowerCase() === 'pasif') {
+        setError('Hesabınız pasif durumda. Panele giriş yapamazsınız; yöneticinizle iletişime geçin.');
+        setLoading(false);
+        return;
+      }
+      finish({ ...local, permissions: normalizePermissions(local.permissions, local.role) });
+      return;
+    }
+
+    // 2) SUNUCUDA DOGRULA (asil kaynak: Google Sheets)
+    // Yalnizca yerelde eslesme yoksa sunucuya sorulur.
     const remote = await remoteLogin(cleanUser, cleanPass);
 
     if (remote.status === 'ok') {
@@ -72,28 +95,8 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ members, onLogin }) =>
       return;
     }
 
-    // 2) YEREL YEDEK: yalnizca kullanici adi + sifre birebir uyusuyorsa
-    //
-    // DIKKAT: onceki surumde bu kontrol "admin rolune sahipse" ekranin
-    // hicbir sekilde gecmemesine yol aciyordu. Artik rol bakimi
-    // YAPILMAZ: kullanici adin ve sifresi dogruysa giris acilir.
-    const local = members.find(
-      (m) =>
-        (m.username ?? '').toLowerCase() === cleanUser ||
-        m.tagId.toLowerCase() === cleanUser ||
-        (m.email ?? '').toLowerCase() === cleanUser
-    );
-
-    if (local && local.password && local.password === cleanPass) {
-      // Pasif hesap yerel yoldan da reddedilir
-      if (String(local.status ?? '').toLowerCase() === 'pasif') {
-        setError('Hesabınız pasif durumda. Panele giriş yapamazsınız; yöneticinizle iletişime geçin.');
-        setLoading(false);
-        return;
-      }
-      finish({ ...local, permissions: normalizePermissions(local.permissions, local.role) });
-      return;
-    }
+    // 3) YEREL YEDEK zaten ustte denendi (hizli yol). Buraya dusen
+    // kullanici ya yerelde bulunamadi ya da sifresi uyusmadi.
 
     // 3) Hata mesaji
     if (remote.status === 'unavailable') {
