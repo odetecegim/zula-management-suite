@@ -203,6 +203,7 @@ export type RemoteLoginResult =
   | { status: 'ok'; member: Member }
   | { status: 'invalid' } // kimlik bilgisi yanlış (sunucu erisilebilir)
   | { status: 'inactive'; message: string } // hesap pasif -> giris reddedildi
+  | { status: 'locked'; message: string } // cok fazla hatali deneme -> kilitli
   | { status: 'unavailable' }; // backend kapali -> yerel dogrulamaya dus
 
 /**
@@ -250,6 +251,17 @@ export async function remoteLogin(
     if (res.status === 401) {
       setSessionToken(null);
       return { status: 'unavailable' };
+    }
+
+    if (res.status === 429) {
+      let message = 'Çok fazla hatalı deneme. Lütfen bir süre sonra tekrar deneyin.';
+      try {
+        const lockBody = (await res.json()) as { error?: string };
+        if (lockBody?.error) message = lockBody.error;
+      } catch {
+        /* govde okunamadi */
+      }
+      return { status: 'locked', message };
     }
 
     if (!res.ok) return { status: 'unavailable' };

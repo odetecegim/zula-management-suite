@@ -17,6 +17,10 @@ import {
   isRateLimited,
   registerFailedLogin,
   clearFailedLogins,
+  isAccountLocked,
+  registerFailedAccount,
+  clearFailedAccount,
+  accountRetryInfo,
 } from './auth.js';
 
 test('kimliksiz okuma istegi reddedilir (401)', () => {
@@ -97,4 +101,71 @@ test('kaba kuvvet korumasi 8 denemeden sonra kilitler', () => {
   assert.equal(isRateLimited(key), true, '8. denemeden sonra kilitlenmeli');
   clearFailedLogins(key);
   assert.equal(isRateLimited(key), false, 'basarili giriş kilidi kaldırmalı');
+});
+
+/* ------------------------------------------------------------------ */
+/* HESAP bazli koruma — IP degistirilse bile gecerli                  */
+/* ------------------------------------------------------------------ */
+
+test('hesap 10 hatali denemeden sonra kilitlenir', () => {
+  const user = 'kaba-kuvvet-testi';
+  clearFailedAccount(user);
+  assert.equal(isAccountLocked(user), false);
+  for (let i = 0; i < 9; i++) registerFailedAccount(user);
+  assert.equal(isAccountLocked(user), false, '9 deneme sonrasi hâlâ açık');
+  registerFailedAccount(user); // 10.
+  assert.equal(isAccountLocked(user), true, '10. denemeden sonra kilitlenmeli');
+  clearFailedAccount(user);
+  assert.equal(isAccountLocked(user), false);
+});
+
+test('hesap kilidi IP degistirilse de gecerlidir (botnet korumasi)', () => {
+  // ASIL TEST: her deneme farkli "IP" ile yapilsa bile hesap sayaci artar
+  const user = 'botnet-testi';
+  clearFailedAccount(user);
+  for (let i = 0; i < 10; i++) {
+    // Her seferinde farkli IP: registerFailedLogin IP'ye göre sayıyor,
+    // registerFailedAccount hesaba göre sayıyor.
+    registerFailedLogin('farkli-ip-' + i);
+    registerFailedAccount(user);
+  }
+  assert.equal(
+    isAccountLocked(user),
+    true,
+    'IP degisse bile hesap kilitlenmeli'
+  );
+  // ...ve hicbir IP de kilitlenmemis olmali (korumanin sızdırmadığı kanıtı)
+  for (let i = 0; i < 10; i++) {
+    assert.equal(isRateLimited('farkli-ip-' + i), false);
+  }
+  clearFailedAccount(user);
+});
+
+test('hesap adi buyuk/kucuk harf ve bosluk duyarsiz sayilir', () => {
+  const user = 'Test-Kullanici';
+  clearFailedAccount(user);
+  for (let i = 0; i < 10; i++) registerFailedAccount('  test-kullanici  ');
+  assert.equal(isAccountLocked(user), true, 'normalize edilmiş ad kilitlenmeli');
+  clearFailedAccount(user);
+});
+
+test('kilit suresi hesaplanabilir', () => {
+  const user = 'sure-testi';
+  clearFailedAccount(user);
+  for (let i = 0; i < 10; i++) registerFailedAccount(user);
+  const info = accountRetryInfo(user);
+  assert.ok(info, 'kilit suresi bilgisi donmeli');
+  assert.ok(info.minutes > 0 && info.minutes <= 15, 'kalan sure 1-15 dakika arasi olmali');
+  clearFailedAccount(user);
+  assert.equal(accountRetryInfo(user), null, 'basarili giriş sonrasi bilgi silinmeli');
+});
+
+test('bilinmeyen kullanici adi da sayilir (enumeration korumasi)', () => {
+  // Olmayan kullanici adi denemeleri de hesap sayacini artirmali;
+  // aksi halde saldırgan var/yok ayrimi yapabilirdi.
+  const ghost = 'boyle-bir-kullanici-yok';
+  clearFailedAccount(ghost);
+  for (let i = 0; i < 10; i++) registerFailedAccount(ghost);
+  assert.equal(isAccountLocked(ghost), true);
+  clearFailedAccount(ghost);
 });

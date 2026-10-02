@@ -36,25 +36,54 @@ const sessions = new Map();
 /** Belirtecin gecerlilik suresi: 12 saat. */
 const SESSION_TTL_MS = 12 * 60 * 60 * 1000;
 
-/** Art arda hatali giris denemelerini yavaslatmak icin basit kova. */
-const loginAttempts = new Map();
-const MAX_ATTEMPTS = 8;
-const LOCKOUT_MS = 10 * 60 * 1000;
+/**
+ * KABA KUVVET KORUMASI
+ *
+ * Iki KATMANLI:
+ *   1) IP bazli  — hizli sinir; bir IP'den arka arkaya deneme.
+ *   2) HESAP bazli — asil koruma. IP degistirilse bile (botnet,
+ *      proxy, VPN) belirli bir kullanici adina yapilan denemeler
+ *      sinirli kalir.
+ *
+ * NEDEN HESAP KORUMASI KRITIK:
+ * IP korumasi tek basina yetersizdir. Saldirgan onlarca IP ile
+ * (botnet, Tor, VPN) her birinden birkac deneme yapabilir; toplamda
+ * IP limiti hic dolmaz. Hesap bazli koruma ise "huseyin" kullanici
+ * adina yapilan denemeleri IP'lerden bagimsiz sayar; 10 denemeden
+ * sonra o hesap kilitlenir. 7 haneli sifreler icin bile kullanici
+ * adinin kesfi yavaslatilir.
+ *
+ * Onemli: parola OLMAYAN, kullanici adi OLMAYAN denemeler de sayilir
+ * (kullanici adini yoklama / enumeration korumasi).
+ */
 
-/** Bir IP'nin su an kilitli olup olmadigini dondurur. */
+const MAX_IP_ATTEMPTS = 8;
+const IP_LOCKOUT_MS = 10 * 60 * 1000;
+
+/** Hesap basina izin verilen basarisiz deneme sayisi. */
+const MAX_ACCOUNT_ATTEMPTS = 10;
+/** Hesap kilidi suresi: 15 dakika (sifirlanabilir degil, oturum acilmali). */
+const ACCOUNT_LOCKOUT_MS = 15 * 60 * 1000;
+
+/** IP -> { count, first } */
+const loginAttempts = new Map();
+/** kullaniciAdi -> { count, first } */
+const accountAttempts = new Map();
+
+/** ---- IP bazli katman ---- */
 export function isRateLimited(key) {
   const rec = loginAttempts.get(key);
   if (!rec) return false;
-  if (Date.now() - rec.first > LOCKOUT_MS) {
+  if (Date.now() - rec.first > IP_LOCKOUT_MS) {
     loginAttempts.delete(key);
     return false;
   }
-  return rec.count >= MAX_ATTEMPTS;
+  return rec.count >= MAX_IP_ATTEMPTS;
 }
 
 export function registerFailedLogin(key) {
   const rec = loginAttempts.get(key);
-  if (!rec || Date.now() - rec.first > LOCKOUT_MS) {
+  if (!rec || Date.now() - rec.first > IP_LOCKOUT_MS) {
     loginAttempts.set(key, { count: 1, first: Date.now() });
   } else {
     rec.count += 1;
@@ -63,6 +92,53 @@ export function registerFailedLogin(key) {
 
 export function clearFailedLogins(key) {
   loginAttempts.delete(key);
+}
+
+/**
+ * ---- HESAP bazli katman ----
+ *
+ * @param {string} username dogrulanacak kullanici adi (normalize)
+ */
+export function isAccountLocked(username) {
+  if (!username) return false;
+  const rec = accountAttempts.get(normalizeKey(username));
+  if (!rec) return false;
+  if (Date.now() - rec.first > ACCOUNT_LOCKOUT_MS) {
+    accountAttempts.delete(normalizeKey(username));
+    return false;
+  }
+  return rec.count >= MAX_ACCOUNT_ATTEMPTS;
+}
+
+export function registerFailedAccount(username) {
+  if (!username) return;
+  const key = normalizeKey(username);
+  const rec = accountAttempts.get(key);
+  if (!rec || Date.now() - rec.first > ACCOUNT_LOCKOUT_MS) {
+    accountAttempts.set(key, { count: 1, first: Date.now() });
+  } else {
+    rec.count += 1;
+  }
+}
+
+export function clearFailedAccount(username) {
+  if (username) accountAttempts.delete(normalizeKey(username));
+}
+
+/** Kullanici adini karsilastirma icin normalize eder. */
+function normalizeKey(username) {
+  return String(username).trim().toLocaleLowerCase('tr-TR');
+}
+
+/** Kalan hak / kalan sure bilgisi (kullaniciya gostermek icin). */
+export function accountRetryInfo(username) {
+  if (!username) return null;
+  const rec = accountAttempts.get(normalizeKey(username));
+  if (!rec || rec.count < MAX_ACCOUNT_ATTEMPTS) return null;
+  const elapsed = Date.now() - rec.first;
+  if (elapsed > ACCOUNT_LOCKOUT_MS) return null;
+  const remainMin = Math.ceil((ACCOUNT_LOCKOUT_MS - elapsed) / 60000);
+  return { minutes: remainMin };
 }
 
 /** Guvenli rastgele belirtec uretir. */

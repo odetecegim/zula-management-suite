@@ -95,6 +95,14 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ members, onLogin }) =>
       return;
     }
 
+    // KABA KUVVET KILIDI: sunucu 429 dondurun. Mesaj sunucudan gelir
+    // ve kalan sureyi yazar ("Hesap 14 dakika kilitli").
+    if (remote.status === 'locked') {
+      setError(remote.message);
+      setLoading(false);
+      return;
+    }
+
     // 3) YEREL YEDEK zaten ustte denendi (hizli yol). Buraya dusen
     // kullanici ya yerelde bulunamadi ya da sifresi uyusmadi.
 

@@ -101,6 +101,16 @@ export async function handleApi(method, segments, body = {}, headers = {}) {
   try {
     // Hatali giris denemelerini sinirla (kaba kuvvet korumasi)
     const rateKey = String(headers['x-forwarded-for'] || 'unknown').split(',')[0].trim();
+    // HESAP bazli koruma: IP degisse bile bu kullanici adi kilitli kalir.
+    if (endpoint === 'login' && isAccountLocked(body?.username)) {
+      const info = accountRetryInfo(body?.username);
+      return fail(
+        429,
+        `Cok fazla hatali deneme. Hesap ${info?.minutes ?? 15} dakika kilitli.`,
+        'ACCOUNT_LOCKED'
+      );
+    }
+
     if (endpoint === 'login' && isRateLimited(rateKey)) {
       return fail(
         429,
@@ -324,6 +334,7 @@ export async function handleApi(method, segments, body = {}, headers = {}) {
 
         if (!found || !verifyPassword(body?.password, found.passwordHash)) {
           registerFailedLogin(rateKey);
+          registerFailedAccount(body?.username);
           return fail(401, 'Kullanici adi veya sifre hatali.', 'BAD_CREDENTIALS');
         }
 
