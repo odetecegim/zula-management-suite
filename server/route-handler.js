@@ -48,8 +48,16 @@ pruneSessions();
  */
 const PUBLIC_ENDPOINTS = new Set(['status', 'health', 'login', 'logout']);
 
-/** Yazma (veri degistiren) uc noktalar — en katı koruma. */
+/**
+ * Veri degistiren uc noktalar.
+ *
+ * NOT: Artik dogrulama karari HTTP metoduna bakarak veriliyor
+ * (GET = okuma, POST/PUT/DELETE = yazma), bu yuzden bu liste yalnizca
+ * dokumantasyon amacli tutuluyor. Kullanilmiyor ama hangi uc noktanin
+ * veri bozabilecegini gostermesi ve ilerideki denetimler icin faydalı.
+ */
 const WRITE_ENDPOINTS = new Set(['write', 'members', 'member-delete', 'import']);
+void WRITE_ENDPOINTS;
 
 const DEFAULT_SPREADSHEET = extractSpreadsheetId(process.env.SHEETS_SPREADSHEET_ID || '');
 
@@ -81,7 +89,9 @@ export async function handleApi(method, segments, body = {}, headers = {}) {
   // atmak tum korumayi atliyordu. Asagida her veri uc noktasi icin
   // sunucu tarafi dogrulama yapilir.
   if (!PUBLIC_ENDPOINTS.has(endpoint)) {
-    const isWrite = WRITE_ENDPOINTS.has(endpoint) || (!get && endpoint !== 'logout');
+    // Yazma = sadece veri DEGISTIREN istekler (POST/PUT/DELETE).
+    // Ayni uc noktanin okuma hali (GET) oturum belirteci ile calisir.
+    const isWrite = !get;
     const auth = requireAuth(headers, { write: isWrite });
     if (!auth.ok) {
       return fail(auth.status, auth.error, auth.code);
