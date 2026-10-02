@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Slack modulu testleri
  *
  * ONEMLI: Bu testler SLACK_WEBHOOK_URL tanimli DEGILKEN calisir ve
@@ -158,7 +158,8 @@ test('xoxb- oneki olmayan deger erken reddedilir (ag cagrisi yapilmaz)', async (
   process.env.SLACK_CHANNEL_ID = 'C123';
   const r = await diagnoseSlack();
   assert.equal(r.ok, false);
-  assert.match(r.detail, /hatali bicimde/);
+  assert.match(r.detail, /tanınamadı/);
+  assert.match(r.detail, /18 karakter/);
 });
 
 test('webhook adresi bicimi dogrulanir', async () => {
@@ -182,6 +183,68 @@ test('ONEMLI: tanilama hicbir sirri istemciye sizdirmaz', async () => {
   process.env.SLACK_BOT_TOKEN = 'xoxb-GIZLI-DEGER-123456';
   process.env.SLACK_CHANNEL_ID = 'C123';
   delete process.env.SLACK_WEBHOOK_URL;
+  const r = await diagnoseSlack();
+  assert.ok(
+    !JSON.stringify(r).includes('GIZLI-DEGER'),
+    'SONUC: token degeri istemciye sizdi!'
+  );
+});
+
+/*
+  YAPISTIRMA HATALARI — ASIL SIK KARSILASILAN SORUN
+  ---------------------------------------------------
+  Kullanici dogru xoxb- token'i aliyor, ama Vercel ortam degiskenine
+  yapistirirken bozuluyor: tirnak, "Bearer " on eki, bosluk ya da
+  Slack ekranindaki baslik satiri. Onceki surumde bunlar fark edilmiyor
+  ve kullaniciya "yeni token uretin" deniyordu — oysa token dogruydu.
+*/
+
+test('tirnak icine yapistirilan token duzeltilir', async () => {
+  process.env.SLACK_BOT_TOKEN = '"xoxb-1234-5678-abc"';
+  process.env.SLACK_CHANNEL_ID = 'C123';
+  delete process.env.SLACK_WEBHOOK_URL;
+  const r = await diagnoseSlack();
+  assert.equal(r.ok, false, 'ag cagrisi yapmadan hata vermeli');
+  assert.match(r.detail, /Yapıştırma hatası/);
+  assert.match(r.detail, /Tırnak/);
+  // "Yeni token üretin" önerisi YAPILMAMALI — mevcut token geçerli.
+  assert.ok(
+    !/yeni token üret/i.test(r.detail),
+    'Yapıştırma hatası varken yeni token üretmek gereksiz'
+  );
+});
+
+test('"Bearer " oneki olan deger duzeltilir', async () => {
+  process.env.SLACK_BOT_TOKEN = 'Bearer xoxb-1234-5678-abc';
+  process.env.SLACK_CHANNEL_ID = 'C123';
+  const r = await diagnoseSlack();
+  assert.match(r.detail, /Yapıştırma hatası/);
+  assert.match(r.detail, /Bearer/);
+});
+
+test('bosluklu deger duzeltilir', async () => {
+  process.env.SLACK_BOT_TOKEN = '   xoxb-1234-5678-abc   ';
+  process.env.SLACK_CHANNEL_ID = 'C123';
+  const r = await diagnoseSlack();
+  // Bosluk temizlenince gecerli token Slack'a gider; ag hatasi olabilir
+  // ama "Yapıştırma hatası" DEMEMELI (onceki hatayi tekrarlamamali).
+  assert.ok(
+    !/Yapıştırma hatası/.test(r.detail),
+    'sadece bosluk sorunu yapıştırma hatası sayılmamalı (trim zaten vardı)'
+  );
+});
+
+test('baslik satiriyla birlikte yapistirilan degerden token cikarilir', async () => {
+  process.env.SLACK_BOT_TOKEN = 'Bot User OAuth Token: xoxb-1234-5678-abc';
+  process.env.SLACK_CHANNEL_ID = 'C123';
+  const r = await diagnoseSlack();
+  assert.match(r.detail, /Yapıştırma hatası/);
+  assert.match(r.detail, /çıkarıldı/);
+});
+
+test('ONEMLI: tanilama yapistirma hatasinda da siri sizdirmaz', async () => {
+  process.env.SLACK_BOT_TOKEN = '"xoxb-GIZLI-DEGER-9876"';
+  process.env.SLACK_CHANNEL_ID = 'C123';
   const r = await diagnoseSlack();
   assert.ok(
     !JSON.stringify(r).includes('GIZLI-DEGER'),

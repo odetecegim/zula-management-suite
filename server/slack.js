@@ -34,6 +34,53 @@ export function clearSlackError() {
   lastError = '';
 }
 
+/*
+  TOKEN NORMALIZASYONU — Vercel'e yapistirma hatalarini onler
+  ---------------------------------------------------------
+  SORUN: Ortam degiskenine yapistirilan token cogu zaman bozuk gelir.
+  Once surumde yalnizca `trim()` vardi; bu yuzden su durumlarda
+  `startsWith('xoxb-')` basarisiz oluyor ve kullaniciya "yeni token
+  uretin" deniyordu — oysa token'in kendisi dogruydu:
+
+    - Tırnak icine yapistirildi:      "xoxb-123-abc"
+    - Bearer oneki eklendi:            Bearer xoxb-123-abc
+    - Bas/son bosluk veya satir sonu
+    - Kopyalarken eksik/boluk karakter
+    - Slack'in "Token Settings" ekranindaki baslik satiri yapistirildi
+
+  Simdi bunlar TEK TEK tespit edilir ve kullaniciya NE YAPACAGI soylenir.
+  Guvenlik: token'in KENDISI hicbir mesajda gosterilmez; yalnizca
+  baslangic oneki ve toplam uzunluk gibi sir olmayan bilgi verilir.
+*/
+function normalizeToken(raw) {
+  let value = String(raw || '').trim();
+
+  // Tırnak içine yapıştırma: "xoxb-..." veya 'xoxb-...'
+  const unquoted = value.replace(/^["']|["']$/g, '').trim();
+  if (unquoted !== value) {
+    value = unquoted;
+    return { value, problem: 'Tırnak işaretleri (") yapıştırılmıştı; kaldırıldı.' };
+  }
+
+  // "Bearer xoxb-..." biçiminde yapıştırma
+  if (/^bearer\s+/i.test(value)) {
+    value = value.replace(/^bearer\s+/i, '').trim();
+    return { value, problem: 'Baştaki "Bearer " ifadesi kaldırıldı.' };
+  }
+
+  // Slack arayüzünden kopyalanırken gelen başlık satırı:
+  // "Bot User OAuth Token" gibi metinlerden sonra token gelebilir.
+  if (/^xox[bp]-/.test(value) === false) {
+    const m = value.match(/(xox[bap]-[A-Za-z0-9-]+)/);
+    if (m) {
+      value = m[1];
+      return { value, problem: 'Metin içinden token çıkarıldı (başka karakterler vardı).' };
+    }
+  }
+
+  return { value, problem: '' };
+}
+
 const webhookUrl = () => String(process.env.SLACK_WEBHOOK_URL || '').trim();
 const botToken = () => String(process.env.SLACK_BOT_TOKEN || '').trim();
 const channelId = () => String(process.env.SLACK_CHANNEL_ID || '').trim();
@@ -83,7 +130,9 @@ export function slackMode() {
  * @returns {Promise<boolean>} basarili mi
  */
 async function postViaBotApi(text, blocks) {
-  const token = botToken();
+  // Ayni normalizasyon tanilama yolunda da kullanilir; boylece
+  // "Tokenı Kontrol Et" geçerli derken mesaj gonderme de basarili olur.
+  const { value: token } = normalizeToken(botToken());
   const channel = channelId();
   if (!token || !channel) {
     lastError = 'SLACK_BOT_TOKEN veya SLACK_CHANNEL_ID eksik.';
@@ -263,22 +312,42 @@ export async function diagnoseSlack() {
   }
 
   // --- Bot token yolu: gercek dogrulama ---
-  const token = botToken();
+  const { value: token, problem: yapistirmaHatasi } = normalizeToken(botToken());
 
-  // Bicim kontrolu SUNUCUDA yapilir; token istemciye ASLA sizmaz.
-  if (!token.startsWith('xoxb-')) {
-    const tur = token.startsWith('xoxp-')
-      ? 'Bu bir USER TOKEN (xoxp-); bot tokeni (xoxb-) gerekiyor.'
-      : token.startsWith('xapp-')
-        ? 'Bu bir APP-LEVEL TOKEN (xapp-); bot tokeni (xoxb-) gerekiyor.'
-        : 'Deger "xoxb-" ile baslamiyor.';
+  if (yapistirmaHatasi) {
+    // Bozukluk YAPISTIRMADAN kaynaklaniyor — yeni token gerekmez.
     return {
       ok: false,
       mode,
       detail:
-        'SLACK_BOT_TOKEN hatali bicimde. ' + tur +
-        ' Slack > API Apps > OAuth & Permissions > Bot Token Scopes >' +
-        ' "Add a Bot Token" ile yeni token uretin.',
+        'Yapıştırma hatası düzeltildi: ' + yapistirmaHatasi +
+        ' Artık geçerli görünüyor. Vercel\'de bu değeri tırnak veya ' +
+        '"Bearer " ön ek olmadan, düz metin olarak kaydedip yeniden deploy edin.',
+    };
+  }
+
+  // Bicim kontrolu SUNUCUDA yapilir; token istemciye ASLA sizmaz.
+  if (!token.startsWith('xoxb-')) {
+    // Guvenli tani: sadece ONEK ve UZUNLUK — token'in kendisi sizmaz.
+    const onEk = token.slice(0, 5);
+    const tur =
+      token.startsWith('xoxp-')
+        ? 'Bu bir USER TOKEN (xoxp-). Panel için bot tokenı (xoxb-) gerekiyor.'
+        : token.startsWith('xapp-')
+          ? 'Bu bir APP-LEVEL TOKEN (xapp-). Panel için bot tokenı (xoxb-) gerekiyor.'
+          : token.length === 0
+            ? 'Ortam değişkeni boş görünüyor.'
+            : 'Değer "' + onEk + '..." ile başlıyor; "xoxb-" olması gerekiyor (uzunluk: ' +
+              token.length + ' karakter).';
+
+    return {
+      ok: false,
+      mode,
+      detail:
+        'SLACK_BOT_TOKEN tanınamadı. ' + tur +
+        ' Vercel → Settings → Environment Variables → SLACK_BOT_TOKEN satırında ' +
+        'değeri düz metin olarak (tırnak, "Bearer " ve boşluk olmadan) kaydedip ' +
+        'yeniden deploy edin.',
     };
   }
 
