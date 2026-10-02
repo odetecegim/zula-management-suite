@@ -36,6 +36,10 @@ import {
   clearFailedLogins,
   isRateLimited,
   registerFailedLogin,
+  isAccountLocked,
+  registerFailedAccount,
+  clearFailedAccount,
+  accountRetryInfo,
   pruneSessions,
 } from './auth.js';
 
