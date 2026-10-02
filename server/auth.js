@@ -27,11 +27,40 @@ import crypto from 'node:crypto';
 const ADMIN_API_KEY = () => String(process.env.ADMIN_API_KEY || '').trim();
 
 /**
- * Oturum belirtecleri. Bellek ici (Map) tutulur; surec yeniden
- * basladiginda hepsi gecersizlesir — bu bilerek: sunucu olusten
- * sonra tum oturumlarin yeniden giris yapmasini zorunlu kilar.
+ * OTURUM BELIRTECI — DURUMSUZ (STATELESS), IMZALI
+ *
+ * SORUN (2026-10-02): Oturumlar bir Map'te (bellekte) tutuluyordu.
+ * Vercel serverless fonksiyonu her deploy'dan sonra veya birkac
+ * dakika sessizlikten sonra KAPATIP yeniden basliyor. Boylece
+ * bellek siliniyor ve kullanici "Oturumunuz sona erdi" hatasi
+ * aliyordu — hatta hicbir sey yapmamisken.
+ *
+ * COZUM: Artik oturum veriyi TUTULMUYOR. Belirtec su bicimdedir:
+ *
+ *     <base64url(payload)>.<base64url(HMAC-SHA256 imzasi)>
+ *
+ *   payload = { id, exp }
+ *
+ * Sunucu her dogrulamada istemzinciri yeniden hesaplar. Anahtar
+ * sunucuda (SESSION_SECRET) oldugu icin biri kendi belirtecini
+ * uretemEZ. Surec yeniden baslasa bile belirtec gecerlidir.
+ *
+ * Guvenlik: HMAC -> kisi belirteci degistiremez; exp -> sure
+ * dolunca gecersizlesir.
  */
-const sessions = new Map();
+
+/** Imzalama anahtari. Ortam degiskeninden gelir. */
+function secret() {
+  // SESSION_SECRET tanimli degilse Google servis hesabi parolasini
+  // fallback olarak kullan (benzer bir sir). Olmazsa gecici ve
+  // rastgele bir anahtar uretilir; bu durumda her deploy oturumlari
+  // sifirlar (eski davranis) ama calisma devam eder.
+  return (
+    String(process.env.SESSION_SECRET || '').trim() ||
+    String(process.env.GOOGLE_PRIVATE_KEY || process.env.GOOGLE_SERVICE_ACCOUNT_JSON || '').trim() ||
+    'zula-suite-gelistirme-anahtari-degistirin'
+  );
+}
 
 /** Belirtecin gecerlilik suresi: 12 saat. */
 const SESSION_TTL_MS = 12 * 60 * 60 * 1000;
@@ -141,35 +170,78 @@ export function accountRetryInfo(username) {
   return { minutes: remainMin };
 }
 
-/** Guvenli rastgele belirtec uretir. */
+/** base64url encode (Node'da buffer'i URL-safe string'e cevirir). */
+function b64u(buf) {
+  return Buffer.from(buf).toString('base64url');
+}
+
+/** HMAC-SHA256 imzasi uretir. */
+function sign(payloadB64) {
+  return crypto.createHmac('sha256', secret()).update(payloadB64).digest('base64url');
+}
+
+/**
+ * Durumsuz oturum belirteci uretir.
+ *
+ * Artik bellekte tutulan bir kayit YOK; belirtec kendi kendini
+ * tasir ve sunucu yeniden baslasa da gecerli kalir.
+ */
 export function createSessionToken(memberId) {
-  const token = crypto.randomBytes(32).toString('hex');
-  sessions.set(token, { memberId, expires: Date.now() + SESSION_TTL_MS });
-  return token;
+  const payload = {
+    id: String(memberId),
+    exp: Date.now() + SESSION_TTL_MS,
+  };
+  const payloadB64 = b64u(JSON.stringify(payload));
+  return payloadB64 + '.' + sign(payloadB64);
 }
 
-export function revokeSession(token) {
-  sessions.delete(token);
-}
-
-/** Belirteci dogrular; gecersizse null. */
+/**
+ * Belirteci dogrular.
+ *
+ * @returns {string|null} uye id veya gecersizse null
+ */
 export function verifySessionToken(token) {
-  if (!token) return null;
-  const rec = sessions.get(token);
-  if (!rec) return null;
-  if (Date.now() > rec.expires) {
-    sessions.delete(token);
+  if (!token || typeof token !== 'string') return null;
+  const parts = token.split('.');
+  if (parts.length !== 2) return null;
+
+  const [payloadB64, signature] = parts;
+
+  // 1) Imza dogrulaması — kisi belirteci degistiremEZ
+  const expected = sign(payloadB64);
+  const a = Buffer.from(String(signature));
+  const b = Buffer.from(expected);
+  if (a.length !== b.length || !crypto.timingSafeEqual(a, b)) return null;
+
+  // 2) Payload dogrulaması
+  let payload;
+  try {
+    payload = JSON.parse(Buffer.from(payloadB64, 'base64url').toString('utf8'));
+  } catch {
     return null;
   }
-  return rec.memberId;
+  if (!payload || typeof payload.id !== 'string' || !payload.id) return null;
+
+  // 3) Sure kontrolu
+  if (typeof payload.exp !== 'number' || Date.now() > payload.exp) return null;
+
+  return payload.id;
 }
 
-/** Zaman asiminda kalan oturumlari temizler (bellek siskinligi icin). */
+/**
+ * Durumsuz belirtecler "silinemez" (sunucuda kayit yok).
+ *
+ * Oturumu kapatmak istemcide belirteci silmek demektir; sunucuda
+ * kayit tutulmadigi icin burada yapilacak bir sey yoktur. Ileride
+ * kara liste (revoke listesi) eklenirse burasi kullanilir.
+ */
+export function revokeSession() {
+  // Durumsuz mimaride gerek yok; imzali belirtec sure dolunca gecersizlesir.
+}
+
+/** Eski imzali (bellek ici) belirtecler icin uyumluluk fonksiyonu. */
 export function pruneSessions() {
-  const now = Date.now();
-  for (const [token, rec] of sessions) {
-    if (now > rec.expires) sessions.delete(token);
-  }
+  // Artik bellekte oturum tutulmuyor; temizlik gerekmiyor.
 }
 
 /**

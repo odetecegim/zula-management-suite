@@ -44,12 +44,45 @@ test('gecerli oturum belirteci kabul edilir', () => {
   revokeSession(token); // temizlik
 });
 
-test('iptal edilen belirteci artik gecerli degildir', () => {
+test('durumsuz belirtec sunucu yeniden baslasa da gecerli kalir', () => {
+  // ESKI MODEL: belirtecler Map'te tutuluyordu; surec yeniden baslayinca
+  // (Vercel cold start) hepsi siliniyordu -> "Oturumunuz sona erdi".
+  // YENI MODEL: belirtec kendi kendini tasir ve imzalidir; bellek gerekmez.
   const token = createSessionToken('m-1');
+
+  // Her dogrulamada yeniden imza hesaplanir
+  for (let i = 0; i < 5; i++) {
+    assert.equal(verifySessionToken(token), 'm-1', 'belirtec her dogrulamada gecerli olmali');
+  }
+
+  // cikis cagrisi imzali modelde sunucuda kayit olmadigi icin bir sey yapmaz
   revokeSession(token);
-  const r = requireAuth({ 'x-session-token': token });
-  assert.equal(r.ok, false);
-  assert.equal(r.status, 401);
+  assert.equal(verifySessionToken(token), 'm-1', 'cikis cagrisi belirteci gecersiz kilmamali');
+});
+
+test('kurcalanmis belirtec reddedilir', () => {
+  const token = createSessionToken('m-1');
+  const [payload, sig] = token.split('.');
+
+  // Imza degistirilmis
+  assert.equal(
+    verifySessionToken(payload + '.' + 'A'.repeat(sig.length)),
+    null,
+    'degistirilmis imza reddedilmeli'
+  );
+
+  // Payload degistirilmis: baska kullaniciyi taklit etme denemesi
+  const evilPayload = Buffer.from(
+    JSON.stringify({ id: 'admin-1', exp: Date.now() + 99999999 })
+  ).toString('base64url');
+  assert.equal(
+    verifySessionToken(evilPayload + '.' + sig),
+    null,
+    'imzasiz payload reddedilmeli'
+  );
+
+  // Orijinal hala gecerli
+  assert.equal(verifySessionToken(token), 'm-1');
 });
 
 test('ADMIN_API_KEY tanimli degilse yazma OTURUMSUZ istegi kapatir', () => {
