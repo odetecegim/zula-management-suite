@@ -119,7 +119,10 @@ export async function notifyMemberEvent(
   try {
     await fetch(apiUrl('/api/sheets/slack-notify'), {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      // Oturum belirteci ZORUNLU: sunucu bu ucu herkese acik
+      // birakmiyor. Belirtec eklenmeden istek 401 doner ve bildirim
+      // sessizce kaybolur.
+      headers: authHeaders(),
       body: JSON.stringify({ text: buildMemberText(action, member, actor) }),
     });
   } catch {

@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Entegrasyon testi: yazma yetkisi kontrolu Google'a erisemediginde
  * istek COKMEMELI; 502/503 + GOOGLE_UNAVAILABLE donmelidir.
  *
@@ -193,6 +193,61 @@ await t('temizlik basarisiz olsa bile islem basarili sayilir', async () => {
     members: [{ id: 'u1', tagId: 'ZULA-001', fullName: 'Bir' }],
   });
   assert.equal(r.written, 1, 'temizlik hatasi yazma islemini basarisiz saymamali');
+});
+
+/*
+  SLACK UC NOKTALARI — ASIL YETKI HATASI
+  ---------------------------------------
+  Bir onceki surumde guvenlik onlemi olarak slack-test / slack-notify
+  herkese acik listeyden cikarildi. Ancak bunlar "yazma" kuralina
+  dahil edildigi icin GOOGLE SHEETS'TEKI YONETICI ROLU de istendi.
+
+  SONUC (kullanici hatasi): Panelden kimse Slack'a mesaj gonderemedi;
+  token dogru olsa bile "yonetici degilsiniz" hatasi aliyorlardi.
+  Bu uc noktalar Google Sheets'e HICBIR sey yazmaz.
+
+  Duzeltme: Slack uc noktalari icin yeterli olan OTURUMDUR.
+  Asagidaki testler bu ayrimi VE guvenligin korundugunu kanitlar.
+*/
+
+await t('Slack ucu oturumsuz 401 doner (herkese acik DEGIL)', async () => {
+  const r = await handleApi('POST', ['slack-notify'], { text: 'merhaba' }, {});
+  if (r.status !== 401) throw new Error('beklenen 401, gelen ' + r.status);
+  if (r.body.code !== 'NO_SESSION') throw new Error('beklenen NO_SESSION, gelen ' + r.body.code);
+});
+
+await t('Slack test ucu oturumsuz 401 doner', async () => {
+  const r = await handleApi('POST', ['slack-test'], {}, {});
+  if (r.status !== 401) throw new Error('beklenen 401, gelen ' + r.status);
+});
+
+await t('girisli uye Slack ucunu cagirinca Sheets roli SORULMAZ', async () => {
+  // Onceki surumde burada readMembers() cagrilir ve kullanici Sheets'te
+  // bulunamayinca 403 ACTOR_NOT_FOUND donerdi; panel bu yuzden gonderemiyordu.
+  const r = await handleApi(
+    'POST',
+    ['slack-notify'],
+    { text: 'test' },
+    { 'x-session-token': token } // OTURUM VAR
+  );
+  if (r.status === 403 && (r.body.code === 'ADMIN_ROLE_REQUIRED' || r.body.code === 'ACTOR_NOT_FOUND')) {
+    throw new Error('SONUC: Slack ucu hala Sheets roli soruyor — panel yine gonderemez');
+  }
+  if (r.status !== 200) {
+    throw new Error('beklenen 200, gelen ' + r.status + ': ' + (r.body && r.body.error));
+  }
+});
+
+await t('Sheets VERI ucu yonetici rolunu KORUMAYA devam eder', async () => {
+  // Guvenlik geri alinMADI: members yazma ucu hala korumali.
+  const r = await handleApi(
+    'POST',
+    ['members'],
+    { spreadsheetId: 'BILINMEYEN_TABLO_KIMLIGI_0000', members: [{ id: 'a' }] },
+    headers
+  );
+  if (r.status === 200) throw new Error('veri ucu korumasiz kalmis!');
+  if (r.status === 401) throw new Error('veri ucu oturum beklemiyor');
 });
 
 console.log('\n' + d + ' test gecti, ' + f + ' kaldi.\n');

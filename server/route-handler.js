@@ -138,18 +138,53 @@ export async function handleApi(method, segments, body = {}, headers = {}) {
     }
 
     /*
-      YAZMA YETKISI — SUNUCU TARAFI ROL DOGRULAMASI
-      ------------------------------------------------
-      Oturum belirteci olan herkes okuyabilir; ama yazabilmek icin
-      giris yapan uyenin gercek rolu Google Sheets'ten okunup
-      super_admin (ya da company_manager) olmasi gerekir.
+      YETKI SEVIYESI — UC KATEGORI
 
-      Neden onemli: istemcideki "super_admin" kontrolu yalnizca
-      gorunur bir rozet; biri tarayici konsolundan rol degeri
-      "super_admin" yazarak isteği taklit edebilirdi. Buradaki kontrol
-      SUNUCUDA, GERCEK veriyle yapildigi icin atlanamaz.
+      1) VERI_ENDPOINTS: Google Sheets'e YAZAN uc noktalar
+         (members, member-delete, write, import)
+         -> Oturum + Sheets'teki GERCEK yonetici rolu gerekir.
+         Neden onemli: istemcideki "super_admin" kontrolu yalnizca
+         gorunur bir rozet; biri tarayici konsolundan rol degeri
+         "super_admin" yazarak isteği taklit edebilirdi. Buradaki kontrol
+         SUNUCUDA, GERCEK veriyle yapildigi icin atlanamaz.
+
+      2) SLACK_ENDPOINTS: yalnizca Slack'a mesaj YAZAN uc noktalar
+         -> Oturum yeterlidir. Google Sheets'e HIC dokunmaz.
+         (Ayrinti asagida.)
+
+      3) Diger uc noktalar (fetch, sheets, headers vb.)
+         -> Yalnizca oturum.
     */
-    if (auth.needsAdminRole && !auth.viaKey) {
+
+    const SLACK_ENDPOINTS = new Set(['slack-test', 'slack-notify']);
+    const isSlackEndpoint = SLACK_ENDPOINTS.has(endpoint);
+
+    /*
+      SLACK UC NOKTALARI NEDEN YONETICI ROLU ISTEMIYOR?
+      --------------------------------------------------
+      Onceki surumde bu uc noktalar herkese acikti (guvenlik acigi).
+      Kapatilirken "veri yazma" kuralina dahil edildiler ve boylece
+      OTURUM + GOOGLE SHEETS'TEKI YONETICI ROLU istemeye basladilar.
+
+      SONUC (kullanici hatasi): Paneldeki normal uye Slack'a baglanti
+      testi / manuel mesaj gonderemiyor, hatta TOKEN SORUNSU OLSA BILE
+      "yonetici degilsiniz" hatasi aliyordu. Uc nokta Google Sheets'e
+      hicbir sey yazmaz; tek yaptigi Slack'a bildirim iletmektir.
+
+      COZUM: Slack uc noktalari icin yeterli olan OTURUMDUR.
+      (Bunu bir sonraki commit'te testsiz yapmiyorum; asagida test var.)
+    */
+
+    const DATA_ENDPOINTS = new Set([
+      'members',
+      'member-delete',
+      'write',
+      'import',
+    ]);
+    const needsSheetAdminRole =
+      !isSlackEndpoint && isWrite && DATA_ENDPOINTS.has(endpoint);
+
+    if (auth.needsAdminRole && !auth.viaKey && needsSheetAdminRole) {
       // ONCEKI SURUMDE BU KOD try/catch DIŞINDAYDI.
       // Google erisimi kurulamadiginda (servis hesabi yok / erisim reddi)
       // readMembers() firlatir ve istEK TAMAMEN COKERDI: ne 403 ne 500,
