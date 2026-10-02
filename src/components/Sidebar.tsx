@@ -171,10 +171,10 @@ export const Sidebar: React.FC<SidebarProps> = ({
         {/* Mobilde kapatma butonu */}
         <button
           onClick={onCloseMobile}
-          className="lg:hidden absolute top-4 right-4 p-2 rounded-xl bg-slate-900 border border-slate-800 text-slate-400 hover:text-white cursor-pointer"
+          className="lg:hidden absolute top-3 right-3 z-10 p-2 rounded-xl bg-slate-900 border border-slate-800 text-slate-400 hover:text-white active:scale-95 transition-transform cursor-pointer"
           aria-label="Menüyü kapat"
         >
-          <X className="w-5 h-5" />
+          <X className="w-4 h-4" />
         </button>
 
         {/* Brand */}
@@ -187,11 +187,15 @@ export const Sidebar: React.FC<SidebarProps> = ({
           bir cikis butonu acilir. Logonun yaninda kucuk bir isaret
           cikar ("cikis burada") kullanicinin nereye dokunacagini
           gosterir.
+
+          NOT: Sagda `pr-11` bosluk birakildi; aksi halde bu isaret
+          sag ust kosede duran X (kapatma) butonunun ALTINDA kalir ve
+          ikisi ust uste biner.
         */}
         <button
           onClick={() => setLogoutOpen((v) => !v)}
           aria-expanded={logoutOpen}
-          className="w-full flex items-center gap-3 px-2 pt-2 text-left rounded-xl hover:bg-slate-900/60 active:scale-[0.99] transition-all cursor-pointer"
+          className="w-full flex items-center gap-3 pl-2 pr-11 lg:pr-2 pt-2 text-left rounded-xl hover:bg-slate-900/60 active:scale-[0.99] transition-all cursor-pointer"
           title="Çıkış seçenekleri"
         >
           <img
@@ -209,7 +213,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
           <LogOut
             className={
               'w-4 h-4 shrink-0 transition-all ' +
-              (logoutOpen ? 'text-rose-400 rotate-0' : 'text-slate-600')
+              (logoutOpen ? 'text-rose-400' : 'text-slate-600')
             }
           />
         </button>
