@@ -96,6 +96,20 @@ export async function getClient() {
   return cachedClient;
 }
 
+/**
+ * TEST KANCASI: onbellekteki istemciyi degistirir.
+ *
+ * SADECE birim testlerinde kullanilir. writeMembers() gibi fonksiyonlar
+ * istemciyi `getClient()` ile alir; Google'a baglanmadan hata senaryolari
+ * (yazma basarisiz, temizlik basarisiz) denetmek icin istemcinin
+ * degistirilebilmesi gerekir.
+ *
+ * @param {object|null} client  null verilirse onbellek temizlenir.
+ */
+export function __setClientForTest(client) {
+  cachedClient = client;
+}
+
 /** Baglanti testi: dosya okunabiliyor ve erisim var mu? */
 export async function testConnection({ spreadsheetId, range }) {
   const sheets = await getClient();

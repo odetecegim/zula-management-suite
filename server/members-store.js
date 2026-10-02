@@ -358,9 +358,6 @@ export async function writeMembers({
     rows = dedupeByTag(rows);
   }
 
-  // Eski satirlari temizle
-  await sheets.spreadsheets.values.clear({ spreadsheetId, range, body: {} });
-
   const out = rows.map((m) => {
     const member = { ...m };
     const plain = String(m.password || '');
@@ -380,6 +377,26 @@ export async function writeMembers({
     return memberToRow(sanitizeMember(member));
   });
 
+  /*
+    VERI KAYBI KORUMASI — YAZMA SIRASI ONEMLI
+    ------------------------------------------
+    ONCEKI SURUM: once `values.clear()` ile tum tablo siliniyor,
+    SONRA `values.update()` ile yeni veri yaziliyordu.
+
+    Ikisinin arasinda update basarisiz olursa (Google kota hatasi,
+    ag kesintisi, sekme baska biri tarafindan kilitli, gecici 500)
+    TABLO TAMAMEN BOS kalir — butun uye listesi kalici olarak silinir.
+    Kullanici panelde uyeleri gorur ama Sheets'te hicbiri yoktur ve
+    bir sonraki yazma denemesinde o tablo "kaynak" olarak kullanilir.
+
+    COZUM (veri ONCE yazilir):
+      1) Yeni veri A1'e yazilir  -> eski veri bu ana kadar INTACTIR.
+      2) Yazma BASARILI olduktan SONRA, fazlalik satirlar temizlenir.
+         (yeni veriden kisa ise asil eski satirlar artik gereksiz)
+    Boylece yazma herhangi bir sekilde basarisiz olsa bile eski uye
+    verisi tabloda KALIR; en kotu durumda eski + yeni birlikte durur,
+    hicbir sey kaybolmaz.
+  */
   const values = [MEMBER_COLUMNS, ...out];
   await sheets.spreadsheets.values.update({
     spreadsheetId,
@@ -391,6 +408,28 @@ export async function writeMembers({
     valueInputOption: 'RAW',
     requestBody: { values },
   });
+
+  /*
+    FAZLA SATIR TEMIZLIGI — YALNIZ YAZMA BASARILI ISE
+    Yeni veriden sonra kalan eski satirlar (yeni liste daha kisa ise)
+    silinir. Once yazdik, simdi sadece "fazlaligi" temizliyoruz.
+  */
+  const lastWrittenRow = values.length; // baslik + uye sayisi
+  const staleFrom = lastWrittenRow + 1;
+  if (staleFrom <= 1000) {
+    try {
+      await sheets.spreadsheets.values.clear({
+        spreadsheetId,
+        range: `${tab}!A${staleFrom}:${LAST_COL}1000`,
+        body: {},
+      });
+    } catch (cleanupErr) {
+      // Temizlik basarisiz olursa veri KAYBOLMAZ; sadece eski satirlar
+      // fazlalik olarak kalir ve readRows() bos satirlari eler.
+      // Bu yuzden sessizce gecilir, islem "basarili" sayilir.
+      console.warn('[writeMembers] fazla satir temizlenemedi:', cleanupErr?.message);
+    }
+  }
 
   return { written: out.length, tab, upserted: upsertOnly };
 }
