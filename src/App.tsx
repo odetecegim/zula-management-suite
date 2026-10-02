@@ -1,4 +1,4 @@
-﻿import { useState, useEffect } from 'react';
+﻿import { useState, useEffect, useRef } from 'react';
 import { AlertTriangle, CheckCircle, Menu, Eye } from 'lucide-react';
 import { Sidebar } from './components/Sidebar';
 import { LoginScreen } from './components/LoginScreen';
@@ -104,6 +104,17 @@ export function App() {
   const [currentTab, setCurrentTab] = useState('dashboard');
   // Mobilde sol menunun cekmece olarak acik kapali olmasi
   const [sidebarOpen, setSidebarOpen] = useState(false);
+
+  // ---- SENKRONIZASYON KUYRUGU -----------------------------------------
+  // Members degistikce otomatik olarak Sheets'e yazilir. Bu islem iki
+  // HTTP istegi (oku + yaz) iceriyor ve saniyeler surebiliyor. Eger
+  // kullanicı hizli birkac degisiklik yaparsa (ya da iki sekme acikse)
+  // birden fazla zincir es zamanli calisip sunucuyu yormasindi diye
+  // burada kuyruk tutuyoruz: ayni anda yalnizca biri calisir, digerleri
+  // bitince sirayla devreye girer.
+  const syncingRef = useRef(false);
+  const pendingRef = useRef(false);
+  const [pendingSyncTick, setPendingSyncTick] = useState(0);
 
   // Oturum: giriş yapan üye (localStorage'da saklanır)
   const [currentUserId, setCurrentUserId] = useState<string | null>(() => {
@@ -474,6 +485,22 @@ export function App() {
   useEffect(() => {
     if (!hydrated) return; // uzaktan veri gelmeden yazma
     const timer = setTimeout(async () => {
+      // ---- ESZAMANLI KAYIT KORUMASI ------------------------------
+      // SORUN: asagidaki fetch + write zinciri 2 ayri HTTP istegi
+      // yapiyor. Kullanici hizli arka arkaya birkac degisiklik
+      // yaparsa (ya da iki sekme acikse) birden fazla zincir
+      // es zamanli calisiyor; sunucu kuyrugu doldugu icin
+      // "zaman asimina ugradi" hatasi veriyordu.
+      //
+      // COZUM: ayni anda yalnizca bir zincir calisir. Yeni bir
+      // degisiklik gelirse mevcut bittikten sonra calisir.
+      if (syncingRef.current) {
+        pendingRef.current = true;
+        return;
+      }
+      syncingRef.current = true;
+
+      try {
       // ONEMLI: butun liste gonderilir, FILTRE UYGULANMAZ.
       //
       // Sunucudaki writeMembers() once tum satirlari siler, sonra gelen
@@ -529,9 +556,17 @@ export function App() {
         setSyncError(getLastSyncError() || 'Google Sheets’e yazılamadı');
         setSaveNotice((n) => (n ? { ...n, ok: false } : n));
       }
+      } finally {
+        syncingRef.current = false;
+        // Zincir sirasinda yeni degisiklik geldiyse tekrar dene
+        if (pendingRef.current) {
+          pendingRef.current = false;
+          setPendingSyncTick((t) => t + 1);
+        }
+      }
     }, 2500);
     return () => clearTimeout(timer);
-  }, [members, hydrated]);
+  }, [members, hydrated, pendingSyncTick]);
 
   // Bildirimi birkac saniye sonra kapat
   useEffect(() => {
@@ -978,11 +1013,25 @@ const canEditPerformance =
       {/* Sheets senkronizasyon durumu - sessiz hatalari gorunur kilar */}
       <div className="fixed top-3 right-3 z-[90] space-y-2">
         {!syncOk && (
-          <div className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-rose-500/15 border border-rose-500/30 backdrop-blur-xl shadow-lg max-w-sm">
-            <AlertTriangle className="w-4 h-4 text-rose-400 shrink-0" />
-            <div className="min-w-0">
+          <div className="flex items-start gap-2 px-4 py-2.5 rounded-xl bg-rose-500/15 border border-rose-500/30 backdrop-blur-xl shadow-lg max-w-sm">
+            <AlertTriangle className="w-4 h-4 text-rose-400 shrink-0 mt-0.5" />
+            <div className="min-w-0 flex-1">
               <div className="text-[11px] font-bold text-rose-300">Google Sheets’e kaydedilemedi</div>
-              <div className="text-[10px] text-rose-400/80">{syncError}</div>
+              <div className="text-[10px] text-rose-400/80 break-anywhere">{syncError}</div>
+              {/* Veri yerelde guvende; yalnizca Sheets'e yazilamadi. */}
+              <div className="text-[10px] text-slate-400 mt-1">
+                Üye bilgilerin tarayıcında güvenle saklandı.
+              </div>
+              <button
+                onClick={() => {
+                  syncingRef.current = false;
+                  pendingRef.current = false;
+                  setPendingSyncTick((t) => t + 1);
+                }}
+                className="mt-2 px-3 py-1.5 rounded-lg bg-rose-500/20 hover:bg-rose-500/30 text-rose-200 text-[11px] font-semibold transition-colors cursor-pointer"
+              >
+                Tekrar Dene
+              </button>
             </div>
           </div>
         )}

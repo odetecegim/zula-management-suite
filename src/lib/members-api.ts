@@ -11,7 +11,21 @@
 import type { Member } from '../types';
 import { loadSheetSettings, apiUrl } from './sheets';
 
-const TIMEOUT_MS = 8000;
+/**
+ * Zaman asimi (ms).
+ *
+ * NEDEN 8 DEGIL:
+ * Vercel gibi serverless ortamlarda "cold start" olur; fonksiyon
+ * durdurulduktan sonraki ilk istekte yeniden ayakta kalkmasi 5-10
+ * saniye surebilir. 8 saniyede yazma istegi iptal ediliyordu ve
+ * kullanici "zaman asimina ugradi" goruyordu, halbuki sunucu 1-2
+ * saniyede tamamlayabiliyordu.
+ *
+ * YAZMA istekleri icin daha genis bir pencere kullanilir; okuma
+ * istekleri hizli dondugu icin biraz daha kisadir.
+ */
+const TIMEOUT_MS = 25000;
+const READ_TIMEOUT_MS = 20000;
 
 /** Son hata mesaji; panelde kullaniciya gosterilmek uzere saklanir. */
 let lastSyncError = '';
@@ -28,9 +42,13 @@ export const clearLastSyncError = () => {
  * kayitli gorunur ama Sheets'e hic yazilmamis oluyordu ve kullanici
  * nedenini hic ogrenemiyordu. Artik nedeni kaydediyoruz.
  */
-async function call<T>(path: string, body: unknown): Promise<T | null> {
+async function call<T>(
+  path: string,
+  body: unknown,
+  timeoutMs: number = TIMEOUT_MS
+): Promise<T | null> {
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {
     const res = await fetch(apiUrl(path), {
       method: 'POST',
@@ -56,10 +74,10 @@ async function call<T>(path: string, body: unknown): Promise<T | null> {
     lastSyncError = '';
     return JSON.parse(text) as T;
   } catch (e) {
-    lastSyncError =
-      e instanceof DOMException && e.name === 'AbortError'
-        ? 'Sunucu zaman asimina ugradi'
-        : `Baglanti hatasi: ${e instanceof Error ? e.message : 'bilinmiyor'}`;
+    const isAbort = e instanceof DOMException && e.name === 'AbortError';
+    lastSyncError = isAbort
+      ? 'Sunucu yanit vermedi (zaman aşımı). İnternet bağlantınızı kontrol edip tekrar deneyin.'
+      : `Bağlantı hatası: ${e instanceof Error ? e.message : 'bilinmiyor'}`;
     return null;
   } finally {
     clearTimeout(timer);
@@ -83,9 +101,13 @@ interface MembersResponse {
  * @returns uye listesi, ya da backend kullanilamiyorsa `null`
  */
 export async function fetchRemoteMembers(): Promise<Member[] | null> {
-  const data = await call<MembersResponse>('/api/sheets/members', {
-    spreadsheetId: currentSpreadsheetId(),
-  });
+  const data = await call<MembersResponse>(
+    '/api/sheets/members',
+    {
+      spreadsheetId: currentSpreadsheetId(),
+    },
+    READ_TIMEOUT_MS
+  );
   if (!data || !Array.isArray(data.members) || data.members.length === 0) return null;
   return data.members;
 }

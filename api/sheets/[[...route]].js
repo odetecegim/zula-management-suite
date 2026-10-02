@@ -37,6 +37,13 @@ export default async function handler(req, res) {
 }
 
 export const config = {
-  // Google API sureleri icin yeterli sure
-  maxDuration: 60,
+  // Vercel Hobby planinda fonksiyon suresi en fazla 60 saniyedir.
+  // Google API cagrilari (kimlik dogrulama + okuma + yazma) normalde
+  // 1-3 saniye surer; 15 saniye hem cold start'i karsilayacak kadar
+  // genis, hem de platformun sert limitinin icinde kalir.
+  //
+  // ONCEDEN 60 idi. Istemcinin zaman asimi kaldirilmadan once bu deger
+  // Vercel tarafindan reddediliyordu ve fonksiyon hic calismiyordu;
+  // kullanici yalnizca "zaman asimina ugradi" goruyordu.
+  maxDuration: 15,
 };
