@@ -7,6 +7,7 @@ import { MembersView } from './components/MembersView';
 import type { TeamFilter } from './components/MembersView';
 import { PerformanceView } from './components/PerformanceView';
 import type { LogFn } from './components/PerformanceView';
+import { notifyMemberEvent } from './lib/slack';
 import {
   fetchRemoteMembers,
   pushRemoteMembers,
@@ -771,6 +772,9 @@ const canEditPerformance =
       timestamp: new Date().toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' }),
     };
     setLogs((prev) => [newLog, ...prev]);
+
+    // Slack kanali bilgilendirilir (sunucu uzerinden; hata paneli bozmaz)
+    void notifyMemberEvent('eklendi', m, currentUser?.fullName);
   };
 
   const handleUpdateMember = (m: Member) => {
@@ -785,6 +789,8 @@ const canEditPerformance =
       timestamp: new Date().toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' }),
     };
     setLogs((prev) => [newLog, ...prev]);
+
+    void notifyMemberEvent('guncellendi', m, currentUser?.fullName);
   };
 
   const handleDeleteMember = (id: string) => {
@@ -809,6 +815,9 @@ const canEditPerformance =
         timestamp: new Date().toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' }),
       };
       setLogs((prev) => [newLog, ...prev]);
+
+      // Silme islemi kritik oldugu icin Slack'a ayrica bildirilir
+      void notifyMemberEvent('silindi', target, currentUser?.fullName);
     }
   };
 

@@ -43,6 +43,14 @@ import {
   pruneSessions,
 } from './auth.js';
 
+import {
+  isSlackConfigured,
+  sendSlackMessage,
+  notifyMemberChange,
+  notifyTestSession,
+  notifySecurity,
+} from './slack.js';
+
 // Oturum belirtecleri biriktikce bellek sismesin
 pruneSessions();
 
@@ -50,7 +58,14 @@ pruneSessions();
  * Dogrulama gerektirmeyen (herkese acik) uc noktalar.
  * Bunlar veri DONDURMEZ, yalnizca oturum akisini baslatir.
  */
-const PUBLIC_ENDPOINTS = new Set(['status', 'health', 'login', 'logout']);
+const PUBLIC_ENDPOINTS = new Set([
+  'status',
+  'health',
+  'login',
+  'logout',
+  'slack-test',
+  'slack-notify',
+]);
 
 /**
  * Veri degistiren uc noktalar.
@@ -163,6 +178,8 @@ export async function handleApi(method, segments, body = {}, headers = {}) {
           configured: isConfigured(),
           defaultSpreadsheetId: DEFAULT_SPREADSHEET,
           defaultRange: rangeOf(),
+          // Panel, Ayarlar ekraninda Slack durumunu gosterir.
+          slackConfigured: isSlackConfigured(),
           fieldLabels: FIELD_LABELS,
         });
 
@@ -370,6 +387,16 @@ export async function handleApi(method, segments, body = {}, headers = {}) {
         if (!found || !verifyPassword(body?.password, found.passwordHash)) {
           registerFailedLogin(rateKey);
           registerFailedAccount(body?.username);
+
+          // HESAP KILITLENIRSE Slack'a bildir: biri parolayi
+          // tahmin etmeye calisiyor olabilir. Bildirim islemi
+          // geciktirmez (fire-and-forget).
+          if (isAccountLocked(body?.username)) {
+            void notifySecurity(
+              'Hesap kilitlendi (brute force denemesi)',
+              'Kullanici adi: ' + (body?.username || 'bilinmiyor') + ' | IP: ' + rateKey
+            );
+          }
           return fail(401, 'Kullanici adi veya sifre hatali.', 'BAD_CREDENTIALS');
         }
 
@@ -409,6 +436,48 @@ export async function handleApi(method, segments, body = {}, headers = {}) {
         const token = String(headers['x-session-token'] || headers['X-Session-Token'] || '').trim();
         if (token) revokeSession(token);
         return ok({ ok: true });
+      }
+
+      /* ==========================================================
+         SLACK
+         ========================================================== */
+
+      // Panelde "Baglantiyi Test Et" butonu bunu cagirir.
+      case 'slack-test': {
+        if (!isSlackConfigured()) {
+          return ok({
+            ok: false,
+            configured: false,
+            message:
+              'Slack webhook adresi tanimli degil. Vercel ortam degiskenlerine SLACK_WEBHOOK_URL ekleyin.',
+          });
+        }
+        const sent = await sendSlackMessage(
+          ':wave: Zula Teşkilat Yönetim Paneli ile Slack baglantisi basarili.'
+        );
+        return ok({
+          ok: sent,
+          configured: true,
+          message: sent
+            ? 'Test mesaji gonderildi. Kanali kontrol et.'
+            : 'Webhook adresine ulasilamadi. URL dogru mu?',
+        });
+      }
+
+      // Panelden gelen genel bildirim (serbest metin).
+      // Kanal adi/mesaj icerigi sinirlandirilir.
+      case 'slack-notify': {
+        if (!isSlackConfigured()) {
+          return ok({ ok: false, configured: false, message: 'Slack yapilandirilmadi.' });
+        }
+        const text = String(body?.text || '').trim();
+        if (!text) return fail(400, 'Mesaj bos.');
+        const sent = await sendSlackMessage(text);
+        return ok({
+          ok: sent,
+          configured: true,
+          message: sent ? 'Bildirim gonderildi.' : 'Gonderilemedi.',
+        });
       }
 
       default:

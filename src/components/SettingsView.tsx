@@ -1,8 +1,16 @@
 ﻿import React, { useState } from 'react';
-import { ShieldCheck, Plus, Edit3, X, Check, KeyRound, Shield, Users, Trash2, Layers, AlertTriangle, GripVertical, ArrowUp, ArrowDown } from 'lucide-react';
+import { ShieldCheck, Plus, Edit3, X, Check, KeyRound, Shield, Users, Trash2, Layers, AlertTriangle, GripVertical, ArrowUp, ArrowDown, Send, Loader2, CheckCircle2 } from 'lucide-react';
 import { ALL_PERMISSIONS } from '../data/initialData';
 import { getRoleLevel, roleLevelLabel } from '../lib/roles';
+import { testSlackConnection, sendManualMessage } from '../lib/slack';
 import type { Member, RoleDef, RoleId, PermissionId } from '../types';
+
+/** Slack'in resmi 4 nokta logosu (lucide'de marka ikonu yok). */
+const SlackIcon: React.FC<{ className?: string }> = ({ className = 'w-4 h-4' }) => (
+  <svg viewBox="0 0 24 24" className={className} fill="currentColor" aria-hidden="true">
+    <path d="M5.042 15.165a2.528 2.528 0 0 1-2.52 2.523A2.528 2.528 0 0 1 0 15.165a2.527 2.527 0 0 1 2.522-2.52h2.52v2.52zm1.271 0a2.527 2.527 0 0 1 2.521-2.52 2.527 2.527 0 0 1 2.521 2.52v6.313A2.528 2.528 0 0 1 8.834 24a2.528 2.528 0 0 1-2.521-2.522v-6.313zM8.834 5.042a2.528 2.528 0 0 1-2.52-2.52A2.528 2.528 0 0 1 8.834 0a2.528 2.528 0 0 1 2.521 2.522v2.52H8.834zm0 1.269a2.528 2.528 0 0 1 2.52 2.522 2.528 2.528 0 0 1-2.52 2.52H2.52V8.833a2.528 2.528 0 0 1 2.522-2.52h2.792zm9.334 9.334a2.528 2.528 0 0 1 2.52 2.52 2.528 2.528 0 0 1-2.52 2.522h-2.52v-2.52a2.528 2.528 0 0 1 2.52-2.522 2.528 2.528 0 0 1 2.52 2.522v-.002zm-1.272 0a2.528 2.528 0 0 1-2.52-2.52 2.528 2.528 0 0 1 2.52-2.52h6.314a2.528 2.528 0 0 1 2.522 2.52 2.528 2.528 0 0 1-2.522 2.52h-6.314zM18.166 5.042a2.528 2.528 0 0 1 2.521-2.52A2.528 2.528 0 0 1 24 5.042a2.527 2.527 0 0 1-2.522 2.52h-2.52V5.042h-.833zm0 1.269a2.528 2.528 0 0 1 2.521 2.521 2.528 2.528 0 0 1-2.521 2.521v6.314a2.528 2.528 0 0 1 2.521 2.522 2.528 2.528 0 0 1 2.522-2.522V6.31zM8.834 18.166a2.528 2.528 0 0 1 2.522 2.52A2.528 2.528 0 0 1 8.834 24a2.528 2.528 0 0 1-2.52-2.522v-2.52h2.52v-.334zm0-1.268a2.528 2.528 0 0 1-2.52-2.522 2.528 2.528 0 0 1 2.52-2.52h6.313a2.528 2.528 0 0 1 2.522 2.52 2.528 2.528 0 0 1-2.522 2.52H8.834z" />
+  </svg>
+);
 
 interface SettingsProps {
   readOnly?: boolean;
@@ -45,6 +53,39 @@ export const SettingsView: React.FC<SettingsProps> = ({
   const [formPerms, setFormPerms] = useState<PermissionId[]>([]);
   const [formColor, setFormColor] = useState<string>(BADGE_PALETTE[0]);
   const [error, setError] = useState<string | null>(null);
+
+  /* ---- SLACK BILDIRIMLERI ---- */
+  const [slackStatus, setSlackStatus] = useState<'idle' | 'testing' | 'ready' | 'error'>('idle');
+  const [slackMessage, setSlackMessage] = useState('');
+  const [slackSending, setSlackSending] = useState(false);
+  const [slackNotice, setSlackNotice] = useState<{ ok: boolean; text: string } | null>(null);
+
+  const handleSlackTest = async () => {
+    if (readOnly) return;
+    setSlackStatus('testing');
+    setSlackNotice(null);
+    const res = await testSlackConnection();
+    if (res.ok) {
+      setSlackStatus('ready');
+      setSlackNotice({ ok: true, text: res.message || 'Test mesajı gönderildi.' });
+    } else if (!res.configured) {
+      setSlackStatus('idle');
+      setSlackNotice({ ok: false, text: res.message || 'Slack yapılandırılmamış.' });
+    } else {
+      setSlackStatus('error');
+      setSlackNotice({ ok: false, text: res.message || 'Bağlantı kurulamadı.' });
+    }
+  };
+
+  const handleSlackSend = async () => {
+    if (readOnly || !slackMessage.trim()) return;
+    setSlackSending(true);
+    setSlackNotice(null);
+    const res = await sendManualMessage(slackMessage.trim());
+    setSlackSending(false);
+    setSlackNotice({ ok: res.ok, text: res.message });
+    if (res.ok) setSlackMessage('');
+  };
 
   /* ==========================================================
      YER DEGISTIRLIGI (drag & drop + yukari/asagi oklari)
@@ -227,7 +268,127 @@ export const SettingsView: React.FC<SettingsProps> = ({
       </div>
 
 
-      {/* Rol listesi */}
+      {/*
+          SLACK BAGLANTISI
+          Webhook adresi sunucuda (SLACK_WEBHOOK_URL) tutulur ve
+          burada GOSTERILMEZ; panel yalnizca "bagli mi / degil mi"
+          bilgisini ve bir test mesaji gonderme yetkisini gorur.
+        */}
+        <div className="bg-slate-900/40 border border-slate-800/80 rounded-2xl overflow-hidden">
+          <div className="p-4 sm:p-5 border-b border-slate-800 flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <h3 className="text-sm font-bold text-white flex items-center gap-2">
+                <SlackIcon />
+                Slack Bildirimleri
+              </h3>
+              <p className="text-xs text-slate-400 mt-0.5">
+                Üye ekleme/güncelleme/silme ve güvenlik olayları kanala otomatik gider
+              </p>
+            </div>
+            <div className="flex items-center gap-2">
+              <span
+                className={
+                  'px-2.5 py-1 rounded-lg text-[11px] font-bold border ' +
+                  (slackStatus === 'ready'
+                    ? 'bg-emerald-500/10 text-emerald-300 border-emerald-500/30'
+                    : slackStatus === 'testing'
+                    ? 'bg-amber-500/10 text-amber-300 border-amber-500/30'
+                    : slackStatus === 'error'
+                    ? 'bg-rose-500/10 text-rose-300 border-rose-500/30'
+                    : 'bg-slate-800 text-slate-400 border-slate-700')
+                }
+              >
+                {slackStatus === 'ready'
+                  ? 'Bağlı'
+                  : slackStatus === 'testing'
+                  ? 'Test ediliyor…'
+                  : slackStatus === 'error'
+                  ? 'Bağlantı Hatası'
+                  : 'Bağlı Değil'}
+              </span>
+              <button
+                onClick={handleSlackTest}
+                disabled={readOnly || slackStatus === 'testing'}
+                className="flex items-center gap-2 px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {slackStatus === 'testing' ? (
+                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                ) : (
+                  <Send className="w-3.5 h-3.5" />
+                )}
+                Bağlantıyı Test Et
+              </button>
+            </div>
+          </div>
+
+          <div className="p-4 sm:p-5 space-y-4">
+            {/* Manuel mesaj */}
+            <div>
+              <label className="block text-xs font-semibold text-slate-400 mb-2">
+                Kanala Mesaj Gönder
+              </label>
+              <div className="flex flex-col sm:flex-row gap-2">
+                <input
+                  type="text"
+                  value={slackMessage}
+                  onChange={(e) => setSlackMessage(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' && !readOnly) handleSlackSend();
+                  }}
+                  placeholder="Örn: Yarın 20:00'de moderatör toplantısı var."
+                  maxLength={500}
+                  className="flex-1 bg-slate-950 border border-slate-800 rounded-xl px-3 py-2.5 text-sm text-white outline-none focus:border-indigo-500 placeholder:text-slate-600"
+                />
+                <button
+                  onClick={handleSlackSend}
+                  disabled={readOnly || !slackMessage.trim() || slackSending}
+                  className="px-4 py-2.5 rounded-xl bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700 text-white text-xs font-bold transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap"
+                >
+                  {slackSending ? 'Gönderiliyor…' : 'Gönder'}
+                </button>
+              </div>
+              <p className="text-[10px] text-slate-500 mt-1.5">
+                {slackMessage.length}/500 karakter
+              </p>
+            </div>
+
+            {slackNotice && (
+              <div
+                className={
+                  'flex items-center gap-2 text-xs rounded-xl px-3 py-2 border ' +
+                  (slackNotice.ok
+                    ? 'text-emerald-300 bg-emerald-500/10 border-emerald-500/20'
+                    : 'text-amber-300 bg-amber-500/10 border-amber-500/20')
+                }
+              >
+                {slackNotice.ok ? (
+                  <CheckCircle2 className="w-4 h-4 shrink-0" />
+                ) : (
+                  <AlertTriangle className="w-4 h-4 shrink-0" />
+                )}
+                {slackNotice.text}
+              </div>
+            )}
+
+            {/* Kurulum yardimi */}
+            <div className="p-3.5 rounded-xl bg-slate-950/60 border border-slate-800 text-[11px] text-slate-400 leading-relaxed space-y-1.5">
+              <div className="font-bold text-slate-300 text-xs mb-1">Bağlantı nasıl kurulur?</div>
+              <p>1. Slack uygulamasında <b className="text-slate-300">Incoming Webhooks</b> oluşturun.</p>
+              <p>2. Bildirimlerin düşeceği kanalı seçin (örn. <code className="text-indigo-300">#zula-bildirim</code>).</p>
+              <p>
+                3. Verilen webhook adresini <b className="text-slate-300">Vercel</b> → Projen → Settings →
+                Environment Variables → <code className="text-indigo-300">SLACK_WEBHOOK_URL</code> olarak ekleyin ve
+                deploy'u yenileyin.
+              </p>
+              <p className="text-slate-500 pt-1 border-t border-slate-800">
+                Güvenlik: Webhook adresi sunucuda saklanır, tarayıcıya hiç gönderilmez. Panel yalnızca sunucuya
+                bildirir; mesajı sunucu iletir.
+              </p>
+            </div>
+          </div>
+        </div>
+
+        {/* Rol listesi */}
       <div className="bg-slate-900/40 border border-slate-800/80 rounded-2xl overflow-hidden">
         <div className="p-4 sm:p-5 border-b border-slate-800 flex items-center justify-between">
           <div>
