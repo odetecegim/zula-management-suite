@@ -37,4 +37,42 @@ t('bos dizi icin anlamli hata mesaji var', () => {
   assert.ok(/silinirdi|silinir/.test(block), 'uyari mesaji eksik');
 });
 
+/*
+  ROL KONTROLU HATA YOLU
+  ----------------------
+  Yazma yetkisi kontrolu (readMembers) route-handler'in try/catch
+  DISINDAYDY. Google'a erisilemezse istek TAMAMEN cokuyor ve panel
+  nedensiz bos bir hata kutusu gosteriyordu. Artik hata 502/503
+  + GOOGLE_UNAVAILABLE olarak DONMELI.
+*/
+console.log('\n== Google erisim hatasi yonetimi ==');
+t('rol kontrolu try/catch icinde', () => {
+  const idx = routeSrc.indexOf('auth.needsAdminRole');
+  assert.ok(idx !== -1, 'rol kontrolu bulunamadi');
+  const block = routeSrc.slice(idx, idx + 2200);
+  const tryIdx = block.indexOf('try {');
+  const readIdx = block.indexOf('await readMembers(');
+  const catchIdx = block.indexOf('catch (readErr)');
+  assert.ok(tryIdx !== -1, 'rol kontrolunu saran try yok');
+  assert.ok(catchIdx !== -1, 'catch (readErr) yok - Google hatasi istegi cokertir');
+  assert.ok(
+    tryIdx < readIdx && readIdx < catchIdx,
+    'readMembers try ve catch arasi kalmis'
+  );
+});
+t('Google erisim hatasi anlamli kod donuyor', () => {
+  const idx = routeSrc.indexOf('auth.needsAdminRole');
+  const block = routeSrc.slice(idx, idx + 2200);
+  assert.ok(/GOOGLE_UNAVAILABLE/.test(block), 'GOOGLE_UNAVAILABLE kodu yok');
+  assert.ok(/NO_SPREADSHEET/.test(block), 'spreadsheetId bosken 400 donulmuyor');
+});
+t('kayitli olmayan kullanici icin ayri kod var', () => {
+  const idx = routeSrc.indexOf('auth.needsAdminRole');
+  const block = routeSrc.slice(idx, idx + 2600);
+  assert.ok(
+    /ACTOR_NOT_FOUND/.test(block),
+    'ACTOR_NOT_FOUND kodu yok - kullanici tabloda yoksa nedeni belirtilmiyor'
+  );
+});
+
 console.log('\n' + d + ' koruma testi gecti, ' + f + ' kaldi.\n');

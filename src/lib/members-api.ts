@@ -81,6 +81,34 @@ async function call<T>(
         return null;
       }
 
+      // 403 ACTOR_NOT_FOUND: kullanici Sheets'te KAYITLI DEGIL.
+      if (res.status === 403 && code === 'ACTOR_NOT_FOUND') {
+        lastSyncError =
+          'Hesabın Google Sheets tablosunda yok, bu yüzden yazma engellendi. Yöneticinden UyeListesi sekmesine kaydını eklemesini iste.';
+        return null;
+      }
+
+      // 503 NO_CREDENTIALS: sunucuda Google servis hesabi tanimli degil.
+      if (res.status === 503 && code === 'NO_CREDENTIALS') {
+        lastSyncError =
+          'Sunucuda Google bağlantısı kurulmamış (GOOGLE_SERVICE_ACCOUNT_JSON eksik). Vercel ortam değişkenlerine servis hesabı JSON’unu ekleyip redeploy et.';
+        return null;
+      }
+
+      // 502 GOOGLE_UNAVAILABLE: kimlik bilgisi var ama tabloya erisilemedi
+      // (servis hesabi tabloya Editor degil, Viewer; ya da tablo ID yanlis).
+      if (res.status === 502 || (res.status === 503 && code === 'GOOGLE_UNAVAILABLE')) {
+        let msg = 'Google Sheets’e erişilemedi.';
+        try {
+          const parsed = JSON.parse(detail) as { error?: string };
+          if (parsed?.error) msg = parsed.error;
+        } catch {
+          /* detay JSON degilse genel mesaj yeter */
+        }
+        lastSyncError = msg;
+        return null;
+      }
+
       // 401: oturum dusundu / token gecersiz
       if (res.status === 401) {
         setSessionToken(null);
@@ -192,7 +220,11 @@ export async function pushRemoteMembers(
   members: Member[],
   opts: { confirmSil?: boolean } = {}
 ): Promise<boolean> {
-  if (!Array.isArray(members) || members.length === 0) return false;
+  if (!Array.isArray(members) || members.length === 0) {
+    lastSyncError =
+      'Gönderilecek üye listesi boş; sunucu veri kaybını engellemek için isteği reddetti.';
+    return false;
+  }
   const data = await call<{ ok: boolean }>('/api/sheets/members', {
     spreadsheetId: currentSpreadsheetId(),
     members,

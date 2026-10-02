@@ -123,7 +123,7 @@ const toNum = (v, fallback = 0) => {
 
 /** Sheets satiri -> uye nesnesi (sifre alani HARIC edilir). */
 /** Rollerin varsayılan bölüm izinleri. */
-const ROLE_DEFAULT_PERMISSIONS = {
+export const ROLE_DEFAULT_PERMISSIONS = {
   super_admin: [
     'dashboard','members','performance','reports','academy','referees',
     'roles','logs','tests','settings','sheets',

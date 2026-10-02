@@ -7,6 +7,7 @@ import {
   hashPassword,
   verifyPassword,
   normalizeUsername,
+  ROLE_DEFAULT_PERMISSIONS,
   rowToMember,
   memberToRow,
   MEMBER_COLUMNS,
@@ -94,8 +95,16 @@ test('uye -> satir -> uye gidis-donus', () => {
 // Izin alani bos gelirse rolun varsayilan izinleri uygulanir.
 // (BOS liste, uyeyi "yetkisiz" yapip panel girisini reddederdi.)
 test('izin listesi bos ise role gore varsayilan izinler', () => {
+  // Beklenti SABIT BIR LİSTEDE değil, rolun gerçek varsayılan
+  // izinlerinden türetilir. (Önceden tek rolün liste değeri
+  // yazılıydı; rol tanımı değişince test yanlışlıkla kırılıyordu
+  // ve npm test'i ilk hatada durup diğer testleri çalıştırmıyordu.)
   const row = memberToRow({ ...member, permissions: [] });
-  assert.deepEqual(rowToMember(row).permissions, ['dashboard']);
+  assert.deepEqual(
+    rowToMember(row).permissions,
+    ROLE_DEFAULT_PERMISSIONS[member.role],
+    member.role + ' rolunun varsayilan izinleri uygulanmali'
+  );
 
   const adminRow = memberToRow({ ...member, role: 'super_admin', permissions: [] });
   const adminPerms = rowToMember(adminRow).permissions;

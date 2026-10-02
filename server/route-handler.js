@@ -142,20 +142,54 @@ export async function handleApi(method, segments, body = {}, headers = {}) {
       SUNUCUDA, GERCEK veriyle yapildigi icin atlanamaz.
     */
     if (auth.needsAdminRole && !auth.viaKey) {
-      const spreadsheetId = resolveId(body);
-      const rows = await readMembers({
-        spreadsheetId,
-        tabName: body?.tab || MEMBERS_TAB,
-      });
-      const actor = rows.find((m) => String(m.id || '') === String(auth.memberId));
-      const actorRole = String(actor?.role || '').trim();
+      // ONCEKI SURUMDE BU KOD try/catch DIŞINDAYDI.
+      // Google erisimi kurulamadiginda (servis hesabi yok / erisim reddi)
+      // readMembers() firlatir ve istEK TAMAMEN COKERDI: ne 403 ne 500,
+      // sadece Vercel'in "Internal Server Error" sayfasi. Panel de
+      // nedenini ogrenemedigi icin hatayi GOSTEREMIYORDU.
+      //
+      // Simdi: erisim hatasi 503/502 + GOOGLE_UNAVAILABLE olarak donuyor,
+      // ki panel kullanicya "Google'a baglanilamiyor" diyebilsin.
+      let actorRole = '';
+      let actorFound = false;
+      try {
+        const adminSheetId = resolveId(body);
+        if (!adminSheetId) {
+          return fail(
+            400,
+            "Spreadsheet ID gerekli. Ayarlar'dan tablo kimligini girin.",
+            'NO_SPREADSHEET'
+          );
+        }
+        const rows = await readMembers({
+          spreadsheetId: adminSheetId,
+          tabName: body?.tab || MEMBERS_TAB,
+        });
+        const actor = rows.find((m) => String(m.id || '') === String(auth.memberId));
+        actorRole = String(actor?.role || '').trim();
+        actorFound = Boolean(actor);
+      } catch (readErr) {
+        return fail(
+          readErr?.code === 'NO_CREDENTIALS' ? 503 : 502,
+          "Google Sheets'e erisilemedi: " +
+            (readErr?.message || 'bilinmeyen hata') +
+            '. Sunucudaki GOOGLE_SERVICE_ACCOUNT_JSON ve tablo erisim yetkisi kontrol edilmeli.',
+          readErr?.code || 'GOOGLE_UNAVAILABLE'
+        );
+      }
+
       const ADMIN_ROLES = ['super_admin', 'company_manager'];
 
-      if (!actor || !ADMIN_ROLES.includes(actorRole)) {
+      if (!actorFound || !ADMIN_ROLES.includes(actorRole)) {
+        // Kullanici Sheets'te kayitli DEGILSE engel farklidir
+        // (hesap sunucu tablosunda yok) -> ayri kod donuyoruz.
         return fail(
           403,
-          'Bu işlem için yönetici yetkisi gerekiyor.',
-          'ADMIN_ROLE_REQUIRED'
+          actorFound
+            ? 'Bu işlem için yönetici yetkisi gerekiyor.'
+            : 'Hesabınız Google Sheets tablosunda bulunamadı. ' +
+              'Yönetici bir kaydınızı oluşturmadan veri yazılamaz.',
+          actorFound ? 'ADMIN_ROLE_REQUIRED' : 'ACTOR_NOT_FOUND'
         );
       }
     }
