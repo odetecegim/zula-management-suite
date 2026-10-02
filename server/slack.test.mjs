@@ -11,6 +11,7 @@ import assert from 'node:assert/strict';
 
 import {
   isSlackConfigured,
+  slackMode,
   sendSlackMessage,
   sendSlackBlock,
   notifyMemberChange,
@@ -19,21 +20,64 @@ import {
   SLACK_COLORS,
 } from './slack.js';
 
-test('SLACK_WEBHOOK_URL tanimli degilse yapilandirilmamis sayilir', () => {
+test('hicbir kimlik bilgisi yoksa yapilandirilmamis sayilir', () => {
   delete process.env.SLACK_WEBHOOK_URL;
+  delete process.env.SLACK_BOT_TOKEN;
+  delete process.env.SLACK_CHANNEL_ID;
   assert.equal(isSlackConfigured(), false);
+  assert.equal(slackMode(), 'none');
 });
 
-test('SLACK_WEBHOOK_URL tanimliysa yapilandirilmis sayilir', () => {
-  process.env.SLACK_WEBHOOK_URL = 'https://hooks.slack.com/services/TEST/BASE/XYZ';
+test('yalnizca webhook varsa mod webhook olur', () => {
+  delete process.env.SLACK_BOT_TOKEN;
+  delete process.env.SLACK_CHANNEL_ID;
+  process.env.SLACK_WEBHOOK_URL = 'https://hooks.slack.com/services/T/B/X';
   assert.equal(isSlackConfigured(), true);
+  assert.equal(slackMode(), 'webhook');
   delete process.env.SLACK_WEBHOOK_URL;
 });
 
-test('bos (beyaz karakterli) webhook tanimli sayilmaz', () => {
-  process.env.SLACK_WEBHOOK_URL = '   ';
-  assert.equal(isSlackConfigured(), false, 'bos deger ayar sayilmamali');
+test('bot token + kanal ID varsa mod bot olur (KANAL DESTEGI)', () => {
+  // Kullanicinin verdigi kanal ID'si bu yolda kullanilir
   delete process.env.SLACK_WEBHOOK_URL;
+  process.env.SLACK_BOT_TOKEN = 'xoxb-test-token';
+  process.env.SLACK_CHANNEL_ID = 'C0C5W28LU6T';
+  assert.equal(isSlackConfigured(), true);
+  assert.equal(slackMode(), 'bot');
+  delete process.env.SLACK_BOT_TOKEN;
+  delete process.env.SLACK_CHANNEL_ID;
+});
+
+test('bot token var ama kanal ID yoksa YAPILANDIRILMIS sayilmaz', () => {
+  // Kanal olmadan bot nereye yazacak? Bilinmiyor -> kapalı.
+  delete process.env.SLACK_WEBHOOK_URL;
+  process.env.SLACK_BOT_TOKEN = 'xoxb-test-token';
+  delete process.env.SLACK_CHANNEL_ID;
+  assert.equal(isSlackConfigured(), false, 'kanal ID olmadan bagli sayilmamali');
+  delete process.env.SLACK_BOT_TOKEN;
+});
+
+test('kanal ID var ama bot token yoksa YAPILANDIRILMIS sayilmaz', () => {
+  // Kanal ID tek basina yetmez: kimlik bilgisi gerekir.
+  delete process.env.SLACK_WEBHOOK_URL;
+  delete process.env.SLACK_BOT_TOKEN;
+  process.env.SLACK_CHANNEL_ID = 'C0C5W28LU6T';
+  assert.equal(
+    isSlackConfigured(),
+    false,
+    'kanal ID tek basina (kimliksiz) baglanma sayilmamali'
+  );
+  delete process.env.SLACK_CHANNEL_ID;
+});
+
+test('iki yol birden tanimliysa bot tercih edilir', () => {
+  process.env.SLACK_WEBHOOK_URL = 'https://hooks.slack.com/services/T/B/X';
+  process.env.SLACK_BOT_TOKEN = 'xoxb-test-token';
+  process.env.SLACK_CHANNEL_ID = 'C0C5W28LU6T';
+  assert.equal(slackMode(), 'bot', 'bot yolu daha esnek, oncelikli olmali');
+  delete process.env.SLACK_WEBHOOK_URL;
+  delete process.env.SLACK_BOT_TOKEN;
+  delete process.env.SLACK_CHANNEL_ID;
 });
 
 test('yapilandirilmamisken mesaj gonderme sessizce basarisiz olur (ag cagrisi yok)', async () => {

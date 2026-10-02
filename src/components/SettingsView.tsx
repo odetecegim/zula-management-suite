@@ -376,9 +376,13 @@ export const SettingsView: React.FC<SettingsProps> = ({
               <p>1. Slack uygulamasında <b className="text-slate-300">Incoming Webhooks</b> oluşturun.</p>
               <p>2. Bildirimlerin düşeceği kanalı seçin (örn. <code className="text-indigo-300">#zula-bildirim</code>).</p>
               <p>
-                3. Verilen webhook adresini <b className="text-slate-300">Vercel</b> → Projen → Settings →
-                Environment Variables → <code className="text-indigo-300">SLACK_WEBHOOK_URL</code> olarak ekleyin ve
-                deploy'u yenileyin.
+                3. Webhook adresini <b className="text-slate-300">Vercel</b> → Settings → Environment Variables →{' '}
+                <code className="text-indigo-300">SLACK_WEBHOOK_URL</code> olarak ekleyip deploy'u yenileyin.
+              </p>
+              <p className="text-slate-500">
+                Alternatif: bot kullanıyorsanız <code className="text-indigo-300">SLACK_BOT_TOKEN</code> (xoxb-…) ve{' '}
+                <code className="text-indigo-300">SLACK_CHANNEL_ID</code> (kanal kimliği) ekleyin — bu yol bot
+                üzerinden çalışır.
               </p>
               <p className="text-slate-500 pt-1 border-t border-slate-800">
                 Güvenlik: Webhook adresi sunucuda saklanır, tarayıcıya hiç gönderilmez. Panel yalnızca sunucuya

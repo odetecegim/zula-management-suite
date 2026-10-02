@@ -45,6 +45,7 @@ import {
 
 import {
   isSlackConfigured,
+  slackMode,
   sendSlackMessage,
   notifyMemberChange,
   notifyTestSession,
@@ -180,6 +181,7 @@ export async function handleApi(method, segments, body = {}, headers = {}) {
           defaultRange: rangeOf(),
           // Panel, Ayarlar ekraninda Slack durumunu gosterir.
           slackConfigured: isSlackConfigured(),
+          slackMode: slackMode(),
           fieldLabels: FIELD_LABELS,
         });
 

@@ -22,9 +22,77 @@
 /** Tum bildirimler icin ortak zaman asimi. */
 const SLACK_TIMEOUT_MS = 8000;
 
+/** Ortam degiskenlerinden okunan degerler (her cagrida taze). */
+const webhookUrl = () => String(process.env.SLACK_WEBHOOK_URL || '').trim();
+const botToken = () => String(process.env.SLACK_BOT_TOKEN || '').trim();
+const channelId = () => String(process.env.SLACK_CHANNEL_ID || '').trim();
+
+/* ==================================================================
+   IKI YOL DESTEKLENIR
+   ------------------------------------------------------------------
+   A) INCOMING WEBHOOK  (basit)
+      SLACK_WEBHOOK_URL = https://hooks.slack.com/services/...
+      Kanal, webhook olusturulurken secilir.
+
+   B) BOT TOKEN + KANAL ID  (Slack API)
+      SLACK_BOT_TOKEN   = xoxb-...
+      SLACK_CHANNEL_ID  = C0XXXXXXXX
+      "chat.postMessage" API'sini kullanir; bot herhangi bir kanala
+      yazabilir, kanal ID ortam degiskeninde sabit kalir.
+
+   Ikisi birden tanimliysa B tercih edilir.
+   Hicbiri tanimli degilse modul sessizce bos gecer.
+   ================================================================== */
+
 /** Webhook adresi tanimli mi? (Ayarlar ekraninda gosterilir) */
 export function isSlackConfigured() {
-  return Boolean(String(process.env.SLACK_WEBHOOK_URL || '').trim());
+  return Boolean(webhookUrl() || (botToken() && channelId()));
+}
+
+/** Hangi yol kullanilacak: 'bot' | 'webhook' | 'none' */
+export function slackMode() {
+  if (botToken() && channelId()) return 'bot';
+  if (webhookUrl()) return 'webhook';
+  return 'none';
+}
+
+/**
+ * Bot token ile Slack API'ye mesaj gonderir (chat.postMessage).
+ *
+ * @param {string} text   duz metin
+ * @param {Array} blocks  istege bagli blok yapisi
+ * @returns {Promise<boolean>} basarili mi
+ */
+async function postViaBotApi(text, blocks) {
+  const token = botToken();
+  const channel = channelId();
+  if (!token || !channel) return false;
+
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), SLACK_TIMEOUT_MS);
+  try {
+    const res = await fetch('https://slack.com/api/chat.postMessage', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json; charset=utf-8',
+        Authorization: 'Bearer ' + token,
+      },
+      body: JSON.stringify({
+        channel,
+        text: String(text).slice(0, 3000),
+        ...(blocks ? { blocks } : {}),
+      }),
+      signal: controller.signal,
+    });
+    if (!res.ok) return false;
+    // Slack API yanit govdesi JSON olur; okunamazsa gonderilmemis sayilir
+    const data = await res.json().catch(() => null);
+    return Boolean(data && data.ok === true);
+  } catch {
+    return false;
+  } finally {
+    clearTimeout(timer);
+  }
 }
 
 /**
@@ -34,7 +102,13 @@ export function isSlackConfigured() {
  * @returns {Promise<boolean>} gonderildi mi
  */
 export async function sendSlackMessage(text) {
-  const url = String(process.env.SLACK_WEBHOOK_URL || '').trim();
+  if (!text) return false;
+  const msg = String(text).slice(0, 3000);
+
+  // Once bot token + kanal ID yolu (daha esnek yontem)
+  if (botToken() && channelId()) return postViaBotApi(msg, null);
+
+  const url = webhookUrl();
   if (!url || !text) return false;
 
   const controller = new AbortController();
@@ -61,8 +135,34 @@ export async function sendSlackMessage(text) {
  *
  * @param {{title:string, fields?:{label:string,value:string}[], color?:string, footer?:string}} opts
  */
+/**
+ * Blok mesajin govdesini olusturur (webhook ve bot API ortak kullanim).
+ * @returns {Array} Slack blok dizisi
+ */
+function buildBlocks(opts) {
+  const fields = (opts.fields || []).slice(0, 10).map((f) => ({
+    type: 'mrkdwn',
+    text: '*' + f.label + '*\n' + f.value,
+  }));
+  return [
+    {
+      type: 'header',
+      text: { type: 'plain_text', text: String(opts.title || '').slice(0, 150), emoji: true },
+    },
+    ...(fields.length ? [{ type: 'section', fields }] : []),
+    ...(opts.footer
+      ? [{ type: 'context', elements: [{ type: 'mrkdwn', text: opts.footer }] }]
+      : []),
+  ];
+}
+
 export async function sendSlackBlock(opts) {
-  const url = String(process.env.SLACK_WEBHOOK_URL || '').trim();
+  // Bot token + kanal ID varsa Slack API üzerinden gönder
+  if (botToken() && channelId()) {
+    return postViaBotApi(String(opts.title || ''), buildBlocks(opts));
+  }
+
+  const url = webhookUrl();
   if (!url) return false;
 
   const fields = (opts.fields || []).slice(0, 10).map((f) => ({
