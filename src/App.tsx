@@ -862,6 +862,34 @@ const canEditPerformance =
     }
   };
 
+  /**
+   * ROLLERIN LISTEDEKI SIRASINI DEGISTIRME (yer degisikligi)
+   *
+   * Yeni roller en sona eklenir; bazen "Kaptan" ya da "Hakem" rolunu
+   * yukarı taşımak isteriz. Sira kalici olarak saklanir ve sistem
+   * loguna dusulur.
+   */
+  const handleReorderRoles = (ordered: RoleId[]) => {
+    if (isReadOnly) return; // salt-okunur rol sira degistiremez
+    setRoles((prev) => {
+      const map = new Map(prev.map((r) => [r.id as string, r]));
+      const next = ordered
+        .map((id) => map.get(id as string))
+        .filter((r): r is RoleDef => Boolean(r));
+      // Sirada olmayan roller (veri tutarsizligi) sona eklenir
+      for (const r of prev) if (!ordered.includes(r.id)) next.push(r);
+      return next;
+    });
+    const newLog: ActivityLog = {
+      id: 'log-' + Date.now(),
+      actor: currentUser?.fullName || 'Sistem',
+      action: 'Rol sırası değiştirildi',
+      category: 'Role',
+      timestamp: new Date().toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' }),
+    };
+    setLogs((prev) => [newLog, ...prev]);
+  };
+
   const academyFilter: TeamFilter = {
     team: 'academy',
     allowedRoles: ACADEMY_ROLES,
@@ -1178,6 +1206,7 @@ const canEditPerformance =
               onAddRole={handleAddRole}
               onUpdateRole={handleUpdateRole}
               onDeleteRole={handleDeleteRole}
+              onReorderRoles={handleReorderRoles}
               simulateRoles={simulateRoles}
               onSimulateRoles={setSimulateRoles}
             />

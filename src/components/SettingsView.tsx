@@ -1,5 +1,5 @@
 ﻿import React, { useState } from 'react';
-import { ShieldCheck, Plus, Edit3, X, Check, KeyRound, Shield, Users, Trash2, Layers, AlertTriangle } from 'lucide-react';
+import { ShieldCheck, Plus, Edit3, X, Check, KeyRound, Shield, Users, Trash2, Layers, AlertTriangle, GripVertical, ArrowUp, ArrowDown } from 'lucide-react';
 import { ALL_PERMISSIONS } from '../data/initialData';
 import { getRoleLevel, roleLevelLabel } from '../lib/roles';
 import type { Member, RoleDef, RoleId, PermissionId } from '../types';
@@ -11,6 +11,8 @@ interface SettingsProps {
   onAddRole: (role: RoleDef) => void;
   onUpdateRole: (role: RoleDef) => void;
   onDeleteRole: (id: string) => void;
+  /** Roller listesindeki sirayi degistirir (yer degisikligi) */
+  onReorderRoles: (ordered: RoleId[]) => void;
   simulateRoles: RoleId[];
   onSimulateRoles: (roles: RoleId[]) => void;
 }
@@ -32,6 +34,7 @@ export const SettingsView: React.FC<SettingsProps> = ({
   onAddRole,
   onUpdateRole,
   onDeleteRole,
+  onReorderRoles,
   simulateRoles,
   onSimulateRoles,
 }) => {
@@ -42,6 +45,64 @@ export const SettingsView: React.FC<SettingsProps> = ({
   const [formPerms, setFormPerms] = useState<PermissionId[]>([]);
   const [formColor, setFormColor] = useState<string>(BADGE_PALETTE[0]);
   const [error, setError] = useState<string | null>(null);
+
+  /* ==========================================================
+     YER DEGISTIRLIGI (drag & drop + yukari/asagi oklari)
+     ========================================================== */
+
+  /** Su an tasini olan oge: rol karti icin 'role:<id>', izin icin 'perm:<id>' */
+  const [dragKey, setDragKey] = useState<string | null>(null);
+  /** Tasin ogenin hangi listenin uzerinde birakildigi */
+  const [dropKey, setDropKey] = useState<string | null>(null);
+
+  /** Iki ogeyi listede yer degistirir (yeni dizi dondurur) */
+  const moveItem = <T,>(list: T[], from: number, to: number): T[] => {
+    if (from === to || from < 0 || to < 0 || from >= list.length || to >= list.length) return list;
+    const next = [...list];
+    const [moved] = next.splice(from, 1);
+    next.splice(to, 0, moved);
+    return next;
+  };
+
+  /* ---- ROL YER DEGISTIRLIGI ---- */
+
+  const moveRole = (from: number, to: number) => {
+    if (readOnly) return; // salt-okunur rol sira degistiremez
+    const ordered = moveItem(roles, from, to).map((r) => r.id);
+    onReorderRoles(ordered);
+  };
+
+  const handleRoleDrop = (targetId: RoleId) => {
+    if (readOnly || !dragKey?.startsWith('role:')) return;
+    const fromId = dragKey.slice(5) as RoleId;
+    if (fromId === targetId) return resetDrag();
+    const from = roles.findIndex((r) => r.id === fromId);
+    const to = roles.findIndex((r) => r.id === targetId);
+    moveRole(from, to);
+    resetDrag();
+  };
+
+  /* ---- BOLUM/IZIN YER DEGISTIRLIGI (modal icinde) ---- */
+
+  const moveFormPerm = (from: number, to: number) => {
+    setFormPerms((prev) => moveItem(prev, from, to));
+  };
+
+  const handleFormPermDrop = (targetId: PermissionId) => {
+    if (readOnly || !dragKey?.startsWith('perm:')) return;
+    const fromId = dragKey.slice(5) as PermissionId;
+    if (fromId === targetId) return resetDrag();
+    const from = formPerms.indexOf(fromId);
+    const to = formPerms.indexOf(targetId);
+    if (from < 0 || to < 0) return resetDrag();
+    moveFormPerm(from, to);
+    resetDrag();
+  };
+
+  function resetDrag() {
+    setDragKey(null);
+    setDropKey(null);
+  }
 
   const memberCountFor = (roleId: RoleId) => members.filter((m) => m.role === roleId).length;
 
@@ -192,7 +253,46 @@ export const SettingsView: React.FC<SettingsProps> = ({
             const count = memberCountFor(role.id);
             const level = getRoleLevel(role.id);
             return (
-              <div key={role.id} className="p-4 sm:p-5 hover:bg-slate-800/20 transition-colors">
+              <div
+                key={role.id}
+                role="listitem"
+                draggable={!readOnly}
+                onDragStart={(e) => {
+                  setDragKey('role:' + role.id);
+                  e.dataTransfer.effectAllowed = 'move';
+                  // bazi tarayicilar suruklemeyi baslatmak icin veri bekler
+                  e.dataTransfer.setData('text/plain', role.id);
+                }}
+                onDragEnd={resetDrag}
+                onDragOver={(e) => {
+                  if (readOnly || !dragKey) return;
+                  e.preventDefault();
+                  e.dataTransfer.dropEffect = 'move';
+                  setDropKey('role:' + role.id);
+                }}
+                onDragLeave={() => setDropKey(null)}
+                onDrop={(e) => {
+                  e.preventDefault();
+                  handleRoleDrop(role.id);
+                }}
+                className={
+                  'p-4 sm:p-5 transition-colors flex gap-2 ' +
+                  (dropKey === 'role:' + role.id && dragKey !== 'role:' + role.id
+                    ? 'bg-indigo-500/10 ring-2 ring-inset ring-indigo-500/50'
+                    : 'hover:bg-slate-800/20') +
+                  (dragKey === 'role:' + role.id ? ' opacity-40' : '')
+                }
+              >
+                {!readOnly && (
+                  <div
+                    className="flex items-center text-slate-600 hover:text-indigo-400 transition-colors cursor-grab active:cursor-grabbing shrink-0"
+                    title="Tut ve taşı"
+                    aria-label="Rolü taşı"
+                  >
+                    <GripVertical className="w-4 h-4" />
+                  </div>
+                )}
+                <div className="min-w-0 flex-1">
                 <div className="flex flex-wrap items-start justify-between gap-3">
                   <div className="min-w-0 flex-1">
                     <div className="flex flex-wrap items-center gap-2">
@@ -245,6 +345,26 @@ export const SettingsView: React.FC<SettingsProps> = ({
 
                   <div className="flex items-center gap-2">
                     <span className="text-[10px] text-slate-500 font-mono hidden sm:block">Lv.{level}</span>
+                    {!readOnly && (
+                      <>
+                        <button
+                          onClick={() => moveRole(roles.findIndex((r) => r.id === role.id) - 1, roles.findIndex((r) => r.id === role.id))}
+                          disabled={roles.findIndex((r) => r.id === role.id) === 0}
+                          className="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white disabled:opacity-30 disabled:cursor-not-allowed transition-colors cursor-pointer"
+                          title="Yukarı taşı"
+                        >
+                          <ArrowUp className="w-4 h-4" />
+                        </button>
+                        <button
+                          onClick={() => moveRole(roles.findIndex((r) => r.id === role.id), roles.findIndex((r) => r.id === role.id) + 1)}
+                          disabled={roles.findIndex((r) => r.id === role.id) === roles.length - 1}
+                          className="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white disabled:opacity-30 disabled:cursor-not-allowed transition-colors cursor-pointer"
+                          title="Aşağı taşı"
+                        >
+                          <ArrowDown className="w-4 h-4" />
+                        </button>
+                      </>
+                    )}
                     <button
                       onClick={() => openEdit(role)}
                       className="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white transition-colors cursor-pointer"
@@ -269,6 +389,7 @@ export const SettingsView: React.FC<SettingsProps> = ({
                       </span>
                     )}
                   </div>
+                </div>
                 </div>
               </div>
             );
@@ -338,38 +459,110 @@ export const SettingsView: React.FC<SettingsProps> = ({
                 <label className="block text-xs font-semibold text-slate-400 mb-2">
                   Bölüm Erişim Yetkileri ({formPerms.length}/{ALL_PERMISSIONS.length})
                 </label>
+                {formPerms.length > 1 && (
+                  <p className="text-[10px] text-indigo-300 bg-indigo-500/10 border border-indigo-500/20 rounded-lg px-2.5 py-1.5 mb-2">
+                    Seçili bölümlerin sırasını tutun veya oklarla değiştirin — bu sıra kaydedilir.
+                  </p>
+                )}
                 <div className="space-y-1.5">
-                  {ALL_PERMISSIONS.map((p) => {
-                    const on = formPerms.includes(p.id);
+                  {/* SECILI BOLUMLER: one cikarilir, sirasiyla ve yer degistirilebilir */}
+                  {formPerms.map((pid, idx) => {
+                    const p = ALL_PERMISSIONS.find((x) => x.id === pid);
+                    if (!p) return null;
                     return (
-                      <button
-                        key={p.id}
-                        type="button"
-                        onClick={() => toggleFormPerm(p.id)}
+                      <div
+                        key={pid}
+                        role="listitem"
+                        draggable={!readOnly}
+                        onDragStart={(e) => {
+                          setDragKey('perm:' + pid);
+                          e.dataTransfer.effectAllowed = 'move';
+                          e.dataTransfer.setData('text/plain', pid);
+                        }}
+                        onDragEnd={resetDrag}
+                        onDragOver={(e) => {
+                          if (readOnly || !dragKey) return;
+                          e.preventDefault();
+                          e.dataTransfer.dropEffect = 'move';
+                          setDropKey('perm:' + pid);
+                        }}
+                        onDragLeave={() => setDropKey(null)}
+                        onDrop={(e) => {
+                          e.preventDefault();
+                          handleFormPermDrop(pid);
+                        }}
                         className={
-                          'w-full flex items-center gap-2.5 p-2.5 rounded-xl border text-left transition-all cursor-pointer ' +
-                          (on
-                            ? 'bg-indigo-500/10 border-indigo-500/40'
-                            : 'bg-slate-950/60 border-slate-800 hover:border-slate-700')
+                          'w-full flex items-center gap-2.5 p-2.5 rounded-xl border text-left transition-all bg-indigo-500/10 border-indigo-500/40 ' +
+                          (dropKey === 'perm:' + pid && dragKey !== 'perm:' + pid
+                            ? 'ring-2 ring-indigo-400'
+                            : '') +
+                          (dragKey === 'perm:' + pid ? ' opacity-40' : '') +
+                          (readOnly ? '' : ' cursor-grab active:cursor-grabbing')
                         }
                       >
-                        <span
-                          className={
-                            'w-4 h-4 rounded shrink-0 flex items-center justify-center border ' +
-                            (on ? 'bg-indigo-500 border-indigo-500 text-white' : 'bg-slate-900 border-slate-700')
-                          }
-                        >
-                          {on && <Check className="w-3 h-3" />}
-                        </span>
-                        <span className="min-w-0">
-                          <span className={'block text-xs font-semibold ' + (on ? 'text-indigo-300' : 'text-slate-300')}>
-                            {p.label}
+                        {!readOnly && (
+                          <span className="text-slate-500 shrink-0" title="Tut ve taşı">
+                            <GripVertical className="w-3.5 h-3.5" />
                           </span>
+                        )}
+                        <span className="text-[10px] font-bold text-slate-500 w-4 shrink-0">{idx + 1}</span>
+                        <button
+                          type="button"
+                          onClick={() => toggleFormPerm(p.id)}
+                          className="w-4 h-4 rounded shrink-0 flex items-center justify-center border border-indigo-500 bg-indigo-500 text-white cursor-pointer"
+                          title={p.label + ' — erişimi kaldır'}
+                        >
+                          <Check className="w-3 h-3" />
+                        </button>
+                        <span className="min-w-0 flex-1">
+                          <span className="block text-xs font-semibold text-indigo-300">{p.label}</span>
                           <span className="block text-[10px] text-slate-500">{p.description}</span>
                         </span>
-                      </button>
+                        {!readOnly && (
+                          <span className="flex items-center gap-1 shrink-0">
+                            <button
+                              type="button"
+                              onClick={() => moveFormPerm(idx, idx - 1)}
+                              disabled={idx === 0}
+                              className="p-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer"
+                              title="Yukarı taşı"
+                            >
+                              <ArrowUp className="w-3 h-3" />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => moveFormPerm(idx, idx + 1)}
+                              disabled={idx === formPerms.length - 1}
+                              className="p-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer"
+                              title="Aşağı taşı"
+                            >
+                              <ArrowDown className="w-3 h-3" />
+                            </button>
+                          </span>
+                        )}
+                      </div>
                     );
                   })}
+                  {/* YERI degistirilebilir bitti */}
+
+                  {/* SECILI OLMAYAN BOLUMLER: tiklanip listeye eklenir */}
+                  {ALL_PERMISSIONS.filter((p) => !formPerms.includes(p.id)).map((p) => (
+                    <button
+                      key={p.id}
+                      type="button"
+                      onClick={() => toggleFormPerm(p.id)}
+                      className="w-full flex items-center gap-2.5 p-2.5 rounded-xl border text-left transition-all cursor-pointer bg-slate-950/60 border-slate-800 hover:border-slate-700"
+                    >
+                      <span className="w-4 shrink-0 flex justify-center">
+                        <Plus className="w-3.5 h-3.5 text-slate-500" />
+                      </span>
+                      <span className="w-4 h-4 rounded shrink-0 flex items-center justify-center border bg-slate-900 border-slate-700" />
+                      <span className="min-w-0">
+                        <span className="block text-xs font-semibold text-slate-300">{p.label}</span>
+                        <span className="block text-[10px] text-slate-500">{p.description}</span>
+                      </span>
+                    </button>
+                  ))}
                 </div>
               </div>
 
