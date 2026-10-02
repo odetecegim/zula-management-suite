@@ -46,6 +46,7 @@ import {
 import {
   isSlackConfigured,
   slackMode,
+  getSlackError,
   sendSlackMessage,
   notifyMemberChange,
   notifyTestSession,

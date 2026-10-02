@@ -23,6 +23,17 @@
 const SLACK_TIMEOUT_MS = 8000;
 
 /** Ortam degiskenlerinden okunan degerler (her cagrida taze). */
+/** Son Slack hata mesaji (panelde kullaniciya gosterilir). */
+let lastError = '';
+
+/** Son hata mesajini dondurur / temizler. */
+export function getSlackError() {
+  return lastError;
+}
+export function clearSlackError() {
+  lastError = '';
+}
+
 const webhookUrl = () => String(process.env.SLACK_WEBHOOK_URL || '').trim();
 const botToken = () => String(process.env.SLACK_BOT_TOKEN || '').trim();
 const channelId = () => String(process.env.SLACK_CHANNEL_ID || '').trim();
@@ -59,6 +70,14 @@ export function slackMode() {
 /**
  * Bot token ile Slack API'ye mesaj gonderir (chat.postMessage).
  *
+ * ONCEKI SURUMUN HATASI: burada sadece `false` donuluyordu, Slack'in
+ * gercek hata mesaji (or. "not_in_channel", "invalid_auth") yutuluyordu.
+ * Bu yuzden panelde "Webhook adresine ulasilamadi" gorunuyordu ve
+ * kullanici gercek nedeni ogrenemiyordu.
+ *
+ * Simdi: basarisizlikta son hata mesaji saklanir ve `slack-test`
+ * ucu onu kullaniciya gosterir.
+ *
  * @param {string} text   duz metin
  * @param {Array} blocks  istege bagli blok yapisi
  * @returns {Promise<boolean>} basarili mi
@@ -66,7 +85,10 @@ export function slackMode() {
 async function postViaBotApi(text, blocks) {
   const token = botToken();
   const channel = channelId();
-  if (!token || !channel) return false;
+  if (!token || !channel) {
+    lastError = 'SLACK_BOT_TOKEN veya SLACK_CHANNEL_ID eksik.';
+    return false;
+  }
 
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), SLACK_TIMEOUT_MS);
@@ -84,14 +106,51 @@ async function postViaBotApi(text, blocks) {
       }),
       signal: controller.signal,
     });
-    if (!res.ok) return false;
-    // Slack API yanit govdesi JSON olur; okunamazsa gonderilmemis sayilir
+
+    if (!res.ok) {
+      lastError = 'Slack HTTP ' + res.status + ' — istek reddedildi.';
+      return false;
+    }
+
     const data = await res.json().catch(() => null);
-    return Boolean(data && data.ok === true);
-  } catch {
+    if (data && data.ok === true) {
+      lastError = '';
+      return true;
+    }
+
+    // Slack API her zaman HTTP 200 doner; hata govde icinde gelir.
+    lastError = describeSlackError(data);
+    return false;
+  } catch (e) {
+    lastError =
+      e instanceof Error && e.name === 'AbortError'
+        ? 'Slack yanit vermedi (zaman aşımı).'
+        : 'Slack bağlantı hatası: ' + (e instanceof Error ? e.message : 'bilinmiyor');
     return false;
   } finally {
     clearTimeout(timer);
+  }
+}
+
+/** Slack API hata kodunu insanca cevirir. */
+function describeSlackError(data) {
+  if (!data) return 'Slack bos yanıt döndü.';
+  switch (data.error) {
+    case 'not_in_channel':
+      return 'Bot bu kanalın ÜYE DEĞİL. Slack → uygulaman → Install/Invite ile botu kanala ekleyin.';
+    case 'invalid_auth':
+      return 'SLACK_BOT_TOKEN geçersiz. Yeni bir bot token üretip Vercel’e tekrar ekleyin.';
+    case 'channel_not_found':
+      return 'SLACK_CHANNEL_ID bulunamadı. Kanal kimliğini kontrol edin.';
+    case 'missing_scope':
+      return 'Bot’un "chat:write" yetkisi yok. OAuth & Permissions → chat:write ekleyip yeniden kurun.';
+    case 'account_inactive':
+    case 'token_revoked':
+      return 'Bot token iptal edilmiş. Yeni token üretin.';
+    case 'no_permission':
+      return 'Bot’un bu kanala mesaj atma yetkisi yok.';
+    default:
+      return 'Slack hatası: ' + (data.error || 'bilinmiyor');
   }
 }
 
