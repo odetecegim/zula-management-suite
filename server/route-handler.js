@@ -41,6 +41,7 @@ import {
   clearFailedAccount,
   accountRetryInfo,
   pruneSessions,
+hasSessionSecret,
 } from './auth.js';
 
 import {
@@ -274,6 +275,17 @@ export async function handleApi(method, segments, body = {}, headers = {}) {
           // Panel, Ayarlar ekraninda Slack durumunu gosterir.
           slackConfigured: isSlackConfigured(),
           slackMode: slackMode(),
+          /*
+            SESSION_SECRET tanimli MI? (SIR DEGERI DONDURULMEZ — sadece
+            "var mi / yok mu".)
+
+            Neden onemli: SESSION_SECRET tanimli degilse sunucu gecici
+            bir anahtar uretir ve HER DEPLOY'DA degisir. Kullanici o
+            anda oturumu kaybetir ve "oturumun suresi doldu" gorur —
+            oysa 12 saati hic dolmamistir. Bu bilgi sayesinde panel
+            kullaniciya GERCEK nedeni soyleyebilir.
+          */
+          sessionSecretSet: hasSessionSecret(),
           fieldLabels: FIELD_LABELS,
         });
 

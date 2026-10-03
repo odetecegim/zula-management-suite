@@ -106,6 +106,15 @@ export interface SheetsStatus {
   slackConfigured?: boolean;
   /** Hangi yol: 'bot' | 'webhook' | 'none' */
   slackMode?: string;
+/**
+   * SESSION_SECRET tanimli mi? Sadece "var/yok" — sirin kendisi ASLA
+   * dondurulmez.
+   *
+   * false ise sunucu gecici bir anahtar uretir ve her deploy'da
+   * degisir; kullanici oturumunu kaybedip "oturum suresi doldu"
+   * gorur (12 saat dolmamis olmasina ragmen).
+   */
+  sessionSecretSet?: boolean;
   fieldLabels: Record<string, string>;
 }
 

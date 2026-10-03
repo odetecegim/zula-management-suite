@@ -1,4 +1,4 @@
-import assert from 'node:assert/strict';
+﻿import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
@@ -183,3 +183,70 @@ t('SettingsViewa gerekli prop geciriliyor', () => {
 });
 
 console.log('\n' + d + ' koruma testi gecti, ' + f + ' kaldi.\n');
+
+/*
+  SESSION_SECRET — OTURUM SIFIRLANMASI VE GUVENLIK
+  -------------------------------------------------
+  Onceki surumde imzalama anahtari sirasiyla SESSION_SECRET,
+  GOOGLE_PRIVATE_KEY, GOOGLE_SERVICE_ACCOUNT_JSON ve SON OLARAK kaynak
+  kodda acik yazan sabit metne dusuyordu.
+
+  Iki SORUN birden vardi:
+    1) GUVENLIK: acik metin anahtar bilinse biri istedigi uye icin
+       gecerli oturum belirteci uretebilirdi.
+    2) OTURUM SIFIRLANMASI: anahtar her deploy'da degistiginde
+       kullanici 12 saati dolmadan oturumunu kaybediyor ve
+       "oturumun suresi doldu" goruyordu.
+
+  Artik SESSION_SECRET yoksa surec ici uretilen rastgele anahtar
+  kullanilir (guvenli ama her deploy'da degisir) ve /api/sheets/status
+  bunu `sessionSecretSet: false` olarak bildirir.
+*/
+const authSrc = readFileSync(join(here, 'auth.js'), 'utf8');
+
+const LF = String.fromCharCode(10);
+/** Yorum satirlari (aciklama) kod sayilmaz. */
+const YORUM = new RegExp(String.fromCharCode(94, 92) + 's*');
+
+console.log('== Oturum imzalama guvenligi ==');
+
+t('kaynak koda gomulu sabit imzalama anahtari kaldirildi', () => {
+  // Yalniz KODDA kullanilan bir anahtar tehlikelidir; aciklamada gecen
+  // metin (bu testin aciklamasi dahil) tehlike degildir.
+  const kod = authSrc.split(LF).filter((s) => !YORUM.test(s)).join(LF);
+  assert.ok(
+    !/zula-suite-gelistirme-anahtari/.test(kod),
+    'SONUC: hala acik metin imzalama anahtari var; biri oturum uretebilir'
+  );
+});
+
+t('SESSION_SECRET tanimli degilse rastgele anahtar uretilir', () => {
+  assert.ok(/randomBytes\(32\)/.test(authSrc), 'gecici guvenli anahtar uretilmiyor');
+});
+
+t('SESSION_SECRET tanimliysa SADECE o kullanilir', () => {
+  const idx = authSrc.indexOf('function secret()');
+  const block = authSrc.slice(idx, idx + 700);
+  assert.ok(/process\.env\.SESSION_SECRET/.test(block), 'SESSION_SECRET okunmuyor');
+  assert.ok(
+    !/GOOGLE_PRIVATE_KEY/.test(block),
+    'yine Google JSON una yonlendiriyor; oturumlar deploy da sifirlanir'
+  );
+});
+
+t('eksik SESSION_SECRET icin sunucu uyarisi var', () => {
+  assert.ok(/console\.warn/.test(authSrc), 'eksiklik sessizce geciyor');
+});
+
+t('status ucu sessionSecretSet bildiriyor (sir sizmadan)', () => {
+  const routeSrc = readFileSync(join(here, 'route-handler.js'), 'utf8');
+  assert.ok(/sessionSecretSet: hasSessionSecret\(\)/.test(routeSrc), 'tanilama eksik');
+  assert.ok(
+    !/SESSION_SECRET:\s*process\.env/.test(routeSrc),
+    'SONUC: session degerinin kendisi istemciye siziyor'
+  );
+});
+
+console.log(LF + d + ' koruma testi gecti, ' + f + ' kaldi.' + LF);
+
+

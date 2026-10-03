@@ -1,4 +1,4 @@
-﻿import React, { useState } from 'react';
+﻿import React, { useState, useEffect } from 'react';
 import { ShieldCheck, Plus, Edit3, X, Check, KeyRound, Shield, Users, Trash2, Layers, AlertTriangle, GripVertical, ArrowUp, ArrowDown, Send, Loader2, CheckCircle2, LogIn } from 'lucide-react';
 import { ALL_PERMISSIONS } from '../data/initialData';
 import { getRoleLevel, roleLevelLabel } from '../lib/roles';
@@ -67,6 +67,34 @@ export const SettingsView: React.FC<SettingsProps> = ({
   const [slackMessage, setSlackMessage] = useState('');
   const [slackSending, setSlackSending] = useState(false);
 const [slackChecking, setSlackChecking] = useState(false);
+
+  /*
+    SESSION_SECRET TANIMLI MI?
+    --------------------------
+    SESSION_SECRET yoksa sunucu her deploy'da degisen gecici bir
+    imzalama anahtari uretir. Sonuc: kullanici her deploy'da oturumunu
+    kaybeder ve "oturumun suresi doldu" gorur — oysa 12 saati hic
+    dolmamistir.
+
+    Bu bayrak sayesinde kullaniciya GERCEK nedeni soyleyebiliriz.
+    (Sir degeri ASLA isteklenmez; sadece "var mi" bilgisi gelir.)
+  */
+  const [sessionSecretSet, setSessionSecretSet] = useState<boolean | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    fetch('/api/sheets/status')
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => {
+        if (!cancelled && d) setSessionSecretSet(d.sessionSecretSet === true);
+      })
+      .catch(() => {
+        /* sunucu kapali olabilir; sessizce gec */
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
   const [slackNotice, setSlackNotice] = useState<{ ok: boolean; text: string } | null>(null);
 
   // Hata "yeniden giriş yapın" gerektiriyor mu? (401 / oturum gerekli)
@@ -425,6 +453,28 @@ const handleSlackSend = async () => {
                 <LogIn className="w-4 h-4" />
                 Oturumu Yenile — Giriş Ekranına Dön
               </button>
+            )}
+
+            {/* SESSION_SECRET tanimli degilse oturumlar her deploy'da
+                sifirlanir; kullaniciya GERCEK nedeni soyleyelim. */}
+            {sessionSecretSet === false && (
+              <div className="flex items-start gap-2 p-3.5 rounded-xl bg-rose-500/10 border border-rose-500/25 text-[11px] text-rose-200 leading-relaxed">
+                <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
+                <div>
+                  <div className="font-bold mb-1">Sürekli oturum kapanmasının nedeni bulundu</div>
+                  Sunucuda <b>SESSION_SECRET</b> ortam değişkeni tanımlı değil. Bu durumda sunucu
+                  her yeniden başlatmada geçici bir imzalama anahtarı üretir; bu yüzden oturumunuz
+                  12 saat dolmadan kapanır ve &quot;oturumun süresi doldu&quot; hatası görürsünüz.
+                  <div className="mt-1.5 text-rose-300/90">
+                    Çözüm: Vercel → Settings → Environment Variables →{' '}
+                    <b>SESSION_SECRET</b> → herhangi bir uzun rastgele metin (örn.{' '}
+                    <code className="px-1 py-0.5 rounded bg-black/30">
+                      a8f3k2m9x7q1p5r8t4v6w0z3n6b1c9d5f2h7j0k4l8
+                    </code>
+                    ) → Production için kaydet → yeniden deploy edin.
+                  </div>
+                </div>
+              </div>
             )}
 
             {/* Kurulum yardimi */}

@@ -50,16 +50,51 @@ const ADMIN_API_KEY = () => String(process.env.ADMIN_API_KEY || '').trim();
  */
 
 /** Imzalama anahtari. Ortam degiskeninden gelir. */
+/*
+  İMZALAMA ANAHTARI
+
+  SESSION_SECRET tanımlı OLMALI. Aksi halde iki sorun birden olur:
+
+  1) GÜVENLİK: Sabit yazıya düşmek, anahtarı bilen birinin istedigi
+     uye kimligiyle kendine gecerli oturum belirteci uretmesine izin
+     verir. "zula-suite-gelistirme-anahtari-degistirin" gibi acik bir
+     metin kaynak kodda durur — yani GUVENLI DEGILDIR.
+
+  2) OTURUM SIFIRLANMASI: Google servis hesabi JSON'u icin yedek
+     anahtar kullaniliyordu. O JSON'daki `private_key` her deploy'da
+     degisirse (ornegin satir sonu/escaping farki) tum oturumlar
+     aninda gecersizlesir — kullanici "oturumun suresi doldu" gorur
+     ama 12 saati hic dolmamistir.
+
+  Bu yuzden:
+    - SESSION_SECRET tanimliysa SADECE o kullanilir (dogru yol).
+    - Tanimli degilse uretilmis bir anahtar kullanilir (calisir ama
+      her deploy'da degisir; uyari loglanir).
+  Artik kaynak koda gomulu sabit anahtar YOKTUR.
+*/
+let ephemeralSecret = null;
+
 function secret() {
-  // SESSION_SECRET tanimli degilse Google servis hesabi parolasini
-  // fallback olarak kullan (benzer bir sir). Olmazsa gecici ve
-  // rastgele bir anahtar uretilir; bu durumda her deploy oturumlari
-  // sifirlar (eski davranis) ama calisma devam eder.
-  return (
-    String(process.env.SESSION_SECRET || '').trim() ||
-    String(process.env.GOOGLE_PRIVATE_KEY || process.env.GOOGLE_SERVICE_ACCOUNT_JSON || '').trim() ||
-    'zula-suite-gelistirme-anahtari-degistirin'
-  );
+  const configured = String(process.env.SESSION_SECRET || '').trim();
+  if (configured) return configured;
+
+  // SESSION_SECRET yok: surec ici uretilen gecici anahtar.
+  // (Her deploy'da degisir -> oturumlar sifirlanir, ama GUVENLIK
+  //  saglanir; kimse tahmin edip belirteci uretemez.)
+  if (!ephemeralSecret) {
+    ephemeralSecret = crypto.randomBytes(32).toString('hex');
+    console.warn(
+      '[auth] SESSION_SECRET tanimli degil! Oturumlar her deploy/surec ' +
+        'yeniden basinda gecersizlesir. Vercel > Environment Variables > ' +
+        'SESSION_SECRET ekleyip yeniden deploy edin.'
+    );
+  }
+  return ephemeralSecret;
+}
+
+/** SESSION_SECRET tanimli mi? (tanilama ucu bunu bildirir) */
+export function hasSessionSecret() {
+  return Boolean(String(process.env.SESSION_SECRET || '').trim());
 }
 
 /** Belirtecin gecerlilik suresi: 12 saat. */
