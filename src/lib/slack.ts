@@ -23,6 +23,10 @@ interface SlackResult {
   ok: boolean;
   configured: boolean;
   message: string;
+  /** Hangi ortam degiskenleri eksik? (yapilandirma hatasinda dolar) */
+  missing?: string[];
+  /** 'bot' | 'webhook' | 'none' */
+  mode?: string;
 }
 
 /**

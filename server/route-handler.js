@@ -560,13 +560,29 @@ export async function handleApi(method, segments, body = {}, headers = {}) {
         if (!isSlackConfigured()) {
           // Kullaniciya HANGI degerleri ekleyecegini net soyleyelim.
           // Iki yol var; kanal ID'si olan kullanici icin bot yolu daha uygun.
+          //
+          // EN COK YAPILAN HATA: degiskenler Vercel'de yalnizca PREVIEW
+          // icin tanimlanir. Bu durumda canli (Production) deployment
+          // degiskenleri GORMEZ ve "yapilandirilmadi" doner — kullanici
+          // degiskeni girdigini sanip saatlerce arar.
+          const eksikler = [];
+          if (!process.env.SLACK_WEBHOOK_URL) eksikler.push('SLACK_WEBHOOK_URL');
+          if (!process.env.SLACK_BOT_TOKEN) eksikler.push('SLACK_BOT_TOKEN');
+          if (!process.env.SLACK_CHANNEL_ID) eksikler.push('SLACK_CHANNEL_ID');
+
           return ok({
             ok: false,
             configured: false,
+            mode: slackMode(),
+            missing: eksikler,
             message:
-              'Slack baglantisi kurulmadi. Vercel > Settings > Environment Variables altina ' +
-              'SLACK_BOT_TOKEN (xoxb- ile baslayan bot tokeni) ve SLACK_CHANNEL_ID (kanal kimligi) ekleyip ' +
-              'projeyi yeniden deploy edin. Alternatif: SLACK_WEBHOOK_URL da olur.',
+              'Slack bağlantısı kurulmadı — sunucu gerekli ortam değişkenlerini görmüyor. ' +
+              (eksikler.length ? 'Eksik olan: ' + eksikler.join(', ') + '. ' : '') +
+              'Vercel → Project → Settings → Environment Variables altında ' +
+              'SLACK_BOT_TOKEN (xoxb- ile başlayan bot tokenı) ve SLACK_CHANNEL_ID ' +
+              '(kanal kimliği) ekleyip PRODUCTION için yeniden deploy edin. ' +
+              'Değişkenler yalnız Preview için tanımlıysa üretimde kullanılmaz. ' +
+              'Alternatif: SLACK_WEBHOOK_URL da olur.',
           });
         }
         clearSlackError();
@@ -586,7 +602,29 @@ export async function handleApi(method, segments, body = {}, headers = {}) {
       // Kanal adi/mesaj icerigi sinirlandirilir.
       case 'slack-notify': {
         if (!isSlackConfigured()) {
-          return ok({ ok: false, configured: false, message: 'Slack yapilandirilmadi.' });
+          // NEDEN SOYLEMELIYIZ: "Slack yapilandirilmadi" mesaji
+          // kullaniciya HICBIR sey anlatmiyordu. Ortam degiskenleri
+          // Vercel'de yanlislikla Preview'a eklenmis olabilir,
+          // redeploy yapilmayabilir ya da kanal ID eksik olabilir.
+          const mode = slackMode();
+          const eksikler = [];
+          if (!process.env.SLACK_WEBHOOK_URL) eksikler.push('SLACK_WEBHOOK_URL');
+          if (!process.env.SLACK_BOT_TOKEN) eksikler.push('SLACK_BOT_TOKEN');
+          if (!process.env.SLACK_CHANNEL_ID) eksikler.push('SLACK_CHANNEL_ID');
+
+          return ok({
+            ok: false,
+            configured: false,
+            mode,
+            missing: eksikler,
+            message:
+              'Slack yapılandırılmamış — sunucu gerekli ortam değişkenlerini görmüyor. ' +
+              (eksikler.length ? 'Eksik: ' + eksikler.join(', ') + '. ' : '') +
+              'Vercel → Project → Settings → Environment Variables bölümünde ' +
+              'bu değişkenlerin PRODUCTION için tanımlı olduğundan emin olun ' +
+              '(Preview için tanımlıysa üretimde kullanılmaz), ' +
+              'ardından Production için yeniden deploy edin.',
+          });
         }
         const text = String(body?.text || '').trim();
         if (!text) return fail(400, 'Mesaj bos.');
