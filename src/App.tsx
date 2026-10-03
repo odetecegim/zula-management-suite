@@ -9,7 +9,7 @@ import { PerformanceView } from './components/PerformanceView';
 import type { LogFn } from './components/PerformanceView';
 import { notifyMemberEvent } from './lib/slack';
 import { apiUrl } from './lib/sheets';
-import { authHeaders, setSessionToken } from './lib/session-token';
+import { authHeaders, setSessionToken, onSessionExpired } from './lib/session-token';
 import {
   fetchRemoteMembers,
   pushRemoteMembers,
@@ -124,6 +124,27 @@ export function App() {
     const saved = localStorage.getItem('zula_suite_session');
     return saved || null;
   });
+
+  /*
+    SUNUCU 401 DONDU -> KULLANICIYI GIRIS EKRANINA GECIR
+    ---------------------------------------------------------
+    SESSION_SECRET degistiginde (ornegin kullanici Vercel'e ekledigi
+    anda) TUM oturumlar aninda gecersizlesir. Once panel yalnizca
+    bir mesaj gosteriyordu: kullanici Ayarlar ekraninda oturuyor,
+    "Baglantiyi Test Et"e basiyor, ayni hatayi aliyor, tekrar basiyor...
+    "Baglanti testi yapamiyorum" diye kilitleniyordu.
+
+    Artik herhangi bir istek 401 aldiginda kullanici OTOMATIK olarak
+    giris ekranina gecirilir. Yeniden giris yapinca yeni oturum
+    belirteci alinir ve her sey calisir.
+  */
+  useEffect(() => {
+    return onSessionExpired(() => {
+      setCurrentUserId(null);
+      localStorage.removeItem('zula_suite_session');
+      setCurrentTab('dashboard');
+    });
+  }, []);
 
   const [members, setMembers] = useState<Member[]>(() => {
     // v2: giris bilgisi semasi degisti — eski/bozuk kayitlar otomatik onarilir
@@ -1330,4 +1351,5 @@ const canEditPerformance =
 }
 
 export default App;
+
 

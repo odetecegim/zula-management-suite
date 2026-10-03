@@ -10,7 +10,7 @@
  */
 import type { Member } from '../types';
 import { loadSheetSettings, apiUrl } from './sheets';
-import { authHeaders, setSessionToken } from './session-token';
+import { authHeaders, setSessionToken, notifySessionExpired } from './session-token';
 
 /**
  * Zaman asimi (ms).
@@ -113,6 +113,7 @@ async function call<T>(
       // 401: oturum dusundu / token gecersiz
       if (res.status === 401) {
         setSessionToken(null);
+        notifySessionExpired();
         lastSyncError = 'Oturumunuz sona erdi. Yeniden giriş yapın.';
         return null;
       }
@@ -293,3 +294,4 @@ export async function remoteLogin(
     clearTimeout(timer);
   }
 }
+

@@ -250,3 +250,48 @@ t('status ucu sessionSecretSet bildiriyor (sir sizmadan)', () => {
 console.log(LF + d + ' koruma testi gecti, ' + f + ' kaldi.' + LF);
 
 
+
+/*
+  OTURUM BITINCE OTOMATIK GIRIS EKRANINA GECIS
+  --------------------------------------------
+  SESSION_SECRET degistiginde tum oturumlar aninda gecersizlesir.
+  Panel once sadece mesaj gosteriyordu; kullanici Ayarlar ekraninda
+  oturup "Baglantiyi Test Et"e basmaya devam ediyor, hep ayni hatayi
+  aliyordu ("baglanti testi yapamiyorum").
+
+  Artik her 401'de kullanici OTOMATIK giris ekranina gecirilir.
+*/
+const sessSrc = readFileSync(join(here, '..', 'src', 'lib', 'session-token.ts'), 'utf8');
+
+console.log('\n== Oturum bitince otomatik yonlendirme ==');
+
+t('session-token oturum sona erdi olayi yayinliyor', () => {
+  assert.ok(
+    /onSessionExpired/.test(sessSrc),
+    'uyari olayi tanimli degil'
+  );
+  assert.ok(/notifySessionExpired/.test(sessSrc), 'bildirim fonksiyonu yok');
+});
+
+t('App.tsx 401 olayini dinleyip oturumu kapatiyor', () => {
+  assert.ok(
+    /onSessionExpired\(\(\) =>/.test(appSrc),
+    'App.tsx oturum sonunu dinlemiyor'
+  );
+  assert.ok(
+    /removeItem\('zula_suite_session'\)/.test(appSrc.slice(appSrc.indexOf('onSessionExpired'))),
+    'eski oturum izi temizlenmiyor'
+  );
+});
+
+t('401 alan istemci katmanlari olayi tetikliyor', () => {
+  for (const f of ['slack.ts', 'members-api.ts']) {
+    const s = readFileSync(join(here, '..', 'src', 'lib', f), 'utf8');
+    assert.ok(
+      /notifySessionExpired\(\)/.test(s),
+      f + ': 401 aldiginda kullaniciya bildirilmiyor'
+    );
+  }
+});
+
+console.log('\n' + d + ' koruma testi gecti, ' + f + ' kaldi.\n');

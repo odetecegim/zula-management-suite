@@ -8,7 +8,7 @@
  */
 
 import { apiUrl } from './sheets';
-import { authHeaders, setSessionToken } from './session-token';
+import { authHeaders, setSessionToken, notifySessionExpired } from './session-token';
 
 /** Sunucu Slack'a bagli mi? */
 let serverConfigured = false;
@@ -77,6 +77,7 @@ async function describeFailure(res: Response): Promise<string> {
     // Belirteci SIL: yoksa her denemede ayni 401 tekrarlanir ve
     // kullanici cikis yapmadan duzelemez.
     setSessionToken(null);
+    notifySessionExpired();
     return code === 'NO_SESSION'
       ? 'Oturum gerekli. Panele yeniden giriş yapın.'
       : 'Sunucu isteği reddetti (401). Oturumunuz sona ermiş olabilir — yeniden giriş yapın.';
@@ -228,4 +229,5 @@ export async function sendManualMessage(text: string): Promise<SlackResult> {
     };
   }
 }
+
 

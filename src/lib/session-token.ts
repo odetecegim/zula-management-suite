@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Oturum belirteci — TEK KAYNAK.
  *
  * Neden ayrı modül: hem `members-api.ts` hem `slack.ts`, oturum
@@ -43,6 +43,39 @@ export function getSessionToken(): string | null {
  * belirtecini göndermek zorunda. Yardımcı burada durur; her iki
  * istemci de buradan içe aktarır. Böylece başlığı unutmak imkânsız.
  */
+/*
+  OTURUM SONA ERDI BILDIRIMI — uygulama seviyesinde abonelik.
+
+  SORUN: SESSION_SECRET degistiginde (ornegin kullanici Vercel'e
+  eklediginde) TUM oturumlar aninda gecersizlesir. Panel "yeniden
+  giris yapin" dese bile kullanici Ayarlar ekraninda oturur,
+  Slack'a baska baska tiklar ve hep ayni hatayi alir; "baglanti
+  testi yapamiyorum" diye kilitlenir.
+
+  COZUM: Sunucu 401 dondugunde bu olay yayilir; App.tsx dinleyip
+  kullaniciyi DOGRUDAN giris ekranina gecirir.
+*/
+type SessionExpiredListener = () => void;
+const listeners = new Set<SessionExpiredListener>();
+
+/** Oturum bittiginde uygulamayi bilgilendir. (App.tsx kullanir) */
+export function onSessionExpired(fn: SessionExpiredListener): () => void {
+  listeners.add(fn);
+  return () => {
+    listeners.delete(fn);
+  };
+}
+
+/** Oturumun bittigini bildir. */
+export function notifySessionExpired(): void {
+  for (const fn of listeners) {
+    try {
+      fn();
+    } catch {
+      /* bir dinleyici hata verirse digerleri calismaya devam etsin */
+    }
+  }
+}
 export const authHeaders = (
   extra: Record<string, string> = {}
 ): Record<string, string> => {
