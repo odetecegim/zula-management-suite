@@ -8,7 +8,7 @@
  */
 
 import { apiUrl } from './sheets';
-import { authHeaders, setSessionToken, notifySessionExpired } from './session-token';
+import { authHeaders, setSessionToken } from './session-token';
 
 /** Sunucu Slack'a bagli mi? */
 let serverConfigured = false;
@@ -74,10 +74,12 @@ async function describeFailure(res: Response): Promise<string> {
   }
 
   if (res.status === 401) {
-    // Belirteci SIL: yoksa her denemede ayni 401 tekrarlanir ve
-    // kullanici cikis yapmadan duzelemez.
+    // GUVENLIK NOTU: Burada otomatik cikis YOK. Arka plan Slack
+    // cagrilari (bildirim, token kontrolu) de bu yolu kullanir;
+    // bunlarda otomatik cikis, giris-sonrasi atilma dongusu yaratir
+    // (ozellikle SESSION_SECRET tanimli degilken). Belirtec yine
+    // de silinir, ama cikis karari kullanicidadir.
     setSessionToken(null);
-    notifySessionExpired();
     return code === 'NO_SESSION'
       ? 'Oturum gerekli. Panele yeniden giriş yapın.'
       : 'Sunucu isteği reddetti (401). Oturumunuz sona ermiş olabilir — yeniden giriş yapın.';

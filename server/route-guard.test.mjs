@@ -284,12 +284,15 @@ t('App.tsx 401 olayini dinleyip oturumu kapatiyor', () => {
   );
 });
 
-t('401 alan istemci katmanlari olayi tetikliyor', () => {
+t('arka plan senkronu 401de otomatik cikis YAPMIYOR', () => {
+  // TASARIM (2026-10-06): arka plan senkronu 401 aldiginda otomatik
+  // cikis tetiklenmemeli; yoksa giris-sonrasi atilma dongusu olur.
+  // Cikis karari kullanicidadir (Oturumu Yenile dugmesi).
   for (const f of ['slack.ts', 'members-api.ts']) {
     const s = readFileSync(join(here, '..', 'src', 'lib', f), 'utf8');
     assert.ok(
-      /notifySessionExpired\(\)/.test(s),
-      f + ': 401 aldiginda kullaniciya bildirilmiyor'
+      !/notifySessionExpired\(\)/.test(s),
+      f + ': 401de otomatik cikis tetiklenmemeli'
     );
   }
 });

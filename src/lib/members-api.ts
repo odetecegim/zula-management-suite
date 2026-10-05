@@ -10,7 +10,7 @@
  */
 import type { Member } from '../types';
 import { loadSheetSettings, apiUrl } from './sheets';
-import { authHeaders, setSessionToken, notifySessionExpired } from './session-token';
+import { authHeaders, setSessionToken } from './session-token';
 
 /**
  * Zaman asimi (ms).
@@ -110,10 +110,15 @@ async function call<T>(
         return null;
       }
 
-      // 401: oturum dusundu / token gecersiz
+      // 401: oturum dusundu / token gecersiz.
+      // NOT: Burada OTOMATIK cikis YAPILMIYOR. Nedeni: Vercel'de
+      // SESSION_SECRET tanimli degilse her serverless ornegi farkli
+      // gecici anahtar uretir; login A orneginden gecer, sonraki
+      // senkron B ornegine duser -> 401. Otomatik cikis aciksa
+      // kullanici giris yapar yapmaz panel onu geri atar (dongu).
+      // Bu yuzden arka plan senkronu sadece hata yazar; cikisi
+      // kullanici bilerek yapar ("Oturumu Yenile" dugmesi).
       if (res.status === 401) {
-        setSessionToken(null);
-        notifySessionExpired();
         lastSyncError = 'Oturumunuz sona erdi. Yeniden giriş yapın.';
         return null;
       }
