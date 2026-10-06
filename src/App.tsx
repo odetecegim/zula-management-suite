@@ -22,6 +22,7 @@ import { ReportsView } from './components/ReportsView';
 import { LogsView } from './components/LogsView';
 import { SettingsView } from './components/SettingsView';
 import { SheetsView } from './components/SheetsView';
+import { SlackConfigView } from './components/SlackConfigView';
 import LanguageSelectionOverlay from './components/LanguageSelectionOverlay';
 import {
   INITIAL_MEMBERS,
@@ -719,19 +720,12 @@ const canEditPerformance =
   };
 
   /*
-    ZORLA OTURUM YENILEME
-    ----------------------
-    Sunucu bir uctan "401 / oturum gerekli" dondugunde kullaniciya sadece
-    "yeniden giris yapin" mesaji gosteriliyordu. Ama panelde cikis dugmesi
-    sol menusunun altinda, kucuk ve gizli bir konumda; kullanici bu
-    hatayi alinca NEREDEN cikacagini bilmiyor ve ayni hatayi defalarca
-    tekrar ediyordu.
-
-    Cozum: Ayarlar ekranindaki hata mesajinin altinda dogrudan
-    "Oturumu Yenile" dugmesi gorunur; tiklayinca giris ekranina gecilir.
+    ZORLA OTURUM YENILEME (Slack sekmesindeki "Oturumu Yenile" dugmesi)
+    Sunucu 401 dondugunde kullaniciya sadece "yeniden giris yapin" mesaji
+    gosteriliyordu; cikis dugmesi menunun altinda gizliydi. Dugme tiklaninca
+    hem sunucu hem yerel oturum temizlenir, giris ekranina gecilir.
   */
   const handleForceRelogin = () => {
-    // Sunucudaki eski oturumu da kapat (best-effort; hata yutulur).
     try {
       void fetch(apiUrl('/api/sheets/logout'), {
         method: 'POST',
@@ -741,7 +735,6 @@ const canEditPerformance =
     } catch {
       /* sunucu kapali olabilir; onemsiz */
     }
-    // Yerel oturumu da temizle ki yeni giris temiz baslasin.
     setSessionToken(null);
     setCurrentUserId(null);
     setCurrentTab('dashboard');
@@ -1175,6 +1168,8 @@ const canEditPerformance =
                 ? 'Sistem Kayıtları'
                 : activeTab === 'sheets'
                 ? 'Google Sheets'
+                : activeTab === 'slack'
+                ? 'Slack Bildirimleri'
                 : activeTab === 'settings'
                 ? 'Ayarlar & Roller'
                 : 'Yetki Rolleri'}
@@ -1333,6 +1328,10 @@ const canEditPerformance =
             />
           )}
 
+          {activeTab === 'slack' && (
+            <SlackConfigView readOnly={isReadOnly} onForceRelogin={handleForceRelogin} />
+          )}
+
           {activeTab === 'settings' && (
             <SettingsView
               readOnly={isReadOnly}
@@ -1344,7 +1343,6 @@ const canEditPerformance =
               onReorderRoles={handleReorderRoles}
               simulateRoles={simulateRoles}
               onSimulateRoles={setSimulateRoles}
-              onForceRelogin={handleForceRelogin}
             />
           )}
         </main>

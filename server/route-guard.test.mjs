@@ -161,21 +161,30 @@ console.log('\n' + d + ' koruma testi gecti, ' + f + ' kaldi.\n');
   ama cikis dugmesi sol menusunun altinda gizliydi. Kullanici bu hatayi
   alinca nereden cikacagini bilmiyordu.
 
-  Artik hata mesajinin altinda dogrudan "Oturumu Yenile" dugmesi var.
+  Artik Slack sekmesinde hata mesajinin altinda dogrudan "Oturumu Yenile"
+  dugmesi var (SlackConfigView; Ayarlar'dan tasindi).
 */
 const settingsSrc = readFileSync(join(here, '..', 'src', 'components', 'SettingsView.tsx'), 'utf8');
+const slackViewSrc = readFileSync(join(here, '..', 'src', 'components', 'SlackConfigView.tsx'), 'utf8');
 const appSrc = readFileSync(join(here, '..', 'src', 'App.tsx'), 'utf8');
 
 console.log('\n== Oturum yenileme yolu ==');
 
-t('Ayarlar ekraninda giris ekranina donen dugme var', () => {
+t('Slack sekmesinde giris ekranina donen dugme var', () => {
   assert.ok(
-    /onForceRelogin/.test(settingsSrc),
-    'Ayarlar ekraninda oturum yenileme dugmesi yok'
+    /onForceRelogin/.test(slackViewSrc),
+    'Slack sekmesinde oturum yenileme dugmesi yok'
   );
   assert.ok(
-    /needsLogin/.test(settingsSrc),
+    /needsLogin/.test(slackViewSrc),
     'hata metnine gore dugmenin gorunurlugu belirlenmiyor'
+  );
+});
+
+t('Slack sekmesi Ayarlardan tasindi, Ayarlarda kopyasi kalmadi', () => {
+  assert.ok(
+    !/onForceRelogin/.test(settingsSrc),
+    'Ayarlar ekraninda eski oturum yenileme dugmesi kalmis'
   );
 });
 
@@ -187,10 +196,10 @@ t('App.tsx oturumu gercekten temizliyor', () => {
   assert.ok(/setCurrentUserId\(null\)/.test(block), 'kullanici oturumu kapatilmiyor');
 });
 
-t('SettingsViewa gerekli prop geciriliyor', () => {
+t('Slack sekmesine gerekli prop geciriliyor', () => {
   assert.ok(
     /onForceRelogin=\{handleForceRelogin\}/.test(appSrc),
-    'App, SettingsViewa onForceRelogin gecirmiyor'
+    'App, Slack sekmesine onForceRelogin gecirmiyor'
   );
 });
 

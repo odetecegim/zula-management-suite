@@ -1,16 +1,9 @@
-﻿import React, { useState, useEffect } from 'react';
-import { ShieldCheck, Plus, Edit3, X, Check, KeyRound, Shield, Users, Trash2, Layers, AlertTriangle, GripVertical, ArrowUp, ArrowDown, Send, Loader2, CheckCircle2, LogIn } from 'lucide-react';
+import React, { useState } from 'react';
+import { ShieldCheck, Plus, Edit3, X, Check, KeyRound, Shield, Users, Trash2, Layers, AlertTriangle, GripVertical, ArrowUp, ArrowDown } from 'lucide-react';
 import { ALL_PERMISSIONS } from '../data/initialData';
 import { getRoleLevel, roleLevelLabel } from '../lib/roles';
-import { testSlackConnection, sendManualMessage, checkSlackToken } from '../lib/slack';
 import type { Member, RoleDef, RoleId, PermissionId } from '../types';
 
-/** Slack'in resmi 4 nokta logosu (lucide'de marka ikonu yok). */
-const SlackIcon: React.FC<{ className?: string }> = ({ className = 'w-4 h-4' }) => (
-  <svg viewBox="0 0 24 24" className={className} fill="currentColor" aria-hidden="true">
-    <path d="M5.042 15.165a2.528 2.528 0 0 1-2.52 2.523A2.528 2.528 0 0 1 0 15.165a2.527 2.527 0 0 1 2.522-2.52h2.52v2.52zm1.271 0a2.527 2.527 0 0 1 2.521-2.52 2.527 2.527 0 0 1 2.521 2.52v6.313A2.528 2.528 0 0 1 8.834 24a2.528 2.528 0 0 1-2.521-2.522v-6.313zM8.834 5.042a2.528 2.528 0 0 1-2.52-2.52A2.528 2.528 0 0 1 8.834 0a2.528 2.528 0 0 1 2.521 2.522v2.52H8.834zm0 1.269a2.528 2.528 0 0 1 2.52 2.522 2.528 2.528 0 0 1-2.52 2.52H2.52V8.833a2.528 2.528 0 0 1 2.522-2.52h2.792zm9.334 9.334a2.528 2.528 0 0 1 2.52 2.52 2.528 2.528 0 0 1-2.52 2.522h-2.52v-2.52a2.528 2.528 0 0 1 2.52-2.522 2.528 2.528 0 0 1 2.52 2.522v-.002zm-1.272 0a2.528 2.528 0 0 1-2.52-2.52 2.528 2.528 0 0 1 2.52-2.52h6.314a2.528 2.528 0 0 1 2.522 2.52 2.528 2.528 0 0 1-2.522 2.52h-6.314zM18.166 5.042a2.528 2.528 0 0 1 2.521-2.52A2.528 2.528 0 0 1 24 5.042a2.527 2.527 0 0 1-2.522 2.52h-2.52V5.042h-.833zm0 1.269a2.528 2.528 0 0 1 2.521 2.521 2.528 2.528 0 0 1-2.521 2.521v6.314a2.528 2.528 0 0 1 2.521 2.522 2.528 2.528 0 0 1 2.522-2.522V6.31zM8.834 18.166a2.528 2.528 0 0 1 2.522 2.52A2.528 2.528 0 0 1 8.834 24a2.528 2.528 0 0 1-2.52-2.522v-2.52h2.52v-.334zm0-1.268a2.528 2.528 0 0 1-2.52-2.522 2.528 2.528 0 0 1 2.52-2.52h6.313a2.528 2.528 0 0 1 2.522 2.52 2.528 2.528 0 0 1-2.522 2.52H8.834z" />
-  </svg>
-);
 
 interface SettingsProps {
   readOnly?: boolean;
@@ -23,13 +16,6 @@ interface SettingsProps {
   onReorderRoles: (ordered: RoleId[]) => void;
   simulateRoles: RoleId[];
   onSimulateRoles: (roles: RoleId[]) => void;
-  /**
-   * Oturum gecersiz oldugunda kullaniciyi dogrudan giris ekranina
-   * gonderir. once sadece "yeniden giris yapin" mesaji gosteriliyordu
-   * ama paneldeki cikis dugmesi sol menusunun altinda gizliydi;
-   * kullanici hatayi alinca nereden cikacagini bilmiyordu.
-   */
-  onForceRelogin: () => void;
 }
 
 const BADGE_PALETTE = [
@@ -52,7 +38,6 @@ export const SettingsView: React.FC<SettingsProps> = ({
   onReorderRoles,
   simulateRoles,
   onSimulateRoles,
-  onForceRelogin,
 }) => {
   const [editing, setEditing] = useState<RoleDef | null>(null);
   const [isNew, setIsNew] = useState(false);
@@ -61,86 +46,6 @@ export const SettingsView: React.FC<SettingsProps> = ({
   const [formPerms, setFormPerms] = useState<PermissionId[]>([]);
   const [formColor, setFormColor] = useState<string>(BADGE_PALETTE[0]);
   const [error, setError] = useState<string | null>(null);
-
-  /* ---- SLACK BILDIRIMLERI ---- */
-  const [slackStatus, setSlackStatus] = useState<'idle' | 'testing' | 'ready' | 'error'>('idle');
-  const [slackMessage, setSlackMessage] = useState('');
-  const [slackSending, setSlackSending] = useState(false);
-const [slackChecking, setSlackChecking] = useState(false);
-
-  /*
-    SESSION_SECRET TANIMLI MI?
-    --------------------------
-    SESSION_SECRET yoksa sunucu her deploy'da degisen gecici bir
-    imzalama anahtari uretir. Sonuc: kullanici her deploy'da oturumunu
-    kaybeder ve "oturumun suresi doldu" gorur — oysa 12 saati hic
-    dolmamistir.
-
-    Bu bayrak sayesinde kullaniciya GERCEK nedeni soyleyebiliriz.
-    (Sir degeri ASLA isteklenmez; sadece "var mi" bilgisi gelir.)
-  */
-  const [sessionSecretSet, setSessionSecretSet] = useState<boolean | null>(null);
-
-  useEffect(() => {
-    let cancelled = false;
-    fetch('/api/sheets/status')
-      .then((r) => (r.ok ? r.json() : null))
-      .then((d) => {
-        if (!cancelled && d) setSessionSecretSet(d.sessionSecretSet === true);
-      })
-      .catch(() => {
-        /* sunucu kapali olabilir; sessizce gec */
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-  const [slackNotice, setSlackNotice] = useState<{ ok: boolean; text: string } | null>(null);
-
-  // Hata "yeniden giriş yapın" gerektiriyor mu? (401 / oturum gerekli)
-  // Öyleyse kullanıcıya sadece mesaj değil, ÇÖZÜM DÜĞMESİ gösterilir.
-  const needsLogin = Boolean(
-    slackNotice &&
-      !slackNotice.ok &&
-      /oturum|giriş yap|401/i.test(slackNotice.text)
-  );
-
-  const handleSlackTest = async () => {
-    if (readOnly) return;
-    setSlackStatus('testing');
-    setSlackNotice(null);
-    const res = await testSlackConnection();
-    if (res.ok) {
-      setSlackStatus('ready');
-      setSlackNotice({ ok: true, text: res.message || 'Test mesajı gönderildi.' });
-    } else if (!res.configured) {
-      setSlackStatus('idle');
-      setSlackNotice({ ok: false, text: res.message || 'Slack yapılandırılmamış.' });
-    } else {
-      setSlackStatus('error');
-      setSlackNotice({ ok: false, text: res.message || 'Bağlantı kurulamadı.' });
-    }
-  };
-
-  const handleSlackCheck = async () => {
-  if (readOnly) return;
-  setSlackChecking(true);
-  setSlackNotice(null);
-  const res = await checkSlackToken();
-  setSlackChecking(false);
-  setSlackNotice({ ok: res.ok, text: res.message });
-  if (res.ok) setSlackStatus('ready');
-};
-
-const handleSlackSend = async () => {
-    if (readOnly || !slackMessage.trim()) return;
-    setSlackSending(true);
-    setSlackNotice(null);
-    const res = await sendManualMessage(slackMessage.trim());
-    setSlackSending(false);
-    setSlackNotice({ ok: res.ok, text: res.message });
-    if (res.ok) setSlackMessage('');
-  };
 
   /* ==========================================================
      YER DEGISTIRLIGI (drag & drop + yukari/asagi oklari)
@@ -322,184 +227,7 @@ const handleSlackSend = async () => {
         )}
       </div>
 
-
-      {/*
-          SLACK BAGLANTISI
-          Webhook adresi sunucuda (SLACK_WEBHOOK_URL) tutulur ve
-          burada GOSTERILMEZ; panel yalnizca "bagli mi / degil mi"
-          bilgisini ve bir test mesaji gonderme yetkisini gorur.
-        */}
-        <div className="bg-slate-900/40 border border-slate-800/80 rounded-2xl overflow-hidden">
-          <div className="p-4 sm:p-5 border-b border-slate-800 flex flex-wrap items-center justify-between gap-3">
-            <div>
-              <h3 className="text-sm font-bold text-white flex items-center gap-2">
-                <SlackIcon />
-                Slack Bildirimleri
-              </h3>
-              <p className="text-xs text-slate-400 mt-0.5">
-                Üye ekleme/güncelleme/silme ve güvenlik olayları kanala otomatik gider
-              </p>
-            </div>
-            <div className="flex items-center gap-2">
-              <span
-                className={
-                  'px-2.5 py-1 rounded-lg text-[11px] font-bold border ' +
-                  (slackStatus === 'ready'
-                    ? 'bg-emerald-500/10 text-emerald-300 border-emerald-500/30'
-                    : slackStatus === 'testing'
-                    ? 'bg-amber-500/10 text-amber-300 border-amber-500/30'
-                    : slackStatus === 'error'
-                    ? 'bg-rose-500/10 text-rose-300 border-rose-500/30'
-                    : 'bg-slate-800 text-slate-400 border-slate-700')
-                }
-              >
-                {slackStatus === 'ready'
-                  ? 'Bağlı'
-                  : slackStatus === 'testing'
-                  ? 'Test ediliyor…'
-                  : slackStatus === 'error'
-                  ? 'Bağlantı Hatası'
-                  : 'Bağlı Değil'}
-              </span>
-              {/*
-                TOKEN KONTROLU (mesaj GONDERMEZ)
-                "Baglantiyi Test Et" kanala GERCEK bir mesaj yazar.
-                Ayar yaparken kanali kirletmemek ve tokenin gecerli olup
-                olmadigini net gormek icin ayri bir kontrol butonu var.
-              */}
-              <button
-                onClick={handleSlackCheck}
-                disabled={readOnly || slackChecking}
-                title="Kanala mesaj göndermeden tokenı kontrol eder"
-                className="flex items-center gap-2 px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                {slackChecking ? (
-                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                ) : (
-                  <SlackIcon />
-                )}
-                Tokenı Kontrol Et
-              </button>
-              <button
-                onClick={handleSlackTest}
-                disabled={readOnly || slackStatus === 'testing'}
-                className="flex items-center gap-2 px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                {slackStatus === 'testing' ? (
-                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                ) : (
-                  <Send className="w-3.5 h-3.5" />
-                )}
-                Bağlantıyı Test Et
-              </button>
-            </div>
-          </div>
-
-          <div className="p-4 sm:p-5 space-y-4">
-            {/* Manuel mesaj */}
-            <div>
-              <label className="block text-xs font-semibold text-slate-400 mb-2">
-                Kanala Mesaj Gönder
-              </label>
-              <div className="flex flex-col sm:flex-row gap-2">
-                <input
-                  type="text"
-                  value={slackMessage}
-                  onChange={(e) => setSlackMessage(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter' && !readOnly) handleSlackSend();
-                  }}
-                  placeholder="Örn: Yarın 20:00'de moderatör toplantısı var."
-                  maxLength={500}
-                  className="flex-1 bg-slate-950 border border-slate-800 rounded-xl px-3 py-2.5 text-sm text-white outline-none focus:border-indigo-500 placeholder:text-slate-600"
-                />
-                <button
-                  onClick={handleSlackSend}
-                  disabled={readOnly || !slackMessage.trim() || slackSending}
-                  className="px-4 py-2.5 rounded-xl bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700 text-white text-xs font-bold transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap"
-                >
-                  {slackSending ? 'Gönderiliyor…' : 'Gönder'}
-                </button>
-              </div>
-              <p className="text-[10px] text-slate-500 mt-1.5">
-                {slackMessage.length}/500 karakter
-              </p>
-            </div>
-
-            {slackNotice && (
-              <div
-                className={
-                  'flex items-center gap-2 text-xs rounded-xl px-3 py-2 border ' +
-                  (slackNotice.ok
-                    ? 'text-emerald-300 bg-emerald-500/10 border-emerald-500/20'
-                    : 'text-amber-300 bg-amber-500/10 border-amber-500/20')
-                }
-              >
-                {slackNotice.ok ? (
-                  <CheckCircle2 className="w-4 h-4 shrink-0" />
-                ) : (
-                  <AlertTriangle className="w-4 h-4 shrink-0" />
-                )}
-                {slackNotice.text}
-              </div>
-            )}
-
-            {/* Oturum hatasinda dogrudan cozum: giris ekranina gec */}
-            {needsLogin && (
-              <button
-                onClick={onForceRelogin}
-                className="flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-amber-500/20 hover:bg-amber-500/30 text-amber-200 text-xs font-bold border border-amber-500/30 transition-colors cursor-pointer"
-              >
-                <LogIn className="w-4 h-4" />
-                Oturumu Yenile — Giriş Ekranına Dön
-              </button>
-            )}
-
-            {/* SESSION_SECRET tanimli degilse oturumlar her deploy'da
-                sifirlanir; kullaniciya GERCEK nedeni soyleyelim. */}
-            {sessionSecretSet === false && (
-              <div className="flex items-start gap-2 p-3.5 rounded-xl bg-rose-500/10 border border-rose-500/25 text-[11px] text-rose-200 leading-relaxed">
-                <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
-                <div>
-                  <div className="font-bold mb-1">Sürekli oturum kapanmasının nedeni bulundu</div>
-                  Sunucuda <b>SESSION_SECRET</b> ortam değişkeni tanımlı değil. Bu durumda sunucu
-                  her yeniden başlatmada geçici bir imzalama anahtarı üretir; bu yüzden oturumunuz
-                  12 saat dolmadan kapanır ve &quot;oturumun süresi doldu&quot; hatası görürsünüz.
-                  <div className="mt-1.5 text-rose-300/90">
-                    Çözüm: Vercel → Settings → Environment Variables →{' '}
-                    <b>SESSION_SECRET</b> → herhangi bir uzun rastgele metin (örn.{' '}
-                    <code className="px-1 py-0.5 rounded bg-black/30">
-                      a8f3k2m9x7q1p5r8t4v6w0z3n6b1c9d5f2h7j0k4l8
-                    </code>
-                    ) → Production için kaydet → yeniden deploy edin.
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {/* Kurulum yardimi */}
-            <div className="p-3.5 rounded-xl bg-slate-950/60 border border-slate-800 text-[11px] text-slate-400 leading-relaxed space-y-1.5">
-              <div className="font-bold text-slate-300 text-xs mb-1">Bağlantı nasıl kurulur?</div>
-              <p>1. Slack uygulamasında <b className="text-slate-300">Incoming Webhooks</b> oluşturun.</p>
-              <p>2. Bildirimlerin düşeceği kanalı seçin (örn. <code className="text-indigo-300">#zula-bildirim</code>).</p>
-              <p>
-                3. Webhook adresini <b className="text-slate-300">Vercel</b> → Settings → Environment Variables →{' '}
-                <code className="text-indigo-300">SLACK_WEBHOOK_URL</code> olarak ekleyip deploy'u yenileyin.
-              </p>
-              <p className="text-slate-500">
-                Alternatif: bot kullanıyorsanız <code className="text-indigo-300">SLACK_BOT_TOKEN</code> (xoxb-…) ve{' '}
-                <code className="text-indigo-300">SLACK_CHANNEL_ID</code> (kanal kimliği) ekleyin — bu yol bot
-                üzerinden çalışır.
-              </p>
-              <p className="text-slate-500 pt-1 border-t border-slate-800">
-                Güvenlik: Webhook adresi sunucuda saklanır, tarayıcıya hiç gönderilmez. Panel yalnızca sunucuya
-                bildirir; mesajı sunucu iletir.
-              </p>
-            </div>
-          </div>
-        </div>
-
-        {/* Rol listesi */}
+      {/* Rol listesi */}
       <div className="bg-slate-900/40 border border-slate-800/80 rounded-2xl overflow-hidden">
         <div className="p-4 sm:p-5 border-b border-slate-800 flex items-center justify-between">
           <div>

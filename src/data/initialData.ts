@@ -13,6 +13,7 @@ export const ALL_PERMISSIONS: PermissionDef[] = [
   { id: 'tests', label: 'Test Oturumları', description: 'Test oturumu oluşturma ve durum yönetimi' },
   { id: 'settings', label: 'Ayarlar & Roller', description: 'Rol simülasyonu ve rol/izin yönetimi' },
   { id: 'sheets', label: 'Google Sheets', description: 'Tablodan veri çekme, Toplam/QA hesaplama ve panele aktarma' },
+  { id: 'slack', label: 'Slack Bildirimleri', description: 'Kanala test ve bildirim mesajı gönderme' },
 ];
 
 export const ALL_PERMISSION_IDS: PermissionId[] = ALL_PERMISSIONS.map((p) => p.id);
@@ -59,8 +60,8 @@ export function normalizePermissions(
 }
 
 export const INITIAL_ROLES: RoleDef[] = [
-  { id: 'super_admin', name: 'Süper Yönetici', badgeColor: 'bg-red-500/10 text-red-400 border-red-500/20', description: 'Tüm yetkilere sahip ana yönetici', permissions: ['dashboard', 'members', 'performance', 'reports', 'academy', 'referees', 'roles', 'logs', 'tests', 'settings', 'sheets'] },
-  { id: 'company_manager', name: 'Şirket Yöneticisi', badgeColor: 'bg-purple-500/10 text-purple-400 border-purple-500/20', description: 'Operasyon ve ekip koordinatörü', permissions: ['dashboard', 'members', 'performance', 'reports', 'academy', 'referees', 'roles', 'logs', 'tests', 'settings', 'sheets'] },
+  { id: 'super_admin', name: 'Süper Yönetici', badgeColor: 'bg-red-500/10 text-red-400 border-red-500/20', description: 'Tüm yetkilere sahip ana yönetici', permissions: ['dashboard', 'members', 'performance', 'reports', 'academy', 'referees', 'roles', 'logs', 'tests', 'settings', 'sheets', 'slack'] },
+  { id: 'company_manager', name: 'Şirket Yöneticisi', badgeColor: 'bg-purple-500/10 text-purple-400 border-purple-500/20', description: 'Operasyon ve ekip koordinatörü', permissions: ['dashboard', 'members', 'performance', 'reports', 'academy', 'referees', 'roles', 'logs', 'tests', 'settings', 'sheets', 'slack'] },
   { id: 'company_staff', name: 'Şirket Çalışanı', badgeColor: 'bg-slate-500/10 text-slate-300 border-slate-500/20', description: 'Yönetim kadrosu; performans listelerinde yer almaz', permissions: ['dashboard', 'members', 'logs'] },
   { id: 'academy_member', name: 'Akademi Üyesi', badgeColor: 'bg-amber-500/10 text-amber-300 border-amber-500/20', description: 'Akademi test ekibi üyesi; kendi performansını girer', permissions: ['dashboard', 'academy', 'performance', 'reports'] },
   { id: 'fedai_member', name: 'Fedai Üyesi', badgeColor: 'bg-yellow-500/10 text-yellow-400 border-yellow-500/20', description: 'Fedai eğitim ekibi üyesi', permissions: ['dashboard', 'academy'] },
@@ -99,7 +100,7 @@ export const INITIAL_MEMBERS: Member[] = [
     password: 'admin123',
     permissions: [
       'dashboard', 'members', 'performance', 'reports', 'academy',
-      'referees', 'roles', 'logs', 'tests', 'settings', 'sheets',
+      'referees', 'roles', 'logs', 'tests', 'settings', 'sheets', 'slack',
     ],
   },
 ];

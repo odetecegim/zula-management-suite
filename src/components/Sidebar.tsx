@@ -13,6 +13,7 @@ import {
   ScrollText,
   Settings,
   Sheet,
+  MessageSquare,
   Globe,
   Check,
   X,
@@ -137,6 +138,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
     { id: 'logs', labelKey: 'navLogs', icon: ScrollText, groupKey: 'navSystem' },
     { id: 'settings', labelKey: 'navSettings', icon: Settings, groupKey: 'navSystem' },
     { id: 'sheets', labelKey: 'navSheets', icon: Sheet, groupKey: 'navSystem' },
+    { id: 'slack', labelKey: 'navSlack', icon: MessageSquare, groupKey: 'navSystem' },
   ];
 
   // Yetkisi olmayan sekmeler menüde görünmez
