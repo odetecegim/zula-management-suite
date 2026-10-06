@@ -18,6 +18,7 @@ process.env.SHEETS_SPREADSHEET_ID = '1VARSAYILAN_TABLO_KIMLIGI';
 
 const { handleApi } = await import('./route-handler.js');
 const svc = await import('./sheets-service.js');
+const { createSessionToken } = await import('./auth.js');
 const assert = (await import('node:assert/strict')).default;
 
 let d = 0,
@@ -38,12 +39,17 @@ const t = async (name, fn) => {
 const MEMBER_HEADERS = [
   'id', 'tagId', 'fullName', 'gameNickname', 'playerId', 'discordTag',
   'email', 'game', 'region', 'role', 'status', 'joinDate',
+  'participationScore', 'bugReportsCount', 'notes', 'username',
+  'passwordHash', 'permissions',
 ];
 const MEMBER_ROW = [
   'm-1', 'ZULA-001', 'Hüseyin Çalışkan', 'Odetecegim', '758547576',
   'odetecegim#0001', 'huseyin@odetecegim.dev', 'Zula PC', 'TR',
   'super_admin', 'Aktif', '2025-01-10',
+  '0', '0', 'Sistem Yöneticisi', 'huseyin', 'scrypt$SAHIP_DEGERI', 'dashboard,members',
 ];
+/** passwordHash sutununun indeksi (onizlemede maskelenmeli) */
+const PWD_IDX = MEMBER_HEADERS.indexOf('passwordHash');
 
 const BOOK = {
   sheets: ['Sayfa1', 'ModBot.log', 'İşlem Logları', 'UyeListesi'],
@@ -145,12 +151,24 @@ await t('/test dogru sekmeyi okur ve varsayilan tablo kimligini DONDURMEZ', asyn
   assert.equal(r.body.headerCount, MEMBER_HEADERS.length, 'baslik sayisi uye tablosundan gelmeli');
 });
 
-await t('/headers uye basliklarini dondurur (log onizlemesi degil)', async () => {
+await t('/headers oturumsuz 401 dondurur (uye satiri herkese acik degil)', async () => {
   const r = await handleApi('POST', ['headers'], {}, {});
+  assert.equal(r.status, 401, 'oturumsuz istek 401 almali, gelen ' + r.status);
+  assert.equal(r.body.code, 'NO_SESSION');
+});
+
+await t('/headers uye basliklarini dondurur, passwordHash ONIZLEMEDE maskeli', async () => {
+  const token = createSessionToken('m-1');
+  const r = await handleApi('POST', ['headers'], {}, { 'x-session-token': token });
   assert.equal(r.status, 200, 'status ' + r.status);
   assert.ok(r.body.headers.includes('fullName'), 'fullName basligi yok');
   assert.ok(r.body.headers.length > 0, 'basliklar bos');
   assert.equal(r.body.preview[0][2], 'Hüseyin Çalışkan', 'onizleme uye satiri olmali');
+  assert.equal(
+    r.body.preview[0][PWD_IDX],
+    '•••',
+    'passwordHash degeri onizlemeye acik cikmamali'
+  );
 });
 
 await t('istemci kendi tablo kimligini gonderirse echo devam eder', async () => {

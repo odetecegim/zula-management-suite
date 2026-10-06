@@ -85,9 +85,11 @@ const PUBLIC_ENDPOINTS = new Set([
   // yalnizca token'in gecerli olup olmadigini soyler ve hicbir sirri
   // istemciye dondurmez; bu yuzden acik birakilmistir.
   'slack-check',
-  // --- Salt-okunur tani uclari (uye satiri sizdirmaz) ---
-  'test',      // Sheets erisimi var mi? (okuma yapar, yazma yok)
-  'headers',   // sutun basliklari — yalnizca alan adlari
+  // --- Salt-okunur tani uclari ---
+  // 'headers' ARTIK BURADA DEGIL (2026-10-06): cozumleme dogrulastiktan
+  // sonra uc, UyeListesi onizlemesini (uye satiri + passwordHash) herkese
+  // acik donduyordu. Artik oturum ister; panel zaten girisli calisir.
+  'test',      // Sheets erisimi var mi? (yalnizca sayi/baslik sayisi)
 ]);
 
 /**
@@ -309,11 +311,18 @@ export async function handleApi(method, segments, body = {}, headers = {}) {
         // test ile AYNI cozumleme: basliklar hep panelin veri sekmesinden okunur
         const range = await resolveDataSheet({ spreadsheetId, range: rangeOf(body) });
         const { headers, rows } = await readValues({ spreadsheetId, range });
+        // GUVENLIK: onizlemede SIR DUYARLI SUTUN DEGERLERI gosterilmez
+        // (passwordHash / token / secret). Baslik adlari kalir, deger
+        // maskelenir; uye satiri okuyan bu uc artik oturum da ister.
+        const secretIdx = headers
+          .map((h, i) => (/password|sifre|hash|token|secret/i.test(String(h)) ? i : -1))
+          .filter((i) => i >= 0);
+        const mask = (row) => row.map((v, i) => (secretIdx.includes(i) ? '•••' : v));
         return ok({
           headers,
           columnMap: autoMapColumns(headers),
           fieldLabels: FIELD_LABELS,
-          preview: rows.slice(0, 5),
+          preview: rows.slice(0, 5).map(mask),
           rowCount: rows.length,
         });
       }
