@@ -1,80 +1,83 @@
 /**
- * SLACK BILDIRIMLERI (server/slack.js)
+ * SLACK BILDIRIMLERI (server/slack.js) — SIFIRDAN YAZIM (2026-10-06)
  *
- * ONEMLI GUVENLIK KURALI:
- * Slack "Incoming Webhook" adresi bir SIRDIR (kimse girerse kanala
- * mesaj atabilir). Bu adres ASLA istemciye (tarayiciya) gonderilmez.
- * Tum bildirimler sunucu tarafindan yapilir; panel yalnizca
- * "ne oldu" bilgisini API'ye gonderir.
+ * GUVENLIK KURALI:
+ * Slack "Incoming Webhook" adresi ve bot token'i SIRDIR; asla istemciye
+ * (tarayiciya) gonderilmez. Tum bildirimler sunucu tarafindan yapilir;
+ * panel yalnizca "ne oldu" bilgisini API'ye gonderir.
  *
- * Boylece biri tarayici gelistirici konsolundan webhook adresini
- * okuyamaz.
+ * IKI YOL DESTEKLENIR:
+ *   A) INCOMING WEBHOOK  : SLACK_WEBHOOK_URL = https://hooks.slack.com/services/...
+ *   B) BOT TOKEN + KANAL : SLACK_BOT_TOKEN (xoxb-...) + SLACK_CHANNEL_ID (C...)
+ *      chat.postMessage kullanir. Ikisi birden varsa B tercih edilir.
+ *   Hicbiri tanimli degilse modul sessizce bos gecer (panel calisir).
  *
  * KURULUM:
- *   1) Slack -> Apps -> Incoming Webhooks -> Add to Slack
- *   2) Bir kanal sec (ornegin #zula-bildirim)
- *   3) URL'yi Vercel'e environment variable olarak ekle:
- *        SLACK_WEBHOOK_URL = https://hooks.slack.com/services/...
+ *   1) Slack -> Apps -> Incoming Webhooks -> Add to Slack  (yol A)
+ *      veya Slack -> Your Apps -> OAuth -> Bot User OAuth Token (yol B)
+ *   2) Vercel > Environment Variables > Production altina ekleyin.
  *
- * URL tanimli degilse modul sessizce bos gecer (panel calisir).
+ * HATA YONETIMI ILKESI:
+ * - Bu modul ASLA istisna firlatmaz; hatalarda false + getSlackError()
+ *   dondurur. Panel asla cozulmez.
+ * - Slack API'si HTTP 200 ile `{"ok":false,"error":"..."}` donebilir;
+ *   govde MUTLAKA okunur ve gercek hata kodu (channel_not_found,
+ *   not_in_channel, missing_scope...) kullaniciya gosterilir.
  */
 
-/** Tum bildirimler icin ortak zaman asimi. */
+/** Tum Slack cagrilari icin ortak zaman asimi. */
 const SLACK_TIMEOUT_MS = 8000;
 
-/** Ortam degiskenlerinden okunan degerler (her cagrida taze). */
 /** Son Slack hata mesaji (panelde kullaniciya gosterilir). */
 let lastError = '';
 
-/** Son hata mesajini dondurur / temizler. */
+/** Son hata mesajini dondurur. */
 export function getSlackError() {
   return lastError;
 }
+
+/** Son hata mesajini temizler. */
 export function clearSlackError() {
   lastError = '';
 }
 
 /*
-  TOKEN NORMALIZASYONU — Vercel'e yapistirma hatalarini onler
-  ---------------------------------------------------------
-  SORUN: Ortam degiskenine yapistirilan token cogu zaman bozuk gelir.
-  Once surumde yalnizca `trim()` vardi; bu yuzden su durumlarda
-  `startsWith('xoxb-')` basarisiz oluyor ve kullaniciya "yeni token
-  uretin" deniyordu — oysa token'in kendisi dogruydu:
-
-    - Tırnak icine yapistirildi:      "xoxb-123-abc"
-    - Bearer oneki eklendi:            Bearer xoxb-123-abc
-    - Bas/son bosluk veya satir sonu
-    - Kopyalarken eksik/boluk karakter
-    - Slack'in "Token Settings" ekranindaki baslik satiri yapistirildi
-
-  Simdi bunlar TEK TEK tespit edilir ve kullaniciya NE YAPACAGI soylenir.
-  Guvenlik: token'in KENDISI hicbir mesajda gosterilmez; yalnizca
-  baslangic oneki ve toplam uzunluk gibi sir olmayan bilgi verilir.
-*/
+  TOKEN NORMALIZASYONU — Vercel'e yapistirma hatalarini onler.
+  Kullanici dogru xoxb- token'ini alir ama ortam degiskenine yapistirirken
+  bozulur: tirnak, "Bearer " oneki, bosluk ya da Slack ekranindaki baslik
+  satiri. Bunlar TEK TEK tespit edilir ve kullaniciya NE YAPACAGI soylenir.
+  GUVENLIK: token'in KENDISI hicbir mesajda gosterilmez; yalnizca
+  on ek / uzunluk gibi sir olmayan bilgi verilir.
+ */
 function normalizeToken(raw) {
   let value = String(raw || '').trim();
 
-  // Tırnak içine yapıştırma: "xoxb-..." veya 'xoxb-...'
+  // Tirnak icine yapistirma: "xoxb-..." veya 'xoxb-...'
   const unquoted = value.replace(/^["']|["']$/g, '').trim();
   if (unquoted !== value) {
-    value = unquoted;
-    return { value, problem: 'Tırnak işaretleri (") yapıştırılmıştı; kaldırıldı.' };
+    return {
+      value: unquoted,
+      problem: 'Tırnak işaretleri (") yapıştırılmıştı; kaldırıldı.',
+    };
   }
 
-  // "Bearer xoxb-..." biçiminde yapıştırma
+  // "Bearer xoxb-..." biciminde yapistirma
   if (/^bearer\s+/i.test(value)) {
-    value = value.replace(/^bearer\s+/i, '').trim();
-    return { value, problem: 'Baştaki "Bearer " ifadesi kaldırıldı.' };
+    return {
+      value: value.replace(/^bearer\s+/i, '').trim(),
+      problem: 'Baştaki "Bearer " ifadesi kaldırıldı.',
+    };
   }
 
-  // Slack arayüzünden kopyalanırken gelen başlık satırı:
-  // "Bot User OAuth Token" gibi metinlerden sonra token gelebilir.
+  // Slack arayuzundeki baslik satiriyla birlikte yapistirma:
+  // "Bot User OAuth Token: xoxb-..."
   if (/^xox[bp]-/.test(value) === false) {
     const m = value.match(/(xox[bap]-[A-Za-z0-9-]+)/);
     if (m) {
-      value = m[1];
-      return { value, problem: 'Metin içinden token çıkarıldı (başka karakterler vardı).' };
+      return {
+        value: m[1],
+        problem: 'Metin içinden token çıkarıldı (başka karakterler vardı).',
+      };
     }
   }
 
@@ -85,24 +88,7 @@ const webhookUrl = () => String(process.env.SLACK_WEBHOOK_URL || '').trim();
 const botToken = () => String(process.env.SLACK_BOT_TOKEN || '').trim();
 const channelId = () => String(process.env.SLACK_CHANNEL_ID || '').trim();
 
-/* ==================================================================
-   IKI YOL DESTEKLENIR
-   ------------------------------------------------------------------
-   A) INCOMING WEBHOOK  (basit)
-      SLACK_WEBHOOK_URL = https://hooks.slack.com/services/...
-      Kanal, webhook olusturulurken secilir.
-
-   B) BOT TOKEN + KANAL ID  (Slack API)
-      SLACK_BOT_TOKEN   = xoxb-...
-      SLACK_CHANNEL_ID  = C0XXXXXXXX
-      "chat.postMessage" API'sini kullanir; bot herhangi bir kanala
-      yazabilir, kanal ID ortam degiskeninde sabit kalir.
-
-   Ikisi birden tanimliysa B tercih edilir.
-   Hicbiri tanimli degilse modul sessizce bos gecer.
-   ================================================================== */
-
-/** Webhook adresi tanimli mi? (Ayarlar ekraninda gosterilir) */
+/** Webhook adresi tanimli mi? */
 export function isSlackConfigured() {
   return Boolean(webhookUrl() || (botToken() && channelId()));
 }
@@ -113,156 +99,45 @@ export function slackMode() {
   if (webhookUrl()) return 'webhook';
   return 'none';
 }
-
 /**
- * Bot token ile Slack API'ye mesaj gonderir (chat.postMessage).
+ * Slack API'ye POST atar (chat.postMessage, auth.test ...).
  *
- * ONCEKI SURUMUN HATASI: burada sadece `false` donuluyordu, Slack'in
- * gercek hata mesaji (or. "not_in_channel", "invalid_auth") yutuluyordu.
- * Bu yuzden panelde "Webhook adresine ulasilamadi" gorunuyordu ve
- * kullanici gercek nedeni ogrenemiyordu.
- *
- * Simdi: basarisizlikta son hata mesaji saklanir ve `slack-test`
- * ucu onu kullaniciya gosterir.
- *
- * @param {string} text   duz metin
- * @param {Array} blocks  istege bagli blok yapisi
- * @returns {Promise<boolean>} basarili mi
+ * DAVRANIS:
+ * - POST + JSON govde + `Authorization: Bearer <token>` (GET ile query'de
+ *   token tasimak yok).
+ * - Slack her zaman HTTP 200 donebilir; asil bilgi govdedeki ok/error'dir.
+ * - Asla istisna firlatmaz; { ok, data } veya { ok:false, error } dondurur.
+ * - Token hicbir hata mesajina GECMEZ (sir sizmasin).
  */
-async function postViaBotApi(text, blocks) {
-  // Ayni normalizasyon tanilama yolunda da kullanilir; boylece
-  // "Tokenı Kontrol Et" geçerli derken mesaj gonderme de basarili olur.
-  const { value: token } = normalizeToken(botToken());
-  const channel = channelId();
-  if (!token || !channel) {
-    lastError = 'SLACK_BOT_TOKEN veya SLACK_CHANNEL_ID eksik.';
-    return false;
-  }
-  // ADIM 8 — KANAL ADI YERINE ID KONTROLU (2026-10-06):
-  // Slack chat.postMessage `channel` olarak kanal ID ister (C/G/D ile
-  // baslayan kod). Kullanici #kanal-adi yapistirirsa Slack
-  // channel_not_found doner. Erken ve acik uyar.
-  if (/^[#]/.test(channel) || !/^[CGD][A-Z0-9]{8,}$/.test(channel)) {
-    lastError =
-      'SLACK_CHANNEL_ID kanal ADI gibi görünüyor (' +
-      channel.slice(0, 24) +
-      '). Kanal adı (örn. #genel) değil, Slack kanal ID’si (C ile başlayan kod) ' +
-      'kullanılmalıdır: kanala sağ tık → “Kanal bilgisini görüntüle” → en alttaki ID. ' +
-      '(Slack: channel_not_found)';
-    return false;
-  }
-
+async function callSlackApi(method, token, payload) {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), SLACK_TIMEOUT_MS);
   try {
-    const res = await fetch('https://slack.com/api/chat.postMessage', {
+    const res = await fetch('https://slack.com/api/' + method, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json; charset=utf-8',
         Authorization: 'Bearer ' + token,
       },
-      body: JSON.stringify({
-        channel,
-        text: String(text).slice(0, 3000),
-        ...(blocks ? { blocks } : {}),
-      }),
+      body: JSON.stringify(payload || {}),
       signal: controller.signal,
     });
-
-    if (!res.ok) {
-      lastError = 'Slack HTTP ' + res.status + ' — istek reddedildi.';
-      return false;
-    }
-
+    if (!res.ok) return { ok: false, error: 'http_' + res.status };
     const data = await res.json().catch(() => null);
-    if (data && data.ok === true) {
-      lastError = '';
-      return true;
-    }
-
-    // Slack API her zaman HTTP 200 doner; hata govde icinde gelir.
-    lastError = describeSlackError(data);
-    return false;
+    if (data && data.ok === true) return { ok: true, data };
+    return { ok: false, error: (data && data.error) || 'empty_response' };
   } catch (e) {
-    lastError =
-      e instanceof Error && e.name === 'AbortError'
-        ? 'Slack yanit vermedi (zaman aşımı).'
-        : 'Slack bağlantı hatası: ' + (e instanceof Error ? e.message : 'bilinmiyor');
-    return false;
+    return {
+      ok: false,
+      error: e && e.name === 'AbortError' ? 'timeout' : 'network_error',
+    };
   } finally {
     clearTimeout(timer);
   }
 }
 
-/** Slack API hata kodunu insanca cevirir. */
-function describeSlackError(data) {
-  if (!data) return 'Slack bos yanıt döndü.';
-  switch (data.error) {
-    case 'not_in_channel':
-      return (
-        'Bot bu kanalın ÜYESİ DEĞİL (Slack: not_in_channel). Kanala sağ tık → ' +
-        '“Uygulamalar” → botu kanala ekleyin (veya kanalda /invite @botadi yazın).'
-      );
-    case 'invalid_auth':
-      return 'SLACK_BOT_TOKEN geçersiz (Slack: invalid_auth). Yeni bir bot token üretip Vercel’e tekrar ekleyin.';
-    case 'channel_not_found':
-      return (
-        'SLACK_CHANNEL_ID bulunamadı (Slack: channel_not_found). Kanal kimliğini kontrol edin. ' +
-        'Kanal ADI (örn. #genel) değil, Slack kanal ID’si (C ile başlayan kod) kullanılmalıdır: ' +
-        'kanala sağ tık → “Kanal bilgisini görüntüle” → en alttaki ID.'
-      );
-    case 'account_inactive':
-    case 'token_revoked':
-      return 'Bot token iptal edilmiş (Slack: ' + data.error + '). Yeni token üretin.';
-    case 'no_permission':
-      return 'Bot’un bu kanala mesaj atma yetkisi yok (Slack: no_permission).';
-
-    /*
-      not_allowed_token_type — EN SIK GORULEN HATA
-      ------------------------------------------
-      Bu hata, Authorization basligindaki degerin bot tokeni OLMADIGINI
-      kanitlar. Yani gonderilen sey xoxb- degil; baska bir token turu.
-
-      Sik gorulen sebepler:
-        - User token (xoxp-) kullanilmis (bot token degil)
-        - "xoxb-" oneki olmadan, yalniz tokenin kendisi yapistirilmis
-        - App-level token (xapp-) kopyalanmis
-        - Eski / iptal edilmis bir token yapistirilmis
-
-      Kullaniciya NE YAPACAGINI soylemek icin ayri mesaj yazildi.
-    */
-    case 'not_allowed_token_type':
-      return (
-        'SLACK_BOT_TOKEN bir BOT TOKENI degil (Slack: not_allowed_token_type). ' +
-        'Değer "xoxb-" ile başlamalı. OAuth & Permissions → Bot Token Scopes → ' +
-        'Install to Workspace ile yeni xoxb- token üretip Vercel’e yapıştırın.'
-      );
-    case 'missing_scope':
-      return (
-        'Bot token’ın "chat:write" yetkisi yok (Slack: missing_scope). ' +
-        'OAuth & Permissions → Scopes → chat:write ekleyip uygulamayı yeniden kurun.'
-      );
-    default:
-      return 'Slack hatası: ' + (data.error || 'bilinmiyor');
-  }
-}
-
-/**
- * Slack'a metin mesaji gonderir.
- *
- * @param {string} text  mesaj metni
- * @returns {Promise<boolean>} gonderildi mi
- */
-export async function sendSlackMessage(text) {
-  if (!text) return false;
-  const msg = String(text).slice(0, 3000);
-
-  // Once bot token + kanal ID yolu (daha esnek yontem)
-  if (botToken() && channelId()) return postViaBotApi(msg, null);
-
-  const url = webhookUrl();
-  if (!url || !text) return false;
-
+/** Incoming Webhook'a duz metin POST eder. Istisna firlatmaz. */
+async function postToWebhook(url, text) {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), SLACK_TIMEOUT_MS);
   try {
@@ -274,7 +149,6 @@ export async function sendSlackMessage(text) {
     });
     return res.ok;
   } catch {
-    // Bildirim hatasi ASLA ana akisi bozmamali; sessizce gec.
     return false;
   } finally {
     clearTimeout(timer);
@@ -282,18 +156,175 @@ export async function sendSlackMessage(text) {
 }
 
 /**
- * Token ve kanal yapilandirmasini DIAGNOSTIK OLARAK dogrular.
+ * Slack API hata kodunu insanca cevirir — MESAJA HAM KODU EKLER.
+ * Panelde "Slack hatası: channel_not_found" gibi gercek kod gorunur;
+ * kullanici (ve biz) neden mesaj gitmedigini aninda anlar.
+ */
+function describeSlackError(error) {
+  const code = String(error || 'bilinmiyor');
+  switch (code) {
+    case 'not_in_channel':
+      return (
+        'Bot bu kanalın ÜYESİ DEĞİL (Slack: not_in_channel). Kanala sağ tık → ' +
+        '“Uygulamalar” → botu kanala ekleyin (veya kanalda /invite @botadi yazın).'
+      );
+    case 'invalid_auth':
+      return 'SLACK_BOT_TOKEN geçersiz (Slack: invalid_auth). Yeni bir bot token üretip Vercel’e tekrar ekleyin.';
+    case 'channel_not_found':
+      return (
+        'SLACK_CHANNEL_ID bulunamadı (Slack: channel_not_found). Kanal adı (örn. #genel) değil, ' +
+        'Slack kanal ID’si (C ile başlayan kod) kullanılmalıdır: kanala sağ tık → ' +
+        '“Kanal bilgisini görüntüle” → en alttaki ID.'
+      );
+    case 'account_inactive':
+    case 'token_revoked':
+      return 'Bot token iptal edilmiş (Slack: ' + code + '). Yeni token üretin.';
+    case 'no_permission':
+      return 'Bot’un bu kanala mesaj atma yetkisi yok (Slack: no_permission).';
+    case 'not_allowed_token_type':
+      return (
+        'SLACK_BOT_TOKEN bir BOT TOKENI degil (Slack: not_allowed_token_type). Değer “xoxb-” ile ' +
+        'başlamalı: OAuth & Permissions → Bot Token Scopes → Install to Workspace ile yeni xoxb- token üretin.'
+      );
+    case 'missing_scope':
+      return (
+        'Bot token’ın “chat:write” yetkisi yok (Slack: missing_scope). ' +
+        'OAuth & Permissions → Scopes → chat:write ekleyip uygulamayı yeniden kurun.'
+      );
+    case 'timeout':
+      return 'Slack yanıt vermedi (zaman aşımı). Bir süre sonra tekrar deneyin.';
+    case 'network_error':
+      return 'Slack API’ye bağlanılamadı (ağ hatası).';
+    case 'http_429':
+      return 'Slack istek sınırına takıldık (HTTP 429). Biraz bekleyip tekrar deneyin.';
+    default:
+      return 'Slack hatası: ' + code;
+  }
+}
+
+/**
+ * KANAL DEGERI KANAL ADI MI, ID MI? (chat.postMessage ID ister)
  *
- * NEDEN GEREKLI:
- * Once kullanici yalnizca "Baglantiyi Test Et" tiklayabiliyordu; bu da
- * kanala GERCEKTEN bir mesaj atiyordu. Ayarlar yaparken kanala bir
- * suru "test mesaji" birikmesi hem kirletici hem de hatayi gormek
- * icin kotu bir yontemdi.
+ * SIK YAPILAN HATA: SLACK_CHANNEL_ID alanina "#genel" gibi kanal ADI
+ * yapistirilir; Slack channel_not_found dondurur ve mesaj gitmez.
+ * Ag cagrisi YAPILMADAN, acik ve yonlendirici hata doner.
+ */
+function channelFormatProblem(channel) {
+  if (String(channel).startsWith('#')) {
+    return (
+      'SLACK_CHANNEL_ID kanal ADI gibi görünüyor (' +
+      String(channel).slice(0, 24) +
+      '). Kanal adı (örn. #genel) değil, Slack kanal ID’si (C ile başlayan kod) kullanılmalıdır: ' +
+      'kanala sağ tık → “Kanal bilgisini görüntüle” → en alttaki ID. (Slack: channel_not_found)'
+    );
+  }
+  if (!/^[CGD][A-Z0-9]{8,}$/i.test(String(channel))) {
+    return (
+      'SLACK_CHANNEL_ID değeri geçersiz görünüyor (' +
+      String(channel).slice(0, 24) +
+      '). Slack kanal ID’si C/G/D ile başlayan bir koddur: kanala sağ tık → ' +
+      '“Kanal bilgisini görüntüle” → en alttaki ID. (Slack: channel_not_found)'
+    );
+  }
+  return '';
+}
+/**
+ * Bot yolu ile mesaj gonderir: auth.test -> chat.postMessage.
  *
- * `auth.test` ucu:
- *   - Mesaj GONDERMEZ (kanal temiz kalir)
- *   - Tokenin GECERLI OLUP OLMADIGINI soyler
- *   - Botun hangi workspace'e bagli oldugunu dondurur
+ * ADIMLAR (ve nedenleri):
+ * 1) Kanal degeri gercek Slack ID mi? Degilse AGA CIKMA, acik hata don.
+ * 2) auth.test: token gercekten gecerli mi? (token kontrolu — mesaj GONDERMEZ)
+ * 3) chat.postMessage: asil gonderim. Slack `ok:false` donebilir; govde okunur,
+ *    gercek hata kodu kullaniciya gosterilir.
+ * 4) Yedek yol: yalnizca SLACK_WEBHOOK_URL TANIMLIYSA ve sorun token
+ *    kaynakliysa (invalid_auth) webhook'a duser; kanal sorununda yedek
+ *    YOKTUR — sebep acikca soylenir.
+ */
+async function postViaBotApi(text, blocks) {
+  const { value: token } = normalizeToken(botToken());
+  const channel = channelId();
+  if (!token || !channel) {
+    lastError = 'SLACK_BOT_TOKEN veya SLACK_CHANNEL_ID eksik.';
+    return false;
+  }
+
+  // 1) Kanal degeri kontrolu (ag cagrisi olmadan)
+  const channelProblem = channelFormatProblem(channel);
+  if (channelProblem) {
+    lastError = channelProblem;
+    return false;
+  }
+
+  // 2) Token dogrulamasi — mesaj GONDERMEZ
+  const who = await callSlackApi('auth.test', token, {});
+  if (!who.ok) {
+    const fallback = webhookUrl();
+    if (fallback) {
+      const fb = await postToWebhook(fallback, text);
+      lastError = fb
+        ? 'Bot tokeni doğrulanamadı (' +
+          who.error +
+          '); mesaj yedek yolla (Incoming Webhook) gönderildi.'
+        : 'Bot tokeni doğrulanamadı (' + who.error + '); yedek yol da başarısız.';
+      return fb;
+    }
+    lastError = describeSlackError(who.error);
+    return false;
+  }
+
+  // 3) Asil gonderim
+  const sent = await callSlackApi('chat.postMessage', token, {
+    channel,
+    text: String(text).slice(0, 3000),
+    ...(blocks && blocks.length ? { blocks } : {}),
+  });
+  if (sent.ok) {
+    lastError = '';
+    return true;
+  }
+
+  // 4) Yedek yol — yalnizca token sorununda
+  const fallback = webhookUrl();
+  if (fallback && sent.error === 'invalid_auth') {
+    const fb = await postToWebhook(fallback, text);
+    lastError = fb
+      ? 'Bot tokeni geçersizdi (invalid_auth); mesaj yedek yolla (Incoming Webhook) gönderildi.'
+      : 'Bot tokeni geçersizdi (invalid_auth); yedek yol da başarısız.';
+    return fb;
+  }
+
+  // Kanal/yetki sorunlarinda yedek YOK: gercek Slack hatasi gosterilir.
+  lastError = describeSlackError(sent.error);
+  return false;
+}
+
+/**
+ * Duz metin mesaj gonderir. Asla istisna firlatmaz; false doner.
+ */
+export async function sendSlackMessage(text) {
+  if (!isSlackConfigured()) return false;
+  try {
+    const mode = slackMode();
+    if (mode === 'bot') return await postViaBotApi(text);
+    if (mode === 'webhook') {
+      const sent = await postToWebhook(webhookUrl(), text);
+      lastError = sent
+        ? ''
+        : 'Webhook’a mesaj gönderilemedi (adres veya ağ hatası). SLACK_WEBHOOK_URL’i kontrol edin.';
+      return sent;
+    }
+    return false;
+  } catch (e) {
+    lastError = 'Beklenmeyen Slack hatası: ' + (e && e.message ? e.message : 'bilinmiyor');
+    return false;
+  }
+}
+/**
+ * TOKEN TANILAMASI — KANALA MESAJ GONDERMEZ.
+ *
+ * Ayarlar ekranindaki "Tokenı Kontrol Et" butonu bunu cagirir.
+ * Slack `auth.test` ucu cagrilir; kanala HICBIR sey yazilmaz.
+ * Sonuc asla token/webhook DEGERINI icermez (sir sizmasi engeli).
  *
  * @returns {Promise<{ok:boolean, mode:string, detail:string}>}
  */
@@ -305,13 +336,12 @@ export async function diagnoseSlack() {
       ok: false,
       mode,
       detail:
-        'SLACK_BOT_TOKEN + SLACK_CHANNEL_ID veya SLACK_WEBHOOK_URL tanimli degil. ' +
-        'Vercel > Settings > Environment Variables altina ekleyip redeploy edin.',
+        'SLACK_BOT_TOKEN + SLACK_CHANNEL_ID veya SLACK_WEBHOOK_URL tanımlı değil. ' +
+        'Vercel > Settings > Environment Variables altına ekleyip redeploy edin.',
     };
   }
 
-  // Webhook yolunda Slack dogrulama ucu sunmaz; ancak adresin bicimi
-  // kontrol edilebilir.
+  // Webhook yolunda Slack dogrulama ucu yok; yalnizca adres bicimi kontrolu.
   if (mode === 'webhook') {
     const url = webhookUrl();
     if (!/^https:\/\/hooks\.slack\.com\/services\//.test(url)) {
@@ -319,176 +349,124 @@ export async function diagnoseSlack() {
         ok: false,
         mode,
         detail:
-          'SLACK_WEBHOOK_URL gecersiz gorunuyor. Beklenen bicim: ' +
+          'SLACK_WEBHOOK_URL gecersiz görünüyor. Beklenen biçim: ' +
           'https://hooks.slack.com/services/T.../B.../...',
       };
     }
     return {
       ok: true,
       mode,
-      detail:
-        'Webhook adresi bicimi dogru. Kanaldan gorunuyorsa baglanti kuruludur.',
+      detail: 'Webhook adresi biçimi doğru. Kanaldan görünüyorsa bağlantı kuruludur.',
     };
   }
 
-  // --- Bot token yolu: gercek dogrulama ---
-  const { value: token, problem: yapistirmaHatasi } = normalizeToken(botToken());
+  // --- Bot token yolu ---
+  const { value: token, problem } = normalizeToken(botToken());
 
-  if (yapistirmaHatasi) {
-    // Bozukluk YAPISTIRMADAN kaynaklaniyor — yeni token gerekmez.
+  // Yapistirma hatasi: token muhtemelen DOGRU; aga cikmadan soyle.
+  if (problem) {
     return {
       ok: false,
       mode,
       detail:
-        'Yapıştırma hatası düzeltildi: ' + yapistirmaHatasi +
-        ' Artık geçerli görünüyor. Vercel\'de bu değeri tırnak veya ' +
-        '"Bearer " ön ek olmadan, düz metin olarak kaydedip yeniden deploy edin.',
+        'Yapıştırma hatası: ' +
+        problem +
+        ' Değer otomatik düzeltildi; mevcut token kullanılabilir.',
     };
   }
 
-  // Bicim kontrolu SUNUCUDA yapilir; token istemciye ASLA sizmaz.
-  if (!token.startsWith('xoxb-')) {
-    // Guvenli tani: sadece ONEK ve UZUNLUK — token'in kendisi sizmaz.
-    const onEk = token.slice(0, 5);
-    const tur =
-      token.startsWith('xoxp-')
-        ? 'Bu bir USER TOKEN (xoxp-). Panel için bot tokenı (xoxb-) gerekiyor.'
-        : token.startsWith('xapp-')
-          ? 'Bu bir APP-LEVEL TOKEN (xapp-). Panel için bot tokenı (xoxb-) gerekiyor.'
-          : token.length === 0
-            ? 'Ortam değişkeni boş görünüyor.'
-            : 'Değer "' + onEk + '..." ile başlıyor; "xoxb-" olması gerekiyor (uzunluk: ' +
-              token.length + ' karakter).';
-
+  if (/^xoxp-/.test(token)) {
     return {
       ok: false,
       mode,
       detail:
-        'SLACK_BOT_TOKEN tanınamadı. ' + tur +
-        ' Vercel → Settings → Environment Variables → SLACK_BOT_TOKEN satırında ' +
-        'değeri düz metin olarak (tırnak, "Bearer " ve boşluk olmadan) kaydedip ' +
-        'yeniden deploy edin.',
+        'SLACK_BOT_TOKEN bir USER TOKEN (xoxp-) — bot tokeni değil. xoxb- ile başlayan ' +
+        '"Bot User OAuth Token" değerini kullanın: Slack > Your Apps > OAuth & Permissions.',
     };
   }
 
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), SLACK_TIMEOUT_MS);
+  if (!/^xoxb-/.test(token)) {
+    return {
+      ok: false,
+      mode,
+      detail:
+        'Token biçimi tanınamadı: xoxb- ile başlamıyor (uzunluk: ' +
+        token.length +
+        ' karakter). Slack > Your Apps > OAuth & Permissions bölümündeki ' +
+        '"Bot User OAuth Token" değerini kopyalayın.',
+    };
+  }
+
+  // Format dogru -> gercek dogrulama (mesaj gonderilmez)
+  const who = await callSlackApi('auth.test', token, {});
+  if (!who.ok) {
+    return {
+      ok: false,
+      mode,
+      detail:
+        'Slack API doğrulanamadı (' +
+        who.error +
+        '). Token değeri güvenlik için gösterilmez.',
+    };
+  }
+
+  const botName = who.data && who.data.user;
+  const team = who.data && who.data.team;
+  return {
+    ok: true,
+    mode,
+    detail:
+      'Token geçerli' +
+      (botName ? ' | Bot: "' + botName + '"' : '') +
+      (team ? ' | Workspace: "' + team + '"' : '') +
+      '. Mesaj gönderilmeden doğrulandı.',
+  };
+}
+
+/**
+ * Blok (zengin) mesaj gonderir. Asla istisna firlatmaz.
+ *
+ * Bot yolu: chat.postMessage + blocks. Webhook yolu: duz metne indirgenir
+ * (webhook blocks desteklemez).
+ */
+export async function sendSlackBlock(opts) {
+  if (!isSlackConfigured()) return false;
   try {
-    const res = await fetch('https://slack.com/api/auth.test', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json; charset=utf-8',
-        Authorization: 'Bearer ' + token,
-      },
-      signal: controller.signal,
-    });
-    const data = await res.json().catch(() => null);
+    const title = String(opts?.title || '').slice(0, 150);
+    const fields = Array.isArray(opts?.fields) ? opts.fields : [];
+    const footer = opts?.footer ? String(opts.footer) : '';
 
-    if (data && data.ok === true) {
-      const who = String(data.user || data.bot_id || 'bot').replace(/"/g, '');
-      const team = String(data.team || '?').replace(/"/g, '');
-      return {
-        ok: true,
-        mode,
-        detail:
-          'Token gecerli. Bot: "' + who + '" | Workspace: "' + team + '". ' +
-          'Mesaj gondermeden dogrulandi.',
-      };
+    if (slackMode() === 'bot') {
+      const fieldBlocks = fields.slice(0, 10).map((f) => ({
+        text: '*' + String(f.label || '') + '*\n' + String(f.value ?? '-'),
+      }));
+      const blocks = [
+        { type: 'section', text: { type: 'mrkdwn', text: title } },
+        ...(fieldBlocks.length
+          ? [{ type: 'section', fields: fieldBlocks }]
+          : []),
+        ...(footer
+          ? [{ type: 'context', elements: [{ type: 'mrkdwn', text: footer }] }]
+          : []),
+      ];
+      return await postViaBotApi(title, blocks);
     }
 
-    return { ok: false, mode, detail: describeSlackError(data) };
+    // Webhook: zengin bloklar yok; okunur duz metin kur.
+    const flat = [
+      title,
+      ...fields.map((f) => String(f.label || '') + ': ' + String(f.value ?? '-')),
+      footer,
+    ]
+      .filter(Boolean)
+      .join('\n');
+    return await sendSlackMessage(flat);
   } catch (e) {
-    return {
-      ok: false,
-      mode,
-      detail:
-        e instanceof Error && e.name === 'AbortError'
-          ? 'Slack yanit vermedi (zaman asimi).'
-          : 'Slack baglanti hatasi: ' + (e?.message || 'bilinmiyor'),
-    };
-  } finally {
-    clearTimeout(timer);
-  }
-}
-
-/**
- * Zengin (blok) mesaj gonderir: baslik + alanlar + renk.
- * Slack'ta daha okunakli gorunur.
- *
- * @param {{title:string, fields?:{label:string,value:string}[], color?:string, footer?:string}} opts
- */
-/**
- * Blok mesajin govdesini olusturur (webhook ve bot API ortak kullanim).
- * @returns {Array} Slack blok dizisi
- */
-function buildBlocks(opts) {
-  const fields = (opts.fields || []).slice(0, 10).map((f) => ({
-    type: 'mrkdwn',
-    text: '*' + f.label + '*\n' + f.value,
-  }));
-  return [
-    {
-      type: 'header',
-      text: { type: 'plain_text', text: String(opts.title || '').slice(0, 150), emoji: true },
-    },
-    ...(fields.length ? [{ type: 'section', fields }] : []),
-    ...(opts.footer
-      ? [{ type: 'context', elements: [{ type: 'mrkdwn', text: opts.footer }] }]
-      : []),
-  ];
-}
-
-export async function sendSlackBlock(opts) {
-  // Bot token + kanal ID varsa Slack API üzerinden gönder
-  if (botToken() && channelId()) {
-    return postViaBotApi(String(opts.title || ''), buildBlocks(opts));
-  }
-
-  const url = webhookUrl();
-  if (!url) return false;
-
-  const fields = (opts.fields || []).slice(0, 10).map((f) => ({
-    type: 'mrkdwn',
-    text: `*${f.label}*\n${f.value}`,
-  }));
-
-  const blocks = [
-    {
-      type: 'header',
-      text: { type: 'plain_text', text: String(opts.title || '').slice(0, 150), emoji: true },
-    },
-    ...(fields.length ? [{ type: 'section', fields }] : []),
-    ...(opts.footer
-      ? [{ type: 'context', elements: [{ type: 'mrkdwn', text: opts.footer }] }]
-      : []),
-  ];
-
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), SLACK_TIMEOUT_MS);
-  try {
-    const res = await fetch(url, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        text: String(opts.title || ''), // bildirim onizleme metni
-        attachments: [
-          {
-            color: opts.color || '#4a9eff',
-            blocks,
-          },
-        ],
-      }),
-      signal: controller.signal,
-    });
-    return res.ok;
-  } catch {
+    lastError = 'Beklenmeyen Slack hatası: ' + (e && e.message ? e.message : 'bilinmiyor');
     return false;
-  } finally {
-    clearTimeout(timer);
   }
 }
-
-/** Renk kodlari (Slack attachment renkleri). */
+/* Renk kodlari (Slack attachment renkleri). */
 export const SLACK_COLORS = {
   info: '#4a9eff', // mavi
   success: '#2eb886', // yesil

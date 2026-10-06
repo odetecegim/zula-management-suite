@@ -1,6 +1,12 @@
 /**
- * Google Sheets ile iletisim (backend proxy uzerinden).
- * Servis hesabi anahtari SADECE backend'de kalir.
+ * Google Sheets istemcisi (src/lib/sheets.ts) — SIFIRDAN YAZIM (2026-10-06)
+ *
+ * Servis hesabi anahtari SADECE sunucudadir; bu dosya yalnizca
+ * /api/sheets/* uclarini cagirir.
+ *
+ * KRITIK: `post()` her istekte oturum belirtecini GONDERIR (authHeaders).
+ * Belirtec gonderilmeden tum yazma istekleri sunucuda 401 (NO_SESSION) ile
+ * reddedilir.
  */
 import { authHeaders } from './session-token';
 
@@ -28,11 +34,13 @@ export const SHEET_FIELDS = [
 export type SheetFieldKey = (typeof SHEET_FIELDS)[number];
 export type SheetColumnMap = Partial<Record<SheetFieldKey, number>>;
 
+/** "01x2, 13x2" bicimindeki gun x carpan verisi */
 export interface SheetDetail {
   day: number;
   multiplier: number;
 }
 
+/** Islenmis tek uye satiri (sunucunun dondugu sekil) */
 export interface SheetRow {
   excelRow: number;
   name: string;
@@ -58,12 +66,14 @@ export interface SheetRow {
   sheet?: string;
 }
 
+/** Satir bazli uyari (bos satir, tekrar eden kod, hesap farki...) */
 export interface SheetWarning {
   row: number;
   level: 'info' | 'warn';
   message: string;
 }
 
+/** Sayisal ozet */
 export interface SheetTotals {
   rows: number;
   base: number;
@@ -75,6 +85,7 @@ export interface SheetTotals {
   testDays: number;
 }
 
+/** /headers ucunun donusu: sutun basliklari + esleme onerisi */
 export interface SheetHeadersResponse {
   headers: string[];
   columnMap: SheetColumnMap;
@@ -82,7 +93,7 @@ export interface SheetHeadersResponse {
   preview: string[][];
   rowCount: number;
 }
-
+/** /fetch ucunun donusu: tek sayfa islenmis hali */
 export interface SheetProcessResult {
   results: SheetRow[];
   warnings: SheetWarning[];
@@ -94,12 +105,13 @@ export interface SheetProcessResult {
   range: string;
 }
 
+/** /status ucunun donusu (herkese acik; sirlar dondurulmez) */
 export interface SheetsStatus {
+  /** Sunucuda Google kimlik bilgisi TANIMLI MI */
   configured: boolean;
   /**
    * Sunucuda varsayilan tablo kimligi TANIMLI MI.
-   * Degerinin kendisi bilerek dondurulmez (guvenlik: bu uc nokta
-   * herkese acik; tablo kimligi sizarsa biri tabloya erisme calisir).
+   * Degerinin kendisi dondurulmez (guvenlik: bu uc herkese acik).
    */
   hasDefaultSpreadsheet: boolean;
   defaultRange: string;
@@ -107,13 +119,9 @@ export interface SheetsStatus {
   slackConfigured?: boolean;
   /** Hangi yol: 'bot' | 'webhook' | 'none' */
   slackMode?: string;
-/**
+  /**
    * SESSION_SECRET tanimli mi? Sadece "var/yok" — sirin kendisi ASLA
    * dondurulmez.
-   *
-   * false ise sunucu gecici bir anahtar uretir ve her deploy'da
-   * degisir; kullanici oturumunu kaybedip "oturum suresi doldu"
-   * gorur (12 saat dolmamis olmasina ragmen).
    */
   sessionSecretSet?: boolean;
   fieldLabels: Record<string, string>;
@@ -124,16 +132,18 @@ export interface SheetTab {
   name: string;
   rows: number;
   cols: number;
-  period: string | null; // sayfa adindan cikarilan donem (YYYY-AA)
+  /** Sayfa adindan cikarilan donem (YYYY-AA) */
+  period: string | null;
 }
 
+/** /sheets ucunun donusu */
 export interface SheetsListResponse {
   spreadsheetId: string;
   count: number;
   sheets: SheetTab[];
 }
 
-/** Islenmis tek sayfa blogu */
+/** Coklu sayfada tek sayfa blogu */
 export interface SheetBlock {
   name: string;
   period: string | null;
@@ -145,15 +155,18 @@ export interface SheetBlock {
   rowCount: number;
 }
 
+/** Atlanan sayfa (bos sayfa / okunamayan sayfa) */
 export interface SheetSkipped {
   name: string;
   reason: string;
 }
 
+/** Coklu sayfa toplami (kac sayfa oldugu eklenir) */
 export interface SheetMultiTotals extends SheetTotals {
   sheets: number;
 }
 
+/** /fetch-all ucunun donusu */
 export interface SheetMultiResult {
   sheets: SheetBlock[];
   results: SheetRow[];
@@ -166,6 +179,7 @@ export interface SheetMultiResult {
   defaultYear: number;
 }
 
+/** Panelde saklanan tablo ayarlari */
 export interface SheetSettings {
   spreadsheetId: string;
   range: string;
@@ -178,29 +192,32 @@ const SETTINGS_KEY = 'zula_suite_sheet_settings';
 
 /**
  * Backend adresi.
- * - Geliştirmede boş bırakılır: Vite proxy '/api' isteklerini localhost:8787'ye yollar.
- * - Üretimde VITE_API_BASE_URL ile Render (veya benzeri) servis adresi verilir.
- *   Örn: https://zula-sheets-api.onrender.com
+ * - Gelistirmede bos: Vite proxy '/api' isteklerini localhost:8787'ye yollar.
+ * - Uretimde VITE_API_BASE_URL ile sunucu adresi verilir.
  */
 const API_BASE = (import.meta.env.VITE_API_BASE_URL ?? '').replace(/\/+$/, '');
 
 export const apiUrl = (path: string): string => (API_BASE ? API_BASE + path : path);
 
+/** Sunucudan gelen API hatasi (kod + mesaj birlikte tasinir). */
 export class SheetsApiError extends Error {
   code: string;
   constructor(message: string, code = 'ERROR') {
     super(message);
+    this.name = 'SheetsApiError';
     this.code = code;
   }
 }
 
+/**
+ * Guvenli POST — oturum belirteci EKLENIR.
+ *
+ * Belirtec gonderilmeden yazma uclari sunucuda 401 (NO_SESSION) ile
+ * reddedilir; bu yuzden header her zaman authHeaders() ile kurulur.
+ */
 async function post<T>(path: string, body: unknown): Promise<T> {
   const res = await fetch(apiUrl(path), {
     method: 'POST',
-    // KRITIK: oturum belirteci GONDERILMELI. Onceki surumde bu header
-    // YOKTU; sheets.ts uzerinden yapilan tum yazma istekleri 401
-    // (NO_SESSION) aliyordu. members-api.ts kendi header'ini
-    // gonderiyordu ama sheetsApi.write() bu yolu kullaniyordu.
     headers: authHeaders(),
     body: JSON.stringify(body),
   });
@@ -217,25 +234,28 @@ async function post<T>(path: string, body: unknown): Promise<T> {
   }
   return data as T;
 }
-
+/** Guvenli GET (herkese acik tanilama uclari icin). */
 async function get<T>(path: string): Promise<T> {
   const res = await fetch(apiUrl(path));
   const text = await res.text();
-  if (!res.ok) throw new SheetsApiError(text || 'Sunucuya ulasilamadi');
+  if (!res.ok) throw new SheetsApiError(text || 'Sunucuya ulaşılamadı');
   return (text ? JSON.parse(text) : null) as T;
 }
 
 /* ---------------- API cagrilari ---------------- */
 
 export const sheetsApi = {
+  /** Baglanti + alan etiketi durumu (herkese acik) */
   status: () => get<SheetsStatus>('/api/sheets/status'),
 
+  /** Tablo baglanti testi: sayfa adlari + baslik sayisi doner */
   test: (s: SheetSettings) =>
     post<{ ok: boolean; title: string; sheetNames: string[]; headerCount: number; rowCount: number }>(
       '/api/sheets/test',
       { spreadsheetId: s.spreadsheetId, range: s.range }
     ),
 
+  /** Basliklari oku + otomatik sutun esleme onerisi */
   headers: (s: SheetSettings) => post<SheetHeadersResponse>('/api/sheets/headers', s),
 
   /** Tablodaki tum sayfalari (sekme) listeler */
@@ -244,12 +264,18 @@ export const sheetsApi = {
 
   /** Birden fazla sayfayi cekip isle (her sayfa kendi donemine) */
   fetchAll: (
-    s: SheetSettings & { sheetNames?: string[]; columnMap?: SheetColumnMap; defaultYear?: string | number }
+    s: SheetSettings & {
+      sheetNames?: string[];
+      columnMap?: SheetColumnMap;
+      defaultYear?: string | number;
+    }
   ) => post<SheetMultiResult>('/api/sheets/fetch-all', s),
 
+  /** Tek sayfayi cekip isle */
   fetch: (s: SheetSettings & { columnMap?: SheetColumnMap }) =>
     post<SheetProcessResult>('/api/sheets/fetch', s),
 
+  /** Hesaplanan Toplam / QA sutunlarini tabloya geri yazar */
   write: (payload: {
     spreadsheetId: string;
     range: string;
@@ -280,5 +306,9 @@ export function loadSheetSettings(): SheetSettings {
 }
 
 export function saveSheetSettings(s: SheetSettings): void {
-  localStorage.setItem(SETTINGS_KEY, JSON.stringify(s));
+  try {
+    localStorage.setItem(SETTINGS_KEY, JSON.stringify(s));
+  } catch {
+    /* depolama kapali olabilir */
+  }
 }

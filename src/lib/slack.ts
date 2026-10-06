@@ -1,21 +1,29 @@
-﻿/**
- * Slack bildirim istemcisi (src/lib/slack.ts)
+/**
+ * Slack bildirim istemcisi (src/lib/slack.ts) — SIFIRDAN YAZIM (2026-10-06)
  *
- * GUVENLIK: Webhook adresi BURADA YOKTUR ve olmamalidir.
- * Webhook bir sirdir; yalnizca sunucu tarafinda (SLACK_WEBHOOK_URL
- * ortam degiskeni) tutulur. Istemci sadece sunucuya "ne oldu"
- * diyor, sunucu mesaji Slack'a iletiyor.
+ * GUVENLIK: Webhook adresi BURADA YOKTUR ve olmamalidir. Webhook/bot
+ * token'i sirdir; yalnizca sunucu tarafindaki ortam degiskenlerinde tutulur.
+ * Istemci sadece sunucuya "ne oldu" der; sunucu mesaji Slack'a iletir.
+ *
+ * UCLER:
+ * - POST /api/sheets/slack-check  -> token tanilamasi (MESAJ GONDERMEZ, oturum gerekmez)
+ * - POST /api/sheets/slack-test   -> gercek test mesaji (oturum + yonetici yetkisi)
+ * - POST /api/sheets/slack-notify -> serbest metin bildirim (oturum + yetki)
+ *
+ * HATA YONETIMI: `describeFailure` tum non-2xx yanitlari KULLANICIYA
+ * ANLATIR (401 oturum, 403 yetki, digerleri sunucu mesaji). Belirtec
+ * ASLA silinmez ve otomatik cikis YAPILMAZ — cikis karari kullanicidir.
  */
 
 import { apiUrl } from './sheets';
 import { authHeaders } from './session-token';
 
-/** Sunucu Slack'a bagli mi? */
+/** Sunucu Slack'a bagli mi? (status ucundan ogrenilir) */
 let serverConfigured = false;
-export function setSlackConfigured(v: boolean) {
+export function setSlackConfigured(v: boolean): void {
   serverConfigured = v;
 }
-export function isSlackReady() {
+export function isSlackReady(): boolean {
   return serverConfigured;
 }
 
@@ -27,25 +35,18 @@ interface SlackResult {
   missing?: string[];
   /** 'bot' | 'webhook' | 'none' */
   mode?: string;
+  /** slack-check ucunun ayrintisi (message ile ayni) */
+  detail?: string;
 }
 
 /**
- * Token tanilamasi — KANALA MESAJ GONDERMEZ.
+ * Ortak hata ayristirici — HTTP durumunu KULLANICIYA ANLATIR.
  *
- * `slack-test` her denemede kanala gercek bir mesaj yaziyordu; ayar
- * yaparken kanala onlarca test mesaji birikiyordu. Bu yuzen ayri bir
- * "sadece kontrol et" yolu var: Slack `auth.test` ucu cagrilir,
- * token gecerli mi diye bakilir, kanala HICBIR sey yazilmaz.
- */
-/**
- * Ortak hata ayristirici — HTTP durum kodunu KULLANICIYA ANLATIR.
+ * - 401: oturum gerekli (NO_SESSION ise kisa mesaj)
+ * - 403: yetki yetersiz
+ * - Digerleri: sunucunun kendi hata metni (varsa) + durum kodu
  *
- * ONCEKI SURUMDE uc fonksiyon da `res.ok` false ise ayni belirsiz
- * mesaji donuyordu ("Sunucu isteği reddetti"). Kullanici 401 aldiginda
- * (oturum dolmus) bunun sebebini ogrenemiyor, saatlerce ayni tusa
- * basiyordu.
- *
- * @returns {string} kullaniciya gosterilecek mesaj
+ * Asla istisna firlatmaz; her zaman metin dondurur.
  */
 async function describeFailure(res: Response): Promise<string> {
   let detail = '';
@@ -62,7 +63,7 @@ async function describeFailure(res: Response): Promise<string> {
     /* govde okunamadi */
   }
 
-  // Sunucu, gecerli JSON hata govdesi donduyse onu tercih et
+  // Sunucu gecerli JSON hata govdesi donduyse mesajini tercih et
   try {
     const parsed = JSON.parse(detail) as { error?: string; code?: string };
     if (parsed?.error && parsed.error.length > 3 && res.status !== 401) {
@@ -74,16 +75,9 @@ async function describeFailure(res: Response): Promise<string> {
   }
 
   if (res.status === 401) {
-    // GUVENLIK NOTU: Burada otomatik cikis YOK ve belirtec de
-    // SILINMIYOR. Onceki surumde setSessionToken(null) vardi:
-    // arka plan Slack cagrisi 401 alinca (ornegin Vercel'de
-    // SESSION_SECRET farkli ornekte dogrulanamadiysa) gecerli
-    // belirteci siliyordu. Sonraki uyelik senkronu belirtecsiz
-    // gidip 401 NO_SESSION aliyor, panel "Oturumunuz sona erdi"
-    // diyor ama kullanici girisli gorunuyordu — cozum olarak
-    // yeniden giris yapmaktan baska yol yoktu. Belirtec
-    // korunur; gercekten gecersizse uyelik senkronu zaten
-    // 401'i gosterir ve kullanici "Oturumu Yenile"ye basar.
+    // NOT: otomatik cikis YOK, belirtec SILINMIYOR. 401 arka plan
+    // cagrisinda alinabilir (SESSION_SECRET degistiyorsa); belirteci
+    // silmek sonraki istekleri de 401'e cevirip dongu yaratir.
     return code === 'NO_SESSION'
       ? 'Oturum gerekli. Panele yeniden giriş yapın.'
       : 'Sunucu isteği reddetti (401). Oturumunuz sona ermiş olabilir — yeniden giriş yapın.';
@@ -93,24 +87,26 @@ async function describeFailure(res: Response): Promise<string> {
     return 'Sunucu yetki vermedi (403). Bu işlem için yönetici yetkisi gerekiyor.';
   }
 
-  return 'Sunucu isteği reddetti (' + res.status + ')' + (detail ? ': ' + detail.slice(0, 160) : '.');
+  return (
+    'Sunucu isteği reddetti (' +
+    res.status +
+    ')' +
+    (detail ? ': ' + detail.slice(0, 160) : '.')
+  );
 }
-
 /**
  * Token tanilamasi — KANALA MESAJ GONDERMEZ.
  *
  * `slack-test` her denemede kanala gercek bir mesaj yaziyordu; ayar
- * yaparken kanala onlarca test mesaji birikiyordu. Bu yuzen ayri bir
- * "sadece kontrol et" yolu var: Slack `auth.test` ucu cagrilir,
- * token gecerli mi diye bakilir, kanala HICBIR sey yazilmaz.
+ * yaparken kanala onlarca test mesaji birikiyordu. Bu yuzden ayri bir
+ * "sadece kontrol et" yolu var: sunucu Slack `auth.test` ucu cagirir,
+ * token gecerli mi diye bakar, kanala HICBIR sey yazmaz.
+ *
+ * Degerleri: { ok, mode, detail }  ->  SlackResult'a cevrilir.
  */
 export async function checkSlackToken(): Promise<SlackResult> {
   try {
-    const res = await fetch(apiUrl('/api/sheets/slack-check'), {
-      method: 'POST',
-      headers: authHeaders(),
-      body: JSON.stringify({}),
-    });
+    const res = await fetch(apiUrl('/api/sheets/slack-check'));
     if (!res.ok) {
       return {
         ok: false,
@@ -118,21 +114,28 @@ export async function checkSlackToken(): Promise<SlackResult> {
         message: await describeFailure(res),
       };
     }
-    const data = (await res.json()) as { ok: boolean; mode: string; detail: string };
-    setSlackConfigured(data.mode !== 'none');
+    const data = (await res.json()) as {
+      ok?: boolean;
+      mode?: string;
+      detail?: string;
+    };
+    const mode = data.mode || 'none';
+    setSlackConfigured(mode !== 'none');
+    const message = data.detail || 'Bilgi alınamadı.';
     return {
       ok: Boolean(data.ok),
-      configured: data.mode !== 'none',
-      message: data.detail || 'Bilgi alinamadi.',
+      configured: mode !== 'none',
+      message,
+      detail: message,
+      mode,
     };
   } catch {
     return {
       ok: false,
       configured: serverConfigured,
-      message: 'Sunucuya ulasilamadi.',
+      message: 'Sunucuya ulaşılamadı.',
     };
   }
-
 }
 
 /**
@@ -162,7 +165,7 @@ export async function testSlackConnection(): Promise<SlackResult> {
     return {
       ok: false,
       configured: false,
-      message: 'Sunucuya ulasilamadi.',
+      message: 'Sunucuya ulaşılamadı.',
     };
   }
 }
@@ -172,7 +175,7 @@ export async function testSlackConnection(): Promise<SlackResult> {
  *
  * Mesaj sunucu tarafinda bicimlendirilir; burada yalnizca olay
  * bilgisi gonderilir. Hata olursa sessizce gecer — bildirim
- * panelin calismasini hicbir zaman bozmamalidir.
+ * panelin calismasini hicbir zaman bozmamali.
  */
 export async function notifyMemberEvent(
   action: 'eklendi' | 'guncellendi' | 'silindi',
@@ -182,9 +185,8 @@ export async function notifyMemberEvent(
   try {
     await fetch(apiUrl('/api/sheets/slack-notify'), {
       method: 'POST',
-      // Oturum belirteci ZORUNLU: sunucu bu ucu herkese acik
-      // birakmiyor. Belirtec eklenmeden istek 401 doner ve bildirim
-      // sessizce kaybolur.
+      // Oturum belirteci ZORUNLU: sunucu bu ucu herkese acik birakmiyor.
+      // Belirtec eklenmeden istek 401 doner ve bildirim sessizce kaybolur.
       headers: authHeaders(),
       body: JSON.stringify({ text: buildMemberText(action, member, actor) }),
     });
@@ -193,7 +195,7 @@ export async function notifyMemberEvent(
   }
 }
 
-/** Uye olayini Slack biçimine cevirir. */
+/** Uye olayini Slack bicimine cevirir. */
 function buildMemberText(
   action: 'eklendi' | 'guncellendi' | 'silindi',
   member: { fullName?: string; username?: string; tagId?: string; role?: string },
@@ -201,17 +203,18 @@ function buildMemberText(
 ): string {
   const emoji =
     action === 'silindi' ? ':wastebasket:' : action === 'eklendi' ? ':heavy_plus_sign:' : ':pencil2:';
-  const label = action === 'silindi' ? 'Üye silindi' : action === 'eklendi' ? 'Yeni üye eklendi' : 'Üye güncellendi';
+  const label =
+    action === 'silindi' ? 'Üye silindi' : action === 'eklendi' ? 'Yeni üye eklendi' : 'Üye güncellendi';
   const name = member.fullName || member.username || 'Bilinmeyen';
   const code = member.tagId || member.username || '-';
   const role = member.role || '-';
-  return `${emoji} *${label}*\n• Üye: *${name}*\n• Üye Kodu: \`${code}\`\n• Rol: \`${role}\`\n• İşlemi yapan: ${
-    actor || 'Bilinmiyor'
-  }`;
+  return (
+    `${emoji} *${label}*\n• Üye: *${name}*\n• Üye Kodu: \`${code}\`\n• Rol: \`${role}\`\n• İşlemi yapan: ` +
+    (actor || 'Bilinmiyor')
+  );
 }
-/**
- * Panelden el ile mesaj gonderir.
- */
+
+/** Panelden el ile mesaj gonderir. */
 export async function sendManualMessage(text: string): Promise<SlackResult> {
   try {
     const res = await fetch(apiUrl('/api/sheets/slack-notify'), {
@@ -231,9 +234,7 @@ export async function sendManualMessage(text: string): Promise<SlackResult> {
     return {
       ok: false,
       configured: serverConfigured,
-      message: 'Sunucuya ulasilamadi.',
+      message: 'Sunucuya ulaşılamadı.',
     };
   }
 }
-
-

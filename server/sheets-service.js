@@ -1,5 +1,6 @@
 /**
- * Google Sheets servis katmani.
+ * Google Sheets servis katmani (server/sheets-service.js)
+ * — SIFIRDAN YAZIM (2026-10-06)
  *
  * Servis hesabi (service account) anahtari SADECE bu sunucuda tutulur;
  * frontend'e hicbir kimlik bilgisi gonderilmez.
@@ -8,6 +9,11 @@
  *   1) GOOGLE_SERVICE_ACCOUNT_JSON  -> JSON metni (tek satir)
  *   2) GOOGLE_SERVICE_ACCOUNT_PATH  -> JSON dosya yolu
  *   3) server/service-account.json  -> varsayilan dosya
+ *
+ * HATA YONETIMI:
+ * - Kimlik yoksa err.code = 'NO_CREDENTIALS' -> route-handler 503 dondurur.
+ * - Yanlis deger yapistirilan ortam degiskeni (ornegin Slack token'i)
+ *   ERKEN ve ACIK soylemlidir; kriptik "Unexpected token 'x" hatasi yok.
  */
 import { google } from 'googleapis';
 import fs from 'node:fs';
@@ -16,8 +22,10 @@ import { fileURLToPath } from 'node:url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
+/** Varsayilan A1 araligi (baslik satiri + 2000 veri satiri). */
 export const DEFAULT_RANGE = 'A1:Z2000';
 
+/** Onbellekli Google Sheets istemcisi (testler tarafindan degistirilebilir). */
 let cachedClient = null;
 
 /** ID ya da URL girdisinden saf tablo ID'sini cikarir. */
@@ -37,35 +45,41 @@ export function extractSpreadsheetId(input) {
   return raw;
 }
 
-/** Ham servis hesabi nesnesini yukler (yoksa null doner). */
+/**
+ * Ham servis hesabi nesnesini yukler (yoksa null doner).
+ *
+ * YANLIS ANAHTAR TESPITI (2026-10-06):
+ * Canlida GOOGLE_SERVICE_ACCOUNT_JSON alanina Slack token'i (xoxb-...)
+ * yapistirildigi goruldu. Klasik JSON parse hatasi ("Unexpected token 'x'")
+ * hangi degiskenin bozuk oldugunu soylemiyordu; kullanici saatlerce
+ * ayni hatayi ariyordu. Simdi degerin tipi erken ve acik soylemlidir.
+ */
 function loadServiceAccount() {
   const inline = process.env.GOOGLE_SERVICE_ACCOUNT_JSON;
   if (inline && inline.trim()) {
     const text = inline.trim();
-    // YANLIS ANAHTAR TESPITI (2026-10-06): Canlida bu degiskene Slack
-    // token'i (xoxb-...) yapistirildigi goruldu. JSON parse hatasi
-    // \"Unexpected token 'x'...\" diyor ama kullanici HANGI degiskenin
-    // bozuk oldugunu anlamiyor. Erken ve acik hata ver.
+
     if (/^xox[abp]-/.test(text) || /^Bearer\s+/i.test(text)) {
       throw new Error(
-        'GOOGLE_SERVICE_ACCOUNT_JSON alanina yanlis deger yapistirilmis: ' +
-          'bu bir Slack token\'ina benziyor (xox...). Buraya Google Cloud > ' +
-          'Service Account > Keys > \"Add key > JSON\" ile indirilen JSON ' +
-          'dosyasinin TAM ICERIGI tek satir olarak yapistirilmalidir.'
+        'GOOGLE_SERVICE_ACCOUNT_JSON alanına yanlış değer yapıştırılmış: bu bir Slack ' +
+          "token'ına benziyor (xox...). Buraya Google Cloud > IAM > Service Accounts > " +
+          'Keys > "Add key > JSON" ile indirilen JSON dosyasının TAM İÇERİĞİ tek satır ' +
+          'olarak yapıştırılmalıdır. (Slack token\'ı SLACK_BOT_TOKEN alanına gider.)'
       );
     }
-    if (text === 'test' || text.length < 50) {
+    if (text.length < 50) {
       throw new Error(
-        'GOOGLE_SERVICE_ACCOUNT_JSON cok kisa/gecersiz gorunuyor (' +
+        'GOOGLE_SERVICE_ACCOUNT_JSON çok kısa/geçersiz görünüyor (' +
           text.length +
-          ' karakter). Google Cloud > Service Account > Keys bolumunden ' +
-          'indirilen JSON dosyasinin TAM ICERIGINI tek satir olarak yapistirin.'
+          ' karakter). Google Cloud > Service Accounts > Keys bölümünden indirilen JSON ' +
+          'dosyasının TAM İÇERİĞİNİ tek satır olarak yapıştırın.'
       );
     }
+
     try {
       return JSON.parse(inline);
     } catch (err) {
-      throw new Error('GOOGLE_SERVICE_ACCOUNT_JSON gecersiz JSON: ' + err.message);
+      throw new Error('GOOGLE_SERVICE_ACCOUNT_JSON geçersiz JSON: ' + err.message);
     }
   }
 
@@ -79,6 +93,7 @@ function loadServiceAccount() {
   return null;
 }
 
+/** Sunucuda Google kimligi tanimli mi? (status ucu icin) */
 export function isConfigured() {
   try {
     return loadServiceAccount() !== null;
@@ -87,15 +102,18 @@ export function isConfigured() {
   }
 }
 
-/** Google Sheets API istemcisini olusturur (onbellekli). */
+/**
+ * Google Sheets API istemcisini olusturur (onbellekli).
+ * Kimlik yoksa err.code = 'NO_CREDENTIALS' ile hata firlatir.
+ */
 export async function getClient() {
   if (cachedClient) return cachedClient;
 
   const creds = loadServiceAccount();
   if (!creds) {
     const err = new Error(
-      'Google servis hesabi yapilandirilmadi. GOOGLE_SERVICE_ACCOUNT_JSON veya ' +
-        'GOOGLE_SERVICE_ACCOUNT_PATH (ya da server/service-account.json) ayarlayin.'
+      'Google servis hesabi yapılandırılmadı. GOOGLE_SERVICE_ACCOUNT_JSON veya ' +
+        'GOOGLE_SERVICE_ACCOUNT_PATH (ya da server/service-account.json) ayarlayın.'
     );
     err.code = 'NO_CREDENTIALS';
     throw err;
@@ -117,19 +135,15 @@ export async function getClient() {
 
 /**
  * TEST KANCASI: onbellekteki istemciyi degistirir.
- *
- * SADECE birim testlerinde kullanilir. writeMembers() gibi fonksiyonlar
- * istemciyi `getClient()` ile alir; Google'a baglanmadan hata senaryolari
- * (yazma basarisiz, temizlik basarisiz) denetmek icin istemcinin
- * degistirilebilmesi gerekir.
+ * SADECE birim testlerinde kullanilir (sahte istemciyle yazma
+ * senaryolari Google'a baglanmadan denetlenir).
  *
  * @param {object|null} client  null verilirse onbellek temizlenir.
  */
 export function __setClientForTest(client) {
   cachedClient = client;
 }
-
-/** Baglanti testi: dosya okunabiliyor ve erisim var mu? */
+/** Baglanti testi: dosya okunabiliyor ve erisim var mi? */
 export async function testConnection({ spreadsheetId, range }) {
   const sheets = await getClient();
   const res = await sheets.spreadsheets.get({
@@ -137,7 +151,7 @@ export async function testConnection({ spreadsheetId, range }) {
     fields: 'properties.title,sheets.properties',
   });
 
-  const title = res.data.properties?.title ?? '(baslik yok)';
+  const title = res.data.properties?.title ?? '(başlık yok)';
   const sheetNames = (res.data.sheets || []).map((s) => s.properties?.title);
 
   // Ilk sayfadan baslik satiri + ornek veri
@@ -175,7 +189,14 @@ export async function readValues({ spreadsheetId, range = DEFAULT_RANGE }) {
 /* Sayisal / metin ayristirma yardimcilari                             */
 /* ------------------------------------------------------------------ */
 
-/** "1.500" / "1,500" / "37.000" / "8,5" / "-" / "" -> sayi */
+/**
+ * "1.500" / "1,500" / "37.000" / "8,5" / "-" / "" -> sayi
+ *
+ * TR ve EN ayraç bicimleri birlikte kabul edilir:
+ * - "1.234,56" (TR) ve "1,234.56" (EN) ayirt edilir
+ * - Tek virgul/nokta: ondalik mi binlik mi bagliliga gore karar verilir
+ * - "%37" / "12 puan" gibi ekler atilir
+ */
 export function parseNumber(value) {
   if (typeof value === 'number') return Number.isFinite(value) ? value : 0;
   if (value == null) return 0;
@@ -191,12 +212,13 @@ export function parseNumber(value) {
   const hasDot = s.includes('.');
 
   if (hasComma && hasDot) {
-    // 1.234,56 (TR) veya 1,234.56 (EN)
-    s = s.lastIndexOf(',') > s.lastIndexOf('.')
-      ? s.replace(/\./g, '').replace(',', '.')
-      : s.replace(/,/g, '');
+    // 1.234,56 (TR) veya 1,234.56 (EN): son hangisiyse ONU ondalik say
+    s =
+      s.lastIndexOf(',') > s.lastIndexOf('.')
+        ? s.replace(/\./g, '').replace(',', '.')
+        : s.replace(/,/g, '');
   } else if (hasComma) {
-    // Tek virgul: ondalik mi binlik mi? 3 haneden uzun ve tam kism 1-3 ise binlik
+    // Tek virgul: ondalik mi binlik mi? "1,5" ondalik; "1,500" binlik
     const parts = s.split(',');
     if (parts.length > 2 || (parts[0].length <= 3 && parts[1].length === 3)) {
       s = s.replace(/,/g, '');
@@ -204,7 +226,7 @@ export function parseNumber(value) {
       s = s.replace(',', '.');
     }
   } else if (hasDot) {
-    // "37.000" -> binlik ayraci (TR), "1.5" -> ondalik
+    // "37.000" -> binlik ayraci (TR); "1.5" -> ondalik
     const parts = s.split('.');
     if (parts.length > 2 || (parts[0].length <= 3 && parts[1].length === 3)) {
       s = s.replace(/\./g, '');
@@ -214,7 +236,6 @@ export function parseNumber(value) {
   const n = Number(s);
   return Number.isFinite(n) ? n : 0;
 }
-
 /**
  * "Detay" sutununu gun x carpan serisine cevirir.
  * "01x2, 13x2,14x2, 20x2," -> [{day:1,multiplier:2}, ...]
@@ -284,7 +305,7 @@ export function periodFromSheetName(sheetName, defaultYear) {
   const s = foldTr(sheetName);
   for (const [ad, no] of Object.entries(AYLAR)) {
     if (s.includes(ad)) {
-      const yil = sheetName.match(/(20\d{2})/);
+      const yil = String(sheetName).match(/(20\d{2})/);
       const year = yil ? yil[1] : String(defaultYear || new Date().getFullYear());
       return year + '-' + String(no).padStart(2, '0');
     }
@@ -292,14 +313,17 @@ export function periodFromSheetName(sheetName, defaultYear) {
   return null;
 }
 
-/** Sayfa adini A1 araligina baglar: "Eylül 2026" + "A1:Z2000" -> 'Eylül 2026'!A1:Z2000 */
+/**
+ * Sayfa adini A1 araligina baglar:
+ * "Eylül 2026" + "A1:Z2000" -> 'Eylül 2026'!A1:Z2000
+ * Kullanici tam aralik girdiyse ("Sayfa1!A1:Z9") yalnizca hucre kismi alinir.
+ */
 export function buildSheetRange(sheetName, range = DEFAULT_RANGE) {
   const r = String(range || DEFAULT_RANGE);
-  // Kullanici tam aralik girdiyse ("Sayfa1!A1:Z9") sayfa adini degistir
   const cellPart = r.includes('!') ? r.split('!').slice(1).join('!') : r;
   const quoted = /^[A-Za-z0-9_]+$/.test(sheetName)
     ? sheetName
-    : "'" + sheetName.replace(/'/g, "''") + "'";
+    : "'" + String(sheetName).replace(/'/g, "''") + "'";
   return quoted + '!' + cellPart;
 }
 
@@ -319,7 +343,6 @@ export async function listSheets({ spreadsheetId }) {
     .filter((s) => s.name);
 }
 
-
 /** Baslik metnini karsilastirma icin sadelestirir. */
 export function normalizeHeader(h) {
   return String(h || '')
@@ -328,13 +351,11 @@ export function normalizeHeader(h) {
     .replace(/ö/g, 'o').replace(/ş/g, 's').replace(/ç/g, 'c')
     .replace(/[^a-z0-9]+/g, '');
 }
-
-
 /* ------------------------------------------------------------------ */
 /* Sutun eslestirme (otomatik algilama)                                */
 /* ------------------------------------------------------------------ */
 
-/** Alan -> kabul edilen baslik takma adlari */
+/** Alan -> kabul edilen baslik takma adlari (once kucuk harfe cevrilir) */
 export const COLUMN_ALIASES = {
   tagId: ['id', 'uyeid', 'kullaniciid', 'tagid', 'kod', 'uyekodu', 'no', 'sira'],
   fullName: ['adsoyad', 'ad', 'isim', 'adsoyadi', 'adresadsoyad', 'name', 'fullname', 'kullanici', 'uyeadi', 'adadsoyad'],
@@ -349,13 +370,14 @@ export const COLUMN_ALIASES = {
   total: ['toplam', 'total', 'toplampir', 'geneltoplam'],
   details: ['detay', 'detail', 'detaylar', 'katilimdetay', 'gunler'],
   support: ['support', 'destek', 'destekpuani', 'supportpuani'],
-  referee: ['hakemperformans', 'hakemperformansi', 'hakemperformans', 'hakem', 'referee', 'hakemligi', 'hakempuani'],
+  referee: ['hakemperformans', 'hakemperformansi', 'hakem', 'referee', 'hakemligi', 'hakempuani'],
   qa: ['qa', 'qapuani', 'qascore', 'qatoplam', 'qaskor'],
   period: ['donem', 'period', 'ay', 'ayyil', 'donemadi'],
-  managerScore: ['yoneticxpuani', 'yoneticxpuan', 'yonetici', 'manager', 'yoneticiskor', 'yoneticipuani'],
+  managerScore: ['yoneticipuani', 'yoneticipuan', 'yonetici', 'manager', 'yoneticiskor'],
   managerOpinion: ['yoneticigoru', 'goru', 'yorum', 'yoneticigorusu', 'opinion'],
 };
 
+/** Alan -> tablodaki gorunur baslik (status ucu / panel etiketleri) */
 export const FIELD_LABELS = {
   tagId: 'Üye Kodu (ID)',
   fullName: 'Ad Soyad',
@@ -377,7 +399,11 @@ export const FIELD_LABELS = {
   managerOpinion: 'Yönetici Görüşü',
 };
 
-/** Sutun adlarini alanlara eslestirir (once tam eslesme, sonra icerir). */
+/**
+ * Sutun adlarini alanlara eslestirir.
+ * Once TAM eslesme, sonra "icerir" eslesmesi denenir; ayni sutun
+ * iki alan icin kullanilamaz (used seti).
+ */
 export function autoMapColumns(headers) {
   const norm = headers.map(normalizeHeader);
   const map = {};
@@ -401,7 +427,6 @@ export function autoMapColumns(headers) {
   return map;
 }
 
-
 /* ------------------------------------------------------------------ */
 /* Satir isleme: Toplam ve QA hesaplama                               */
 /* ------------------------------------------------------------------ */
@@ -410,9 +435,11 @@ const QA_MULTIPLIER = 1000;
 
 /**
  * Ham satirlari okur ve panelin anlayacagi kayitlara donusturur.
- * - Toplam = Test Katilimi + Hata Bildirimi + Oneri Bildirimi
- * - QA     = Toplam x 1000
- * - Detay  -> gun x carpan serisi
+ * - Toplam (base) = Test Katilimi + Hata Bildirimi + Oneri Bildirimi
+ * - QA            = Toplam x 1000
+ * - Detay         -> gun x carpan serisi
+ * - Tablodaki hesaplanmis Toplam/QA ile fark varsa uyari uretilir
+ *   (hesaplanan deger esas alinir).
  */
 export function processRows({ headers, rows, columnMap, period, defaultPeriod }) {
   const map = { ...columnMap };
@@ -437,7 +464,7 @@ export function processRows({ headers, rows, columnMap, period, defaultPeriod })
 
     const name = nameRaw ? String(nameRaw).trim() : '';
     if (!name && !tagRaw) {
-      warnings.push({ row: rowNo, level: 'warn', message: 'Ad Soyad ve Üye Kodu bos - satir atladi.' });
+      warnings.push({ row: rowNo, level: 'warn', message: 'Ad Soyad ve Üye Kodu boş - satır atlandı.' });
       return;
     }
 
@@ -534,15 +561,15 @@ export function processRows({ headers, rows, columnMap, period, defaultPeriod })
   return { results, warnings, totals, period: usePeriod, columnMap: map, headers };
 }
 
-
-
 /**
  * Birden fazla sayfayi (sekme) okur ve isle.
  * Her sayfa kendi donemine atanir:
  *   1) sayfadaki "Donem" sutunu varsa
  *   2) sayfa adi ("Eylül 2026" / "2026-09")
  *   3) sayfa adindan (yil yoksa) varsayilan yil
- *   4) son care: verilen period
+ *   4) son care: verilen fallbackPeriod
+ * Okunamayan sayfalar atlanir (skipped listesi) — tek sayfa hatasi
+ * tum aktarimi cokertmez.
  */
 export async function fetchAllSheets({
   spreadsheetId,
@@ -587,7 +614,7 @@ export async function fetchAllSheets({
         period: sheetPeriod,
       });
 
-      // Satirdaki "Donem" sutunu varsa onu tercih et
+      // Satirdaki "Donem" sutunu tekse onu tercih et
       const rowPeriods = new Set(out.results.map((r) => r.period).filter(Boolean));
       const finalPeriod = rowPeriods.size === 1 ? [...rowPeriods][0] : out.period;
 
@@ -642,7 +669,6 @@ export async function fetchAllSheets({
 
   return { sheets, results, warnings, totals, skipped, period: fallbackPeriod || null };
 }
-
 /** Oku + otomatik eslestir + isle: tek cagrida her seyi dondurur. */
 export async function fetchAndProcess({ spreadsheetId, range, columnMap, period }) {
   const { headers, rows } = await readValues({ spreadsheetId, range });
@@ -651,7 +677,7 @@ export async function fetchAndProcess({ spreadsheetId, range, columnMap, period 
   return processRows({ headers, rows, columnMap: map, period, defaultPeriod: period });
 }
 
-/** 0 tabanli sutun indeksi -> A1 araligi ("Sayfa1!D2") */
+/** 0 tabanli sutun indeksi -> A1 hucre referansi ("Sayfa1!D2") */
 function colToRange(sheet, row1Based, col0Based) {
   let col = '';
   let n = col0Based + 1;
@@ -666,7 +692,10 @@ function colToRange(sheet, row1Based, col0Based) {
 
 /**
  * Hesaplanan Toplam / QA degerlerini tabloya geri yazar.
- * Yalnizca eslestirilmis hedef sutunlar varsa yazilir.
+ *
+ * - Yalnizca eslestirilmis hedef sutunlar varsa yazilir; ikisi de yoksa
+ *   NO_TARGET_COLUMNS hatasi firlatilir (kullanici eslestirmeyi kurar).
+ * - Yalnizca SAYI degerleri yazilir (formula enjeksiyonu imkansiz).
  */
 export async function writeComputedColumns({
   spreadsheetId, range, columnMap, results, totalRow, writeTotal, writeQa,
@@ -677,8 +706,8 @@ export async function writeComputedColumns({
 
   if (totalIdx == null && qaIdx == null) {
     const err = new Error(
-      'Toplam veya QA s\u00fctunu e\u015fle\u015ftirilemedi; yazma yap\u0131lmad\u0131. ' +
-        'S\u00fctun e\u015fle\u015ftirmeyi elle ayarlay\u0131n.'
+      'Toplam veya QA sütunu eşleştirilemedi; yazma yapılmadı. ' +
+        'Sütun eşleştirmeyi elle ayarlayın.'
     );
     err.code = 'NO_TARGET_COLUMNS';
     throw err;
@@ -700,8 +729,8 @@ export async function writeComputedColumns({
 
   await sheets.spreadsheets.values.batchUpdate({
     spreadsheetId,
-    valueInputOption: 'USER_ENTERED',
-    requestBody: { valueInputOption: 'USER_ENTERED', data },
+    valueInputOption: 'RAW',
+    requestBody: { valueInputOption: 'RAW', data },
   });
 
   let totalWritten = null;
@@ -709,9 +738,9 @@ export async function writeComputedColumns({
     await sheets.spreadsheets.values.update({
       spreadsheetId,
       range: colToRange(sheet, totalRow, totalIdx),
-      valueInputOption: 'USER_ENTERED',
+      valueInputOption: 'RAW',
       requestBody: {
-        valueInputOption: 'USER_ENTERED',
+        valueInputOption: 'RAW',
         values: [[totalRow.base]],
       },
     });
@@ -720,4 +749,3 @@ export async function writeComputedColumns({
 
   return { updated: results.length, total: totalWritten };
 }
-
