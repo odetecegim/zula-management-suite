@@ -18,6 +18,7 @@ import {
   notifyTestSession,
   notifySecurity,
   diagnoseSlack,
+  getSlackError,
   SLACK_COLORS,
 } from './slack.js';
 
@@ -260,4 +261,16 @@ test('SLACK_COLORS gecerli hex renkler iceriyor', () => {
       key + ' gecerli hex renk olmali'
     );
   }
+});
+
+test('KANAL ADI yapistirilirsa ag cagrisi YAPILMADAN acik hata doner', async () => {
+  delete process.env.SLACK_WEBHOOK_URL;
+  process.env.SLACK_BOT_TOKEN = 'xoxb-test-token';
+  process.env.SLACK_CHANNEL_ID = '#genel';
+  const sent = await sendSlackMessage('deneme mesaji');
+  assert.equal(sent, false);
+  assert.match(getSlackError(), /kanal ID/);
+  assert.match(getSlackError(), /channel_not_found/);
+  delete process.env.SLACK_BOT_TOKEN;
+  delete process.env.SLACK_CHANNEL_ID;
 });

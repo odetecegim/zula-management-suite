@@ -138,6 +138,19 @@ async function postViaBotApi(text, blocks) {
     lastError = 'SLACK_BOT_TOKEN veya SLACK_CHANNEL_ID eksik.';
     return false;
   }
+  // ADIM 8 — KANAL ADI YERINE ID KONTROLU (2026-10-06):
+  // Slack chat.postMessage `channel` olarak kanal ID ister (C/G/D ile
+  // baslayan kod). Kullanici #kanal-adi yapistirirsa Slack
+  // channel_not_found doner. Erken ve acik uyar.
+  if (/^[#]/.test(channel) || !/^[CGD][A-Z0-9]{8,}$/.test(channel)) {
+    lastError =
+      'SLACK_CHANNEL_ID kanal ADI gibi görünüyor (' +
+      channel.slice(0, 24) +
+      '). Kanal adı (örn. #genel) değil, Slack kanal ID’si (C ile başlayan kod) ' +
+      'kullanılmalıdır: kanala sağ tık → “Kanal bilgisini görüntüle” → en alttaki ID. ' +
+      '(Slack: channel_not_found)';
+    return false;
+  }
 
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), SLACK_TIMEOUT_MS);
@@ -186,16 +199,23 @@ function describeSlackError(data) {
   if (!data) return 'Slack bos yanıt döndü.';
   switch (data.error) {
     case 'not_in_channel':
-      return 'Bot bu kanalın ÜYE DEĞİL. Slack → uygulaman → Install/Invite ile botu kanala ekleyin.';
+      return (
+        'Bot bu kanalın ÜYESİ DEĞİL (Slack: not_in_channel). Kanala sağ tık → ' +
+        '“Uygulamalar” → botu kanala ekleyin (veya kanalda /invite @botadi yazın).'
+      );
     case 'invalid_auth':
-      return 'SLACK_BOT_TOKEN geçersiz. Yeni bir bot token üretip Vercel’e tekrar ekleyin.';
+      return 'SLACK_BOT_TOKEN geçersiz (Slack: invalid_auth). Yeni bir bot token üretip Vercel’e tekrar ekleyin.';
     case 'channel_not_found':
-      return 'SLACK_CHANNEL_ID bulunamadı. Kanal kimliğini kontrol edin.';
+      return (
+        'SLACK_CHANNEL_ID bulunamadı (Slack: channel_not_found). Kanal kimliğini kontrol edin. ' +
+        'Kanal ADI (örn. #genel) değil, Slack kanal ID’si (C ile başlayan kod) kullanılmalıdır: ' +
+        'kanala sağ tık → “Kanal bilgisini görüntüle” → en alttaki ID.'
+      );
     case 'account_inactive':
     case 'token_revoked':
-      return 'Bot token iptal edilmiş. Yeni token üretin.';
+      return 'Bot token iptal edilmiş (Slack: ' + data.error + '). Yeni token üretin.';
     case 'no_permission':
-      return 'Bot’un bu kanala mesaj atma yetkisi yok.';
+      return 'Bot’un bu kanala mesaj atma yetkisi yok (Slack: no_permission).';
 
     /*
       not_allowed_token_type — EN SIK GORULEN HATA
