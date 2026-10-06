@@ -16,6 +16,7 @@ import {
   writeComputedColumns,
   extractSpreadsheetId,
   periodFromSheetName,
+  resolveDataSheet,
   FIELD_LABELS,
   DEFAULT_RANGE,
 } from './sheets-service.js';
@@ -292,15 +293,22 @@ export async function handleApi(method, segments, body = {}, headers = {}) {
       case 'test': {
         const spreadsheetId = resolveId(body);
         if (!spreadsheetId) return fail(400, 'Spreadsheet ID gerekli.');
-        const range = rangeOf(body);
+        // SAYFA ADI YOKSA hedef sekmeyi coz (UyeListesi / baslikli sayfa).
+        // Eski davranis Google'in ILK sekmeyi (gunluk) okumasina birakiyordu;
+        // panelde "0 baslik + log onizlemesi" gorunuyordu.
+        const range = await resolveDataSheet({ spreadsheetId, range: rangeOf(body) });
         const out = await testConnection({ spreadsheetId, range });
-        return ok({ ...out, spreadsheetId, range });
+        // GUVENLIK: bu uc herkese acik. Sunucunun VARSAYILAN tablo
+        // kimligi asla dondurulmez (yalnizca istemcinin gonderdigi kimlik).
+        return ok({ ...out, range, ...(body?.spreadsheetId ? { spreadsheetId } : {}) });
       }
 
       case 'headers': {
         const spreadsheetId = resolveId(body);
         if (!spreadsheetId) return fail(400, 'Spreadsheet ID gerekli.');
-        const { headers, rows } = await readValues({ spreadsheetId, range: rangeOf(body) });
+        // test ile AYNI cozumleme: basliklar hep panelin veri sekmesinden okunur
+        const range = await resolveDataSheet({ spreadsheetId, range: rangeOf(body) });
+        const { headers, rows } = await readValues({ spreadsheetId, range });
         return ok({
           headers,
           columnMap: autoMapColumns(headers),
@@ -313,7 +321,9 @@ export async function handleApi(method, segments, body = {}, headers = {}) {
       case 'fetch': {
         const spreadsheetId = resolveId(body);
         if (!spreadsheetId) return fail(400, 'Spreadsheet ID gerekli.');
-        const range = rangeOf(body);
+        // test/headers ile AYNI cozumleme: sayfa adi verilmemisse gunluk
+        // ilk sekmesi degil panelin veri sekmesi okunur.
+        const range = await resolveDataSheet({ spreadsheetId, range: rangeOf(body) });
         const out = await fetchAndProcess({
           spreadsheetId,
           range,

@@ -351,6 +351,70 @@ export function normalizeHeader(h) {
     .replace(/ö/g, 'o').replace(/ş/g, 's').replace(/ç/g, 'c')
     .replace(/[^a-z0-9]+/g, '');
 }
+
+/**
+ * Sekme adi gunluk (log) sekmesi mi?
+ *
+ * PANO HATASI (2026-10-06): calisma kitabinda ilk sekmeler gunluk
+ * (Sayfa1 / ModBot.log / İşlem Logları) olabiliyor. Aralikta sayfa adi
+ * olmadiginda Google ILK sekmeyi okudugu icin panelde baglanti testi
+ * "0 baslik", onizleme olarak da bot loglari gosteriyordu; uye verisi
+ * ise 'UyeListesi' sekmesindeydi.
+ *
+ * Not: 'Katalog' / 'Blog' gibi adlar YANLISLIKLA log sayilmasin diye
+ * onceden kelime siniri kullanilir; govde Turkce karakterlerden
+ * arindirilir ('Günlükler' -> 'gunlukler' bulunur).
+ */
+export function isLogSheetName(name) {
+  const s = String(name || '')
+    .toLowerCase()
+    .replace(/ı/g, 'i').replace(/ğ/g, 'g').replace(/ü/g, 'u')
+    .replace(/ö/g, 'o').replace(/ş/g, 's').replace(/ç/g, 'c');
+  return /(?<![a-z])(log|gunluk|yedek|backup|arsiv|archive)/.test(s);
+}
+
+/**
+ * Sayfa adi belirtilmemis aralik icin HEDEF SEKMEYI COZER.
+ *
+ * Oncelik:
+ *   1) 'UyeListesi' (panelin bilinen ana veri kaynagi — gecmis karari)
+ *   2) gunluk olmayan, ilk satiri BASLIKLI ilk sayfa
+ *   3) hicbiri yoksa eski davranis (ham aralik)
+ *
+ * Sayfa adi zaten araliktaysa (`'UyeListesi'!A1:Z2000`) oldugu gibi doner.
+ */
+export async function resolveDataSheet({ spreadsheetId, range }) {
+  const r = String(range || DEFAULT_RANGE);
+  if (r.includes('!')) return r;
+
+  let tabs = [];
+  try {
+    tabs = await listSheets({ spreadsheetId });
+  } catch {
+    return r; // sekme listesi alinamadi -> eski davranis
+  }
+  if (tabs.length === 0) return r;
+
+  // 1) Bilinen uye tablosu
+  const member = tabs.find((t) => normalizeHeader(t.name) === 'uyelistesi');
+  if (member) return buildSheetRange(member.name, r);
+
+  // 2) Gunluk olmayan, baslikli ilk sayfa
+  for (const t of tabs) {
+    if (isLogSheetName(t.name)) continue;
+    try {
+      const { headers } = await readValues({
+        spreadsheetId,
+        range: buildSheetRange(t.name, r),
+      });
+      if (headers.length > 0) return buildSheetRange(t.name, r);
+    } catch {
+      /* bu sayfa okunamadi -> sonrakini dene */
+    }
+  }
+
+  return r;
+}
 /* ------------------------------------------------------------------ */
 /* Sutun eslestirme (otomatik algilama)                                */
 /* ------------------------------------------------------------------ */
@@ -588,6 +652,13 @@ export async function fetchAllSheets({
 
   for (const name of names) {
     try {
+      // Gunluk (log) sekmeleri veri DEGILDIR: uye/test verisi sanilip
+      // paneli sahte kayitlarla dolduruyordu (2026-10-06 raporu).
+      if (isLogSheetName(name)) {
+        skipped.push({ name, reason: 'Günlük (log) sekmesi — üye/test verisi değil.' });
+        continue;
+      }
+
       const { headers, rows } = await readValues({
         spreadsheetId,
         range: buildSheetRange(name, range),
@@ -598,10 +669,19 @@ export async function fetchAllSheets({
         continue;
       }
 
+      const auto = autoMapColumns(headers);
       const map =
-        columnMap && Object.keys(columnMap).length > 0
-          ? columnMap
-          : autoMapColumns(headers);
+        columnMap && Object.keys(columnMap).length > 0 ? columnMap : auto;
+
+      // Basliklar hicbir alana eslesmiyorsa bu sayfa panel verisi degil
+      // (ellerle eslestirme verilmemisken islemek yalnizca cop uretir).
+      if (Object.keys(map).length === 0) {
+        skipped.push({
+          name,
+          reason: 'Sütun başlıkları tanınmadı (otomatik eşleşme yok) — atlandı.',
+        });
+        continue;
+      }
 
       // Sayfa adindan donem (yil yoksa defaultYear)
       const sheetPeriod =

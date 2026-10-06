@@ -10,7 +10,7 @@
     "dev": "vite",
     "build": "tsc -b && vite build",
     "lint": "oxlint",
-    "test": "node server/members-store.test.mjs && node server/auth.test.mjs && node server/slack.test.mjs && node server/route-guard.test.mjs && node server/write-guard.test.mjs",
+    "test": "node server/members-store.test.mjs && node server/auth.test.mjs && node server/slack.test.mjs && node server/route-guard.test.mjs && node server/write-guard.test.mjs && node server/sheet-resolve.test.mjs",
     "preview": "vite preview",
     "server": "node server/index.js",
     "dev:all": "node scripts/dev-all.js",
