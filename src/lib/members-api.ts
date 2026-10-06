@@ -267,10 +267,6 @@ export async function remoteLogin(
       }
     }
 
-    if (res.status === 401) {
-      setSessionToken(null);
-      return { status: 'unavailable' };
-    }
 
     if (res.status === 429) {
       let message = 'Çok fazla hatalı deneme. Lütfen bir süre sonra tekrar deneyin.';

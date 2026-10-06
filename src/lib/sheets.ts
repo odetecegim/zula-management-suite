@@ -2,6 +2,7 @@
  * Google Sheets ile iletisim (backend proxy uzerinden).
  * Servis hesabi anahtari SADECE backend'de kalir.
  */
+import { authHeaders } from './session-token';
 
 export const SHEET_FIELDS = [
   'tagId',
@@ -196,7 +197,11 @@ export class SheetsApiError extends Error {
 async function post<T>(path: string, body: unknown): Promise<T> {
   const res = await fetch(apiUrl(path), {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    // KRITIK: oturum belirteci GONDERILMELI. Onceki surumde bu header
+    // YOKTU; sheets.ts uzerinden yapilan tum yazma istekleri 401
+    // (NO_SESSION) aliyordu. members-api.ts kendi header'ini
+    // gonderiyordu ama sheetsApi.write() bu yolu kullaniyordu.
+    headers: authHeaders(),
     body: JSON.stringify(body),
   });
   const text = await res.text();

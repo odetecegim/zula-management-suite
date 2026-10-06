@@ -8,7 +8,7 @@
  */
 
 import { apiUrl } from './sheets';
-import { authHeaders, setSessionToken } from './session-token';
+import { authHeaders } from './session-token';
 
 /** Sunucu Slack'a bagli mi? */
 let serverConfigured = false;
@@ -74,12 +74,16 @@ async function describeFailure(res: Response): Promise<string> {
   }
 
   if (res.status === 401) {
-    // GUVENLIK NOTU: Burada otomatik cikis YOK. Arka plan Slack
-    // cagrilari (bildirim, token kontrolu) de bu yolu kullanir;
-    // bunlarda otomatik cikis, giris-sonrasi atilma dongusu yaratir
-    // (ozellikle SESSION_SECRET tanimli degilken). Belirtec yine
-    // de silinir, ama cikis karari kullanicidadir.
-    setSessionToken(null);
+    // GUVENLIK NOTU: Burada otomatik cikis YOK ve belirtec de
+    // SILINMIYOR. Onceki surumde setSessionToken(null) vardi:
+    // arka plan Slack cagrisi 401 alinca (ornegin Vercel'de
+    // SESSION_SECRET farkli ornekte dogrulanamadiysa) gecerli
+    // belirteci siliyordu. Sonraki uyelik senkronu belirtecsiz
+    // gidip 401 NO_SESSION aliyor, panel "Oturumunuz sona erdi"
+    // diyor ama kullanici girisli gorunuyordu — cozum olarak
+    // yeniden giris yapmaktan baska yol yoktu. Belirtec
+    // korunur; gercekten gecersizse uyelik senkronu zaten
+    // 401'i gosterir ve kullanici "Oturumu Yenile"ye basar.
     return code === 'NO_SESSION'
       ? 'Oturum gerekli. Panele yeniden giriş yapın.'
       : 'Sunucu isteği reddetti (401). Oturumunuz sona ermiş olabilir — yeniden giriş yapın.';

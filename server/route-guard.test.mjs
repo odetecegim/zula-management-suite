@@ -133,11 +133,30 @@ t('belirsiz hata mesaji kaldirilmis (gercek neden gosteriliyor)', () => {
   );
 });
 
-t('401 alinca belirtec temizleniyor (dongu kirilmaz)', () => {
+t('401 alinca belirtec KORUNUR (silme dongusu yaratirdi)', () => {
+  // 2026-10-06: slack.ts 401de belirteci siliyordu; sonraki senkron belirtecsiz gidip 401 aliyordu.
+  // Belirtec korunur; cikis karari kullanicidadir. Geriye donus engellenir.
   assert.ok(
-    /setSessionToken\(null\)/.test(slackSrc),
-    '401 sonrasi belirtec silinmiyor; her denemede ayni hata tekrarlanir'
+    !/setSessionToken\\(null\\)/.test(slackSrc),
+    'slack.ts 401de belirteci siliyor -> dongu geri gelir'
   );
+});
+
+t('sheets.ts yazma isteklerinde oturum belirteci gonderiyor', () => {
+  // 2026-10-06: sheetsApi.post() header gondermiyordu; tum yazma 401 aliyordu.
+  const sheetsSrc = readFileSync(join(here, '..', 'src', 'lib', 'sheets.ts'), 'utf8');
+  assert.ok(/authHeaders/.test(sheetsSrc), 'sheets.ts authHeaders kullanmiyor');
+  const pIdx = sheetsSrc.indexOf('async function post');
+  assert.ok(pIdx !== -1, 'post() bulunamadi');
+  const pBlock = sheetsSrc.slice(pIdx, pIdx + 600);
+  assert.ok(/authHeaders/.test(pBlock), 'post() belirtec gondermiyor -> 401 geri gelir');
+});
+
+t('remoteLogin olu 401 dali icermiyor', () => {
+  // 2026-10-06: ikinci if-401 hic calismiyordu (erken return). Olu kod geri gelmemeli.
+  const mSrc = readFileSync(join(here, '..', 'src', 'lib', 'members-api.ts'), 'utf8');
+  const matches = mSrc.match(/if \\(res\\.status === 401\\)/g) || [];
+  assert.ok(matches.length <= 1, 'olu 401 dali geri gelmis olabilir');
 });
 
 console.log('\n' + d + ' koruma testi gecti, ' + f + ' kaldi.\n');
