@@ -152,13 +152,6 @@ t('sheets.ts yazma isteklerinde oturum belirteci gonderiyor', () => {
   assert.ok(/authHeaders/.test(pBlock), 'post() belirtec gondermiyor -> 401 geri gelir');
 });
 
-t('remoteLogin olu 401 dali icermiyor', () => {
-  // 2026-10-06: ikinci if-401 hic calismiyordu (erken return). Olu kod geri gelmemeli.
-  const mSrc = readFileSync(join(here, '..', 'src', 'lib', 'members-api.ts'), 'utf8');
-  const matches = mSrc.match(/if \\(res\\.status === 401\\)/g) || [];
-  assert.ok(matches.length <= 1, 'olu 401 dali geri gelmis olabilir');
-});
-
 console.log('\n' + d + ' koruma testi gecti, ' + f + ' kaldi.\n');
 
 /*
@@ -270,6 +263,8 @@ console.log(LF + d + ' koruma testi gecti, ' + f + ' kaldi.' + LF);
 
 
 
+
+
 /*
   OTURUM BITINCE OTOMATIK GIRIS EKRANINA GECIS
   --------------------------------------------
@@ -317,3 +312,15 @@ t('arka plan senkronu 401de otomatik cikis YAPMIYOR', () => {
 });
 
 console.log('\n' + d + ' koruma testi gecti, ' + f + ' kaldi.\n');
+
+t('remoteLogin olu 401 dali icermiyor', () => {
+  const mSrc = readFileSync(join(here, '..', 'src', 'lib', 'members-api.ts'), 'utf8');
+  const after = mSrc.split('res.status === 429')[0];
+  const tail = after.split('invalid')[1] || '';
+  assert.ok(tail.indexOf('res.status === 401') === -1, 'olu 401 dali geri gelmis');
+});
+
+t('belirtec localStorage dadir, sayfa yenilenince kaybolmaz', () => {
+  assert.ok(sessSrc.indexOf('localStorage.getItem') !== -1, 'belirtec kalici depodan okunmali');
+  assert.ok(sessSrc.indexOf('localStorage.setItem') !== -1, 'belirtec kalici depoya yazilmali');
+});

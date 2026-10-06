@@ -9,15 +9,31 @@
  * Belirteç yönetimi iki dosyaya kopyalanırsa birinde unutulur ve
  * kullanıcı sebebini anlamadan "Sunucu isteği reddetti" görür.
  *
- * Depolama `sessionStorage`dır: sekme kapanınca belirteç düşer.
+ * Depolama `localStorage`dir: sayfa yenilense bile belirteç korunur.
+ * Çıkışta (handleLogout / handleForceRelogin) belirteç silinir.
  * Sunucu 12 saatlik imzalı belirteci kendisi doğrular.
  */
 const TOKEN_KEY = 'zula_suite_session_token';
 
+/*
+  BELIRTEC NEREDE SAKLANIR: kalici depoda (sekme deposu DEGIL).
+
+  SORUN (2026-10-06): Belirtec sekme deposundaydi. Sekme yenilenince
+  depo BOSALIYOR ama currentUserId kalici depodan geri
+  geliyordu. Sonuc: panel girisli gorunuyor ama tum korumali istekler
+  (slack-test, uyelik senkronu) belirtecsiz gidip 401 NO_SESSION
+  aliyordu. Kullanici "Tokeni Kontrol Et"e basiyor (PUBLIC uc, calisiyor),
+  "Baglantiyi Test Et"e basiyor (korumali uc, 401) — "Slack keyi
+  dogruluyor test yapmiyor" gorunumu tam olarak buydu.
+
+  COZUM: Belirtec de kalici depoda saklanir; cikista silinir.
+  Sekme kapaninca dusme guvencesi kalkar ama giris zaten 12 saatliktir
+  ve cikis dugmesi belirteci temizler.
+*/
 let sessionToken: string | null = null;
 
 try {
-  sessionToken = sessionStorage.getItem(TOKEN_KEY);
+  sessionToken = localStorage.getItem(TOKEN_KEY);
 } catch {
   sessionToken = null;
 }
@@ -25,8 +41,8 @@ try {
 export function setSessionToken(token: string | null): void {
   sessionToken = token;
   try {
-    if (token) sessionStorage.setItem(TOKEN_KEY, token);
-    else sessionStorage.removeItem(TOKEN_KEY);
+    if (token) localStorage.setItem(TOKEN_KEY, token);
+    else localStorage.removeItem(TOKEN_KEY);
   } catch {
     /* depolama kapalı olabilir (gizli sekme / kısıtlı izin) */
   }

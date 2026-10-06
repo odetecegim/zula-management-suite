@@ -142,6 +142,7 @@ export function App() {
     return onSessionExpired(() => {
       setCurrentUserId(null);
       localStorage.removeItem('zula_suite_session');
+      setSessionToken(null);
       setCurrentTab('dashboard');
     });
   }, []);
@@ -757,6 +758,8 @@ const canEditPerformance =
       };
       setLogs((prev) => [newLog, ...prev]);
     }
+    // localStorage belirteci de silinmeli; yoksa sonraki kullanici eski belirteci kullanir.
+    setSessionToken(null);
     setCurrentUserId(null);
     setCurrentTab('dashboard');
   };
