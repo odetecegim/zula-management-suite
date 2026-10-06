@@ -41,12 +41,31 @@ export function extractSpreadsheetId(input) {
 function loadServiceAccount() {
   const inline = process.env.GOOGLE_SERVICE_ACCOUNT_JSON;
   if (inline && inline.trim()) {
+    const text = inline.trim();
+    // YANLIS ANAHTAR TESPITI (2026-10-06): Canlida bu degiskene Slack
+    // token'i (xoxb-...) yapistirildigi goruldu. JSON parse hatasi
+    // \"Unexpected token 'x'...\" diyor ama kullanici HANGI degiskenin
+    // bozuk oldugunu anlamiyor. Erken ve acik hata ver.
+    if (/^xox[abp]-/.test(text) || /^Bearer\s+/i.test(text)) {
+      throw new Error(
+        'GOOGLE_SERVICE_ACCOUNT_JSON alanina yanlis deger yapistirilmis: ' +
+          'bu bir Slack token\'ina benziyor (xox...). Buraya Google Cloud > ' +
+          'Service Account > Keys > \"Add key > JSON\" ile indirilen JSON ' +
+          'dosyasinin TAM ICERIGI tek satir olarak yapistirilmalidir.'
+      );
+    }
+    if (text === 'test' || text.length < 50) {
+      throw new Error(
+        'GOOGLE_SERVICE_ACCOUNT_JSON cok kisa/gecersiz gorunuyor (' +
+          text.length +
+          ' karakter). Google Cloud > Service Account > Keys bolumunden ' +
+          'indirilen JSON dosyasinin TAM ICERIGINI tek satir olarak yapistirin.'
+      );
+    }
     try {
       return JSON.parse(inline);
     } catch (err) {
-      throw new Error(
-        'GOOGLE_SERVICE_ACCOUNT_JSON gecersiz JSON: ' + err.message
-      );
+      throw new Error('GOOGLE_SERVICE_ACCOUNT_JSON gecersiz JSON: ' + err.message);
     }
   }
 
