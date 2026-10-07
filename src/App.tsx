@@ -7,7 +7,7 @@ import { MembersView } from './components/MembersView';
 import type { TeamFilter } from './components/MembersView';
 import { PerformanceView } from './components/PerformanceView';
 import type { LogFn } from './components/PerformanceView';
-import { notifyMemberEvent } from './lib/slack';
+// import { notifyMemberEvent } from './lib/slack'; /* kapatıldı: Slack log atma */
 import { apiUrl } from './lib/sheets';
 import { authHeaders, setSessionToken, onSessionExpired } from './lib/session-token';
 import {
@@ -822,7 +822,7 @@ const canEditPerformance =
     setLogs((prev) => [newLog, ...prev]);
 
     // Slack kanali bilgilendirilir (sunucu uzerinden; hata paneli bozmaz)
-    void notifyMemberEvent('eklendi', m, currentUser?.fullName);
+    // void notifyMemberEvent('eklendi', m, currentUser?.fullName);
   };
 
   const handleUpdateMember = (m: Member) => {
@@ -838,7 +838,7 @@ const canEditPerformance =
     };
     setLogs((prev) => [newLog, ...prev]);
 
-    void notifyMemberEvent('guncellendi', m, currentUser?.fullName);
+    // void notifyMemberEvent('guncellendi', m, currentUser?.fullName);
   };
 
   const handleDeleteMember = (id: string) => {
@@ -865,7 +865,7 @@ const canEditPerformance =
       setLogs((prev) => [newLog, ...prev]);
 
       // Silme islemi kritik oldugu icin Slack'a ayrica bildirilir
-      void notifyMemberEvent('silindi', target, currentUser?.fullName);
+      // void notifyMemberEvent('silindi', target, currentUser?.fullName);
     }
   };
 

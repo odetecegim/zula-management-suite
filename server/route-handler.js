@@ -513,15 +513,17 @@ export async function handleApi(method, segments, body = {}, headers = {}) {
           registerFailedLogin(rateKey);
           registerFailedAccount(body?.username);
 
-          // HESAP KILITLENIRSE Slack'a bildir: biri parolayi
-          // tahmin etmeye calisiyor olabilir. Bildirim islemi
-          // geciktirmez (fire-and-forget).
+          // HESAP KILITLENIRSE Slack'e bildirilmesi DEVREDIŞİ (log atmasın diye).
+          // Not: Güvenlik koruması (hesap kilitleme) hâlâ aktif; sadece
+          // bildirim Slack kanalına gönderilmiyor.
+          /*
           if (isAccountLocked(body?.username)) {
             void notifySecurity(
               'Hesap kilitlendi (brute force denemesi)',
               'Kullanici adi: ' + (body?.username || 'bilinmiyor') + ' | IP: ' + rateKey
             );
           }
+          */
           return fail(401, 'Kullanici adi veya sifre hatali.', 'BAD_CREDENTIALS');
         }
 
