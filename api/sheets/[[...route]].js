@@ -21,6 +21,13 @@ export default async function handler(req, res) {
   // (Ayrıca /api/<...> biçimi de desteklenir.)
   const raw = req.url || '';
   const pathOnly = raw.split('?')[0];
+  // Sorgu parametreleri (GET okuma uclari icin: ?spreadsheetId=..&tab=..)
+  let query = {};
+  try {
+    query = Object.fromEntries(new URL(raw, 'http://local').searchParams);
+  } catch {
+    query = {};
+  }
   const parts = pathOnly.split('/').filter(Boolean); // ['api','sheets',...]
 
   let segments = parts.slice(1); // 'api' at
@@ -32,7 +39,9 @@ export default async function handler(req, res) {
     segments,
     req.body || {},
     // Dogrulama icin istek basliklari sunucuya aktarilir
-    req.headers || {}
+    req.headers || {},
+    // GET okuma uclari icin sorgu parametreleri (?spreadsheetId=..&tab=..)
+    query
   );
 
   res.status(status).json(body);

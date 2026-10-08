@@ -123,7 +123,7 @@ const fail = (status, message, code = 'ERROR') => ({ status, body: { error: mess
  * @param {string[]} segments  'status' | ['test'] gibi uc nokta parcalari
  * @param {object} body     JSON govdesi
  */
-export async function handleApi(method, segments, body = {}, headers = {}) {
+export async function handleApi(method, segments, body = {}, headers = {}, query = {}) {
   const endpoint = String(segments?.[0] || '').toLowerCase();
   const get = method === 'GET' || method === 'HEAD';
 
@@ -391,11 +391,10 @@ export async function handleApi(method, segments, body = {}, headers = {}) {
       }
 
       case 'members': {
-        // GET  -> uyeleri oku
-        // POST -> uyeleri yaz
-        const spreadsheetId = resolveId(body);
+        // GET -> oku (?spreadsheetId,&tab) | POST -> yaz (members + yetki)
+        const spreadsheetId = resolveId({ spreadsheetId: query?.spreadsheetId || body?.spreadsheetId });
         if (!spreadsheetId) return fail(400, 'Spreadsheet ID gerekli.');
-        const tabName = body?.tab || MEMBERS_TAB;
+        const tabName = query?.tab || body?.tab || MEMBERS_TAB;
 
         if (get) {
           const members = await readMembers({ spreadsheetId, tabName });

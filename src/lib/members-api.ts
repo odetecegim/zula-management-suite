@@ -46,15 +46,32 @@ export const clearLastSyncError = () => {
 async function call<T>(
   path: string,
   body: unknown,
-  timeoutMs: number = TIMEOUT_MS
+  timeoutMs: number = TIMEOUT_MS,
+  method: 'GET' | 'POST' = 'POST'
 ): Promise<T | null> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {
-    const res = await fetch(apiUrl(path), {
-      method: 'POST',
+    // GET isteklerinde govde gonderilemez (fetch spesifikasyonu);
+    // parametreler query string olarak eklenir. Sunucu (express +
+    // vercel handler) query'yi body'ye birlestirir.
+    const qs =
+      method === 'GET' && body && typeof body === 'object'
+        ? '?' +
+          new URLSearchParams(
+            Object.entries(body as Record<string, unknown>).reduce<
+              Record<string, string>
+            >((acc, [k, v]) => {
+              if (v !== undefined && v !== null && v !== '') acc[k] = String(v);
+              return acc;
+            }, {})
+          ).toString()
+        : '';
+    const res = await fetch(apiUrl(path) + qs, {
+      method,
       headers: authHeaders(),
-      body: JSON.stringify(body),
+      // GET ile govde gondermek tarayicida hata verir
+      ...(method === 'GET' ? {} : { body: JSON.stringify(body) }),
       signal: controller.signal,
     });
     if (!res.ok) {
@@ -163,12 +180,16 @@ interface MembersResponse {
  * @returns uye listesi, ya da backend kullanilamiyorsa `null`
  */
 export async function fetchRemoteMembers(): Promise<Member[] | null> {
+  // OKUMA ucu GET ile cagrilir: sunucu `case 'members'` icinde
+  // `if (get)` dalinda okur; POST gelirse "members dizisi gerekli"
+  // hatasi doner ve liste hicbir zaman gelmezdi.
   const data = await call<MembersResponse>(
     '/api/sheets/members',
     {
       spreadsheetId: currentSpreadsheetId(),
     },
-    READ_TIMEOUT_MS
+    READ_TIMEOUT_MS,
+    'GET'
   );
   if (!data || !Array.isArray(data.members) || data.members.length === 0) return null;
   return data.members;

@@ -79,10 +79,14 @@ app.use(express.json({ limit: '10mb' }));
 app.all(/^\/api\/(.*)$/, async (req, res) => {
   let segments = (req.params[0] || '').split('/').filter(Boolean);
   if (segments[0] === 'sheets') segments = segments.slice(1);
+  // GET isteklerinde govde yoktur; musteriler query string ile
+  // gonderir (spreadsheetId, tab ...). Bunlari body'ye birlestiririz
+  // boylece route-handler ayni okuma dalini kullanmaya devam eder.
+  const mergedBody = { ...req.query, ...(req.body || {}) };
   const { status, body } = await handleApi(
     req.method,
     segments,
-    req.body || {},
+    mergedBody,
     req.headers || {}
   );
   res.status(status).json(body);
