@@ -1079,16 +1079,27 @@ const canEditPerformance =
               <div className="text-[10px] text-slate-400 mt-1">
                 Üye bilgilerin tarayıcında güvenle saklandı.
               </div>
-              <button
-                onClick={() => {
-                  syncingRef.current = false;
-                  pendingRef.current = false;
-                  setPendingSyncTick((t) => t + 1);
-                }}
-                className="mt-2 px-3 py-1.5 rounded-lg bg-rose-500/20 hover:bg-rose-500/30 text-rose-200 text-[11px] font-semibold transition-colors cursor-pointer"
-              >
-                Tekrar Dene
-              </button>
+              {/* Oturum bitmisse ayni bayat belirtecle tekrar denemek
+                  ise yaramaz; dogrudan giris ekranina donduren buton goster. */}
+              {/oturum|giri[şs] yap|401/i.test(syncError) ? (
+                <button
+                  onClick={handleForceRelogin}
+                  className="mt-2 px-3 py-1.5 rounded-lg bg-amber-500/20 hover:bg-amber-500/30 text-amber-200 text-[11px] font-semibold transition-colors cursor-pointer"
+                >
+                  Yeniden Giriş Yap
+                </button>
+              ) : (
+                <button
+                  onClick={() => {
+                    syncingRef.current = false;
+                    pendingRef.current = false;
+                    setPendingSyncTick((t) => t + 1);
+                  }}
+                  className="mt-2 px-3 py-1.5 rounded-lg bg-rose-500/20 hover:bg-rose-500/30 text-rose-200 text-[11px] font-semibold transition-colors cursor-pointer"
+                >
+                  Tekrar Dene
+                </button>
+              )}
             </div>
           </div>
         )}

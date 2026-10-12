@@ -210,7 +210,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
           />
           <div className="min-w-0 flex-1">
             <div className="font-extrabold text-sm tracking-wide text-white uppercase">Zula Teşkilat</div>
-            <div className="text-[11px] text-indigo-400 font-medium">Akademi</div>
+            <div className="text-[11px] text-indigo-400 font-medium">ZULA AKADEMİ</div>
           </div>
           <LogOut
             className={
