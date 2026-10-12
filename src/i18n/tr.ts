@@ -305,6 +305,11 @@ export const tr = {
   slackChannelRefresh: 'Yenile',
   slackChannelNotMember: 'bot üye değil',
   slackChannelHint: 'Botun üyesi olduğu kanallar listelenir. Başka bir kanal eklemek için Slack’ta botu o kanala /invite ile davet et.',
+  slackChannelError: 'Kanal listesi alınamadı',
+  slackChannelScopeHint:
+    'Slack botunun kanal okuma izni (scope) yok. Slack → Uygulaman → OAuth & Permissions → Bot Token Scopes’a "channels:read" ve "groups:read" ekle, ardından "Reinstall to Workspace" yap.',
+  slackChannelTokenHint:
+    'Bot token geçersiz görünüyor. Slack → OAuth & Permissions üzerinden geçerli bir bot token (xoxb-…) üretip Vercel ortam değişkenine ekleyip yeniden deploy et.',
   slackNoticeSent: 'Test mesajı gönderildi.',
   slackNotConfigured: 'Slack yapılandırılmamış.',
   slackConnectionFailed: 'Bağlantı kurulamadı.',

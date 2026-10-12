@@ -305,6 +305,11 @@ export const en = {
   slackChannelRefresh: 'Refresh',
   slackChannelNotMember: 'bot not a member',
   slackChannelHint: 'Only channels the bot is a member of are listed. To add another channel, invite the bot to it in Slack with /invite.',
+  slackChannelError: 'Could not load channel list',
+  slackChannelScopeHint:
+    'The Slack bot lacks channel-read scopes. Slack → Your App → OAuth & Permissions → Bot Token Scopes: add "channels:read" and "groups:read", then click "Reinstall to Workspace".',
+  slackChannelTokenHint:
+    'The bot token appears invalid. Generate a valid bot token (xoxb-…) from Slack → OAuth & Permissions, add it to the Vercel environment variable, and redeploy.',
   slackNoticeSent: 'Test message sent.',
   slackNotConfigured: 'Slack is not configured.',
   slackConnectionFailed: 'Connection failed.',

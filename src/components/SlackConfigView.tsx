@@ -36,6 +36,10 @@ export const SlackConfigView: React.FC<SlackConfigViewProps> = ({ readOnly = fal
   const [channels, setChannels] = useState<SlackChannel[]>([]);
   const [selectedChannel, setSelectedChannel] = useState(''); // '' = varsayilan kanal
   const [channelsLoading, setChannelsLoading] = useState(false);
+  // Kanal listesi alinamazsa SEBEP burada tutulur ve ekranda gosterilir.
+  // (Önceki hâlde hata tamamen yutuluyordu: secici sessizce gizleniyor,
+  //  kullanıcı "kanal seçme yeri yok" diyor, nedenini göremiyordu.)
+  const [channelsError, setChannelsError] = useState('');
 
   // Hata "yeniden giriş yapın" gerektiriyor mu? (401 / oturum gerekli)
   const needsLogin = Boolean(
@@ -89,6 +93,20 @@ export const SlackConfigView: React.FC<SlackConfigViewProps> = ({ readOnly = fal
     if (res.ok) setSlackStatus('ready');
   };
 
+  // Sunucudan gelen kanal-listesi hata kodunu kullaniciya anlasilir bir
+  // mesaja cevirir. Özellikle missing_scope: bot'a kanal okuma izni
+  // eklenmemisse secici hic cikmazdi; artik nedenini açikça söyleriz.
+  const describeChannelError = (msg: string): string => {
+    const m = String(msg || '').toLowerCase();
+    if (m.includes('missing_scope') || m.includes('channel_list_bot_only')) {
+      return t('slackChannelScopeHint');
+    }
+    if (m.includes('invalid_auth') || m.includes('token')) {
+      return t('slackChannelTokenHint');
+    }
+    return msg || t('slackChannelError');
+  };
+
   // Kanallari sunucudan cek (bir kez, mount aninda). Webhook modunda
   // sunucu bos liste doner; secici o zaman hic gorunmez.
   const loadChannels = async () => {
@@ -97,11 +115,18 @@ export const SlackConfigView: React.FC<SlackConfigViewProps> = ({ readOnly = fal
     setChannelsLoading(false);
     if (res.ok && res.channels.length > 0) {
       setChannels(res.channels);
+      setChannelsError('');
       // Varsayilan kanali, botun uye oldugu ilk kanal sec (daha iyi UX).
       // Kullanici isterse listeden degistirebilir; '' = sunucu varsayilani.
       const firstMember = res.channels.find((c) => c.isMember);
       if (firstMember) setSelectedChannel(firstMember.id);
+      return;
     }
+    // Liste bos geldi ya da hata dondu. Sebebi saklamiyoruz: ekranda
+    // gosterecegiz ki kullanici neden secici olmadigini anlasin.
+    setChannels([]);
+    setSelectedChannel('');
+    setChannelsError(describeChannelError(res.message));
   };
 
   useEffect(() => {
@@ -220,6 +245,26 @@ export const SlackConfigView: React.FC<SlackConfigViewProps> = ({ readOnly = fal
               <p className="text-[10px] text-slate-500 mt-1.5">
                 {t('slackChannelHint')}
               </p>
+            </div>
+          )}
+
+          {/* Kanal listesi ALINAMADIysa sebebini göster (artık sessiz kalmıyor). */}
+          {channels.length === 0 && channelsError && (
+            <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-3">
+              <p className="text-[11px] font-semibold text-amber-200 mb-1">
+                {t('slackChannelError')}
+              </p>
+              <p className="text-[11px] text-amber-100/80 leading-relaxed">
+                {channelsError}
+              </p>
+              <button
+                onClick={() => void loadChannels()}
+                disabled={channelsLoading || readOnly}
+                className="mt-2 flex items-center gap-1 text-[11px] text-amber-200 hover:text-amber-100 transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                <RefreshCw className={`w-3 h-3 ${channelsLoading ? 'animate-spin' : ''}`} />
+                {t('slackChannelRefresh')}
+              </button>
             </div>
           )}
 

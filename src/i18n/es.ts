@@ -292,6 +292,11 @@ export const es = {
   slackChannelRefresh: 'Actualizar',
   slackChannelNotMember: 'el bot no es miembro',
   slackChannelHint: 'Solo se listan los canales a los que pertenece el bot. Para agregar otro canal, invita al bot en Slack con /invite.',
+  slackChannelError: 'No se pudo cargar la lista de canales',
+  slackChannelScopeHint:
+    'Al bot de Slack le faltan permisos de lectura de canales. Slack → Tu App → OAuth & Permissions → Bot Token Scopes: agrega "channels:read" y "groups:read", luego haz clic en "Reinstall to Workspace".',
+  slackChannelTokenHint:
+    'El token del bot parece inválido. Genera un token de bot válido (xoxb-…) desde Slack → OAuth & Permissions, agrégalo a la variable de entorno de Vercel y vuelve a desplegar.',
   slackConnected: 'Conectado',
   slackConnectionFailed: 'Error de conexión.',
   slackDisconnected: 'No conectado',
