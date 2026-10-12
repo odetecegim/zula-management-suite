@@ -214,13 +214,65 @@ function buildMemberText(
   );
 }
 
-/** Panelden el ile mesaj gonderir. */
-export async function sendManualMessage(text: string): Promise<SlackResult> {
+/** Slack kanal bilgisi (botun gorebildigi / uye oldugu kanallar). */
+export interface SlackChannel {
+  id: string;
+  name: string;
+  isPrivate: boolean;
+  isMember: boolean;
+}
+
+/**
+ * Botun mesaj atabildigi kanallari listeler.
+ *
+ * Paneldeki kanal secicisini doldurur. Sunucu `conversations.list` ile
+ * botun uyesi/gorebildigi kanallari dondurur. Webhook modunda kanal
+ * listesi yoktur (tek sabit kanal).
+ */
+export async function listSlackChannels(): Promise<{
+  ok: boolean;
+  channels: SlackChannel[];
+  message: string;
+}> {
+  try {
+    const res = await fetch(apiUrl('/api/sheets/slack-channels'), {
+      method: 'GET',
+      headers: authHeaders(),
+    });
+    if (!res.ok) {
+      return {
+        ok: false,
+        channels: [],
+        message: await describeFailure(res),
+      };
+    }
+    const data = (await res.json()) as {
+      ok: boolean;
+      channels?: SlackChannel[];
+      message?: string;
+    };
+    if (data.ok) {
+      return { ok: true, channels: data.channels || [], message: '' };
+    }
+    return { ok: false, channels: [], message: data.message || 'Kanal listesi alınamadı.' };
+  } catch {
+    return { ok: false, channels: [], message: 'Sunucuya ulaşılamadı.' };
+  }
+}
+
+/**
+ * Panelden el ile mesaj gonderir.
+ *
+ * @param text    gonderilecek mesaj metni
+ * @param channel opsiyonel hedef kanal ID. Bos birakilirsa sunucu
+ *                varsayilan SLACK_CHANNEL_ID'ye yazar (davranis degismez).
+ */
+export async function sendManualMessage(text: string, channel?: string): Promise<SlackResult> {
   try {
     const res = await fetch(apiUrl('/api/sheets/slack-notify'), {
       method: 'POST',
       headers: authHeaders(),
-      body: JSON.stringify({ text }),
+      body: JSON.stringify({ text, ...(channel ? { channel } : {}) }),
     });
     if (!res.ok) {
       return {

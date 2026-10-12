@@ -18,6 +18,7 @@ import {
   notifyTestSession,
   notifySecurity,
   diagnoseSlack,
+  listSlackChannels,
   getSlackError,
   SLACK_COLORS,
 } from './slack.js';
@@ -273,4 +274,39 @@ test('KANAL ADI yapistirilirsa ag cagrisi YAPILMADAN acik hata doner', async () 
   assert.match(getSlackError(), /channel_not_found/);
   delete process.env.SLACK_BOT_TOKEN;
   delete process.env.SLACK_CHANNEL_ID;
+});
+
+// --- COK KANALLI GONDERIM (listSlackChannels + kanal parametresi) ------
+
+test('webhook modunda kanal listesi BOS doner (bot-only ozellik)', async () => {
+  delete process.env.SLACK_BOT_TOKEN;
+  delete process.env.SLACK_CHANNEL_ID;
+  process.env.SLACK_WEBHOOK_URL = 'https://hooks.slack.com/services/T/B/X';
+  const out = await listSlackChannels();
+  assert.equal(out.ok, false);
+  assert.deepEqual(out.channels, []);
+  assert.equal(out.error, 'channel_list_bot_only');
+  delete process.env.SLACK_WEBHOOK_URL;
+});
+
+test('kimlik bilgisi yoksa kanal listesi BOS ve hata doner', async () => {
+  delete process.env.SLACK_WEBHOOK_URL;
+  delete process.env.SLACK_BOT_TOKEN;
+  delete process.env.SLACK_CHANNEL_ID;
+  const out = await listSlackChannels();
+  assert.equal(out.ok, false);
+  assert.deepEqual(out.channels, []);
+  assert.ok(out.error, 'hata kodu donmeli');
+});
+
+test('sendSlackMessage kanal parametresi kabul eder (imza uyumu)', async () => {
+  // Ag cagrisi yapmayan bir yol: yapilandirma kapaliyken false doner.
+  // Amac: yeni 2. parametrenin (channelOverride) kodu bozmadigini kilitlemek.
+  delete process.env.SLACK_WEBHOOK_URL;
+  delete process.env.SLACK_BOT_TOKEN;
+  delete process.env.SLACK_CHANNEL_ID;
+  const sentNoChannel = await sendSlackMessage('mesaj');
+  const sentWithChannel = await sendSlackMessage('mesaj', 'C0C5W28LU6T');
+  assert.equal(sentNoChannel, false);
+  assert.equal(sentWithChannel, false);
 });

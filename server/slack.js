@@ -240,11 +240,14 @@ function channelFormatProblem(channel) {
  *    kaynakliysa (invalid_auth) webhook'a duser; kanal sorununda yedek
  *    YOKTUR — sebep acikca soylenir.
  */
-async function postViaBotApi(text, blocks) {
+async function postViaBotApi(text, blocks, channelOverride) {
   const { value: token } = normalizeToken(botToken());
-  const channel = channelId();
+  // Acikca secilmis kanal (override) varsa ona, yoksa varsayilan kanala yaz.
+  // Boylece panelde kullanici farkli bir kanal secebilir; kanal secilmediginde
+  // DAVRANIS AYNI kalir (varsayilan SLACK_CHANNEL_ID kullanilir).
+  const channel = String(channelOverride || '').trim() || channelId();
   if (!token || !channel) {
-    lastError = 'SLACK_BOT_TOKEN veya SLACK_CHANNEL_ID eksik.';
+    lastError = 'SLACK_BOT_TOKEN veya hedef kanal eksik.';
     return false;
   }
 
@@ -301,11 +304,11 @@ async function postViaBotApi(text, blocks) {
 /**
  * Duz metin mesaj gonderir. Asla istisna firlatmaz; false doner.
  */
-export async function sendSlackMessage(text) {
+export async function sendSlackMessage(text, channelOverride) {
   if (!isSlackConfigured()) return false;
   try {
     const mode = slackMode();
-    if (mode === 'bot') return await postViaBotApi(text);
+    if (mode === 'bot') return await postViaBotApi(text, null, channelOverride);
     if (mode === 'webhook') {
       const sent = await postToWebhook(webhookUrl(), text);
       lastError = sent
@@ -421,6 +424,78 @@ export async function diagnoseSlack() {
       (team ? ' | Workspace: "' + team + '"' : '') +
       '. Mesaj gönderilmeden doğrulandı.',
   };
+}
+
+/**
+ * BOTUN MESAJ ATABILDIGI TUM KANALLARI LISTELER (conversations.list).
+ *
+ * NEDEN: Panelde kullanici, botun bagli oldugu kanallar arasindan
+ * secim yapip ayr ayrI mesaj gonderebilsin diye.
+ *
+ * DAVRANIS:
+ * - Yalnizca bot tokeni (bot modu) ile calisir; webhook modunda kanal
+ *   listesi YOKTUR (webhook sabit tek kanala yazar).
+ * - Slack kurali: bot SADECE uyesi oldugu (uyelik/izin verilmis) kanallari
+ *   gorur. Ek kanal eklemek icin Slack'ta botu o kanala /invite etmek gerekir.
+ * - Genel (public) kanallar + botun uyesi oldugu ozel (private) kanallar.
+ * - DM / cok kullanicili sohbetler HARIC tutulur (sadece kanallar).
+ * - Asla istisna firlatmaz; { ok, channels, error } doner.
+ *
+ * @returns {Promise<{ok:boolean, channels:Array<{id,name,isPrivate,isMember}>, error:string}>}
+ */
+export async function listSlackChannels() {
+  // Webhook modunda tek sabit kanal vardir; listelenecek bir sey yok.
+  if (slackMode() !== 'bot') {
+    return { ok: false, channels: [], error: 'channel_list_bot_only' };
+  }
+  const { value: token, problem } = normalizeToken(botToken());
+  if (!token || problem) {
+    return { ok: false, channels: [], error: problem || 'missing_token' };
+  }
+
+  const channels = [];
+  let cursor = '';
+  // Slack sayfali doner (cursor). Genelde tek sayfa yeter; sonsuz donguye
+  // dusmemek icin en fazla 5 sayfa (500 kanal) cekiyoruz.
+  for (let page = 0; page < 5; page++) {
+    const params = {
+      // 100 = tek seferde en fazla kanal (Slack limiti)
+      limit: 100,
+      types: 'public_channel,private_channel',
+      // Botun UYESI oldugu kanallari de dahil et (izinli olanlar).
+      exclude_archived: true,
+    };
+    if (cursor) params.cursor = cursor;
+
+    const res = await callSlackApi('conversations.list', token, params);
+    if (!res.ok) {
+      // missing_scope: bot'a channels:read + groups:read izni eklenmemis.
+      // Kullaniciya net soyleyelim.
+      return { ok: false, channels, error: res.error };
+    }
+
+    const list = (res.data && res.data.channels) || [];
+    for (const ch of list) {
+      // DM (im) ve cok kullanicili sohbet (mpim) kanal degildir; atla.
+      if (!ch || (ch.is_im || ch.is_mpim)) continue;
+      channels.push({
+        id: String(ch.id || ''),
+        name: String(ch.name || ch.id || ''),
+        isPrivate: Boolean(ch.is_private),
+        isMember: Boolean(ch.is_member),
+      });
+    }
+
+    cursor = (res.data && res.data.response_metadata && res.data.response_metadata.next_cursor) || '';
+    if (!cursor) break;
+  }
+
+  // Okunabilir siralama: once botun uye oldugu kanallar, sonra ada gore.
+  channels.sort((a, b) => {
+    if (a.isMember !== b.isMember) return a.isMember ? -1 : 1;
+    return a.name.localeCompare(b.name, 'tr');
+  });
+  return { ok: true, channels, error: '' };
 }
 
 /**

@@ -54,6 +54,7 @@ import {
   notifyMemberChange,
   notifyTestSession,
 diagnoseSlack,
+  listSlackChannels,
   notifySecurity,
 } from './slack.js';
 
@@ -660,12 +661,44 @@ export async function handleApi(method, segments, body = {}, headers = {}, query
         }
         const text = String(body?.text || '').trim();
         if (!text) return fail(400, 'Mesaj bos.');
+        // Istege bagli hedef kanal: panelde kullanici kanal secebilir.
+        // Bos birakilirsa sunucu varsayilan SLACK_CHANNEL_ID'ye yazar
+        // (davranis degismez).
+        const targetChannel = String(body?.channel || body?.channelId || '').trim();
         clearSlackError();
-        const sent = await sendSlackMessage(text);
+        const sent = await sendSlackMessage(text, targetChannel || undefined);
         return ok({
           ok: sent,
           configured: true,
           message: sent ? 'Bildirim gonderildi.' : (getSlackError() || 'Gonderilemedi.'),
+        });
+      }
+
+      // --- KANAL LISTESI -------------------------------------------------
+      // Paneldeki "Kanala gonder" acilir listesini doldurur. Botun uyesi
+      // oldugu (mesaj atabildigi) kanallari dondurur. OTURUM gerekir;
+      // Google Sheets'e DOKUNMAZ, bu yuzden yonetici rolu istemez.
+      case 'slack-channels': {
+        const out = await listSlackChannels();
+        if (!out.ok) {
+          // missing_scope gibi hatalari kullaniciya Turkce anlatalim.
+          const reason =
+            out.error === 'missing_scope'
+              ? 'Bot’a kanal okuma izni verilmemiş. Slack > OAuth & Permissions ' +
+                'bölümüne “channels:read” ve “groups:read” izinlerini ekleyip ' +
+                'uygulamayı yeniden kurun.'
+              : out.error === 'channel_list_bot_only'
+                ? 'Kanal listesi yalnızca bot tokeni ile kullanılabilir. ' +
+                  'Şu anki yapılandırma webhook modunda.'
+                : out.error === 'invalid_auth' || out.error === 'account_inactive'
+                  ? 'Bot tokeni geçersiz. Vercel’de SLACK_BOT_TOKEN değerini kontrol edin.'
+                  : 'Kanal listesi alınamadı (' + (out.error || 'bilinmeyen hata') + ').';
+          return ok({ ok: false, channels: [], configured: isSlackConfigured(), message: reason });
+        }
+        return ok({
+          ok: true,
+          configured: true,
+          channels: out.channels,
         });
       }
 

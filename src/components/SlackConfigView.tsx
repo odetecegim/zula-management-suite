@@ -1,10 +1,12 @@
 import { useEffect, useState } from 'react';
-import { CheckCircle2, AlertTriangle, Loader2, LogIn, Send } from 'lucide-react';
+import { CheckCircle2, AlertTriangle, Loader2, LogIn, Send, RefreshCw } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import {
   testSlackConnection,
   sendManualMessage,
   checkSlackToken,
+  listSlackChannels,
+  type SlackChannel,
 } from '../lib/slack';
 
 /** Slack'in resmi 4 nokta logosu (lucide'de marka ikonu yok). */
@@ -26,6 +28,14 @@ export const SlackConfigView: React.FC<SlackConfigViewProps> = ({ readOnly = fal
   const [slackSending, setSlackSending] = useState(false);
   const [slackChecking, setSlackChecking] = useState(false);
   const [slackNotice, setSlackNotice] = useState<{ ok: boolean; text: string } | null>(null);
+
+  // --- COK KANALLI GONDERIM --------------------------------------------
+  // Botun uyesi oldugu / gorebildigi kanallar; kullanici bunlar arasindan
+  // secip ayri ayri mesaj gonderebilir. Webhook modunda kanal listesi
+  // bos olur ve secici gizlenir (tek sabit kanal).
+  const [channels, setChannels] = useState<SlackChannel[]>([]);
+  const [selectedChannel, setSelectedChannel] = useState(''); // '' = varsayilan kanal
+  const [channelsLoading, setChannelsLoading] = useState(false);
 
   // Hata "yeniden giriş yapın" gerektiriyor mu? (401 / oturum gerekli)
   const needsLogin = Boolean(
@@ -79,11 +89,31 @@ export const SlackConfigView: React.FC<SlackConfigViewProps> = ({ readOnly = fal
     if (res.ok) setSlackStatus('ready');
   };
 
+  // Kanallari sunucudan cek (bir kez, mount aninda). Webhook modunda
+  // sunucu bos liste doner; secici o zaman hic gorunmez.
+  const loadChannels = async () => {
+    setChannelsLoading(true);
+    const res = await listSlackChannels();
+    setChannelsLoading(false);
+    if (res.ok && res.channels.length > 0) {
+      setChannels(res.channels);
+      // Varsayilan kanali, botun uye oldugu ilk kanal sec (daha iyi UX).
+      // Kullanici isterse listeden degistirebilir; '' = sunucu varsayilani.
+      const firstMember = res.channels.find((c) => c.isMember);
+      if (firstMember) setSelectedChannel(firstMember.id);
+    }
+  };
+
+  useEffect(() => {
+    void loadChannels();
+  }, []);
+
   const handleSlackSend = async () => {
     if (readOnly || !slackMessage.trim()) return;
     setSlackSending(true);
     setSlackNotice(null);
-    const res = await sendManualMessage(slackMessage.trim());
+    // Secili kanal varsa ona, yoksa sunucu varsayilan kanalina gider.
+    const res = await sendManualMessage(slackMessage.trim(), selectedChannel || undefined);
     setSlackSending(false);
     setSlackNotice({ ok: res.ok, text: res.message });
     if (res.ok) setSlackMessage('');
@@ -153,6 +183,46 @@ export const SlackConfigView: React.FC<SlackConfigViewProps> = ({ readOnly = fal
         </div>
 
         <div className="p-4 sm:p-5 space-y-4">
+          {/* Kanal secici — yalnizca bot modunda ve kanal varsa gorunur.
+              Webhook modunda sunucu bos liste doner; secici gizlenir. */}
+          {channels.length > 0 && (
+            <div>
+              <div className="flex items-center justify-between mb-2">
+                <label className="block text-xs font-semibold text-slate-400">
+                  {t('slackChannelLabel')}
+                </label>
+                <button
+                  onClick={() => void loadChannels()}
+                  disabled={channelsLoading || readOnly}
+                  title={t('slackChannelRefresh')}
+                  className="flex items-center gap-1 text-[11px] text-slate-400 hover:text-slate-200 transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  <RefreshCw className={`w-3 h-3 ${channelsLoading ? 'animate-spin' : ''}`} />
+                  {t('slackChannelRefresh')}
+                </button>
+              </div>
+              <select
+                value={selectedChannel}
+                onChange={(e) => setSelectedChannel(e.target.value)}
+                disabled={readOnly}
+                className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2.5 text-sm text-white outline-none focus:border-indigo-500 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {/* '' = sunucu varsayilan kanali (SLACK_CHANNEL_ID) */}
+                <option value="">{t('slackChannelDefault')}</option>
+                {channels.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.isPrivate ? '🔒 ' : '# '}
+                    {c.name}
+                    {c.isMember ? '' : ` (${t('slackChannelNotMember')})`}
+                  </option>
+                ))}
+              </select>
+              <p className="text-[10px] text-slate-500 mt-1.5">
+                {t('slackChannelHint')}
+              </p>
+            </div>
+          )}
+
           {/* Manuel mesaj */}
           <div>
             <label className="block text-xs font-semibold text-slate-400 mb-2">
