@@ -286,7 +286,7 @@ export const es = {
   navSlack: 'Notificaciones de Slack',
   slackAlertsTitle: 'Notificaciones de Slack',
   slackAlertsSubtitle: 'Los eventos de miembros llegan al canal automáticamente',
-  slackCharLimit: '500 caracteres',
+  slackMultilineHint: 'Puedes escribir varias líneas; se conservan los saltos de línea. Ctrl+Enter para enviar.',
   slackChannelLabel: 'Canal de destino',
   slackChannelDefault: 'Canal predeterminado (ajuste del servidor)',
   slackChannelRefresh: 'Actualizar',

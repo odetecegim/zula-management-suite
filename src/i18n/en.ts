@@ -299,7 +299,7 @@ export const en = {
   slackPlaceholder: 'E.g.: Moderator meeting tomorrow at 20:00.',
   slackSend: 'Send',
   slackSending: 'Sending…',
-  slackCharLimit: '500 chars',
+  slackMultilineHint: 'You can write multiple lines; line breaks are preserved. Ctrl+Enter to send.',
   slackChannelLabel: 'Target Channel',
   slackChannelDefault: 'Default channel (server setting)',
   slackChannelRefresh: 'Refresh',

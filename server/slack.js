@@ -144,7 +144,7 @@ async function postToWebhook(url, text) {
     const res = await fetch(url, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ text: String(text).slice(0, 3000) }),
+      body: JSON.stringify({ text: String(text).slice(0, 40000) }),
       signal: controller.signal,
     });
     return res.ok;
@@ -278,7 +278,7 @@ async function postViaBotApi(text, blocks, channelOverride) {
   // 3) Asil gonderim
   const sent = await callSlackApi('chat.postMessage', token, {
     channel,
-    text: String(text).slice(0, 3000),
+    text: String(text).slice(0, 40000),
     ...(blocks && blocks.length ? { blocks } : {}),
   });
   if (sent.ok) {

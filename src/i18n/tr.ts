@@ -299,7 +299,7 @@ export const tr = {
   slackPlaceholder: "Örn: Yarın 20:00'de moderatör toplantısı var.",
   slackSend: 'Gönder',
   slackSending: 'Gönderiliyor…',
-  slackCharLimit: '500 karakter',
+  slackMultilineHint: 'Çok satırlı yazabilirsin; satır boşlukları korunur. Göndermek için Ctrl+Enter.',
   slackChannelLabel: 'Hedef Kanal',
   slackChannelDefault: 'Varsayılan kanal (sunucu ayarı)',
   slackChannelRefresh: 'Yenile',

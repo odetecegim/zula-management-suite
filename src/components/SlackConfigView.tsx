@@ -368,34 +368,40 @@ export const SlackConfigView: React.FC<SlackConfigViewProps> = ({ readOnly = fal
             </div>
           )}
 
-          {/* Manuel mesaj */}
+          {/* Manuel mesaj — cok satirli (textarea): yapistirilan metin aynen,
+              satir bosluklariyla birlikte gider. Karakter siniri YOK. */}
           <div>
             <label className="block text-xs font-semibold text-slate-400 mb-2">
               {t('slackSendMessage')}
             </label>
-            <div className="flex flex-col sm:flex-row gap-2">
-              <input
-                type="text"
+            <div className="flex flex-col gap-2">
+              <textarea
                 value={slackMessage}
                 onChange={(e) => setSlackMessage(e.target.value)}
                 onKeyDown={(e) => {
-                  if (e.key === 'Enter' && !readOnly) handleSlackSend();
+                  // Enter = yeni satir. Gondermek icin Ctrl (veya Mac'te Cmd)+Enter.
+                  if (e.key === 'Enter' && (e.ctrlKey || e.metaKey) && !readOnly) {
+                    e.preventDefault();
+                    handleSlackSend();
+                  }
                 }}
                 placeholder={t('slackPlaceholder')}
-                maxLength={500}
-                className="flex-1 bg-slate-950 border border-slate-800 rounded-xl px-3 py-2.5 text-sm text-white outline-none focus:border-indigo-500 placeholder:text-slate-600"
+                rows={4}
+                className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2.5 text-sm text-white outline-none focus:border-indigo-500 placeholder:text-slate-600 resize-y leading-relaxed whitespace-pre-wrap"
               />
-              <button
-                onClick={handleSlackSend}
-                disabled={readOnly || !slackMessage.trim() || slackSending}
-                className="px-4 py-2.5 rounded-xl bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700 text-white text-xs font-bold transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap"
-              >
-                {slackSending ? t('slackSending') : t('slackSend')}
-              </button>
+              <div className="flex items-center justify-between gap-2">
+                <p className="text-[10px] text-slate-500 leading-relaxed">
+                  {t('slackMultilineHint')}
+                </p>
+                <button
+                  onClick={handleSlackSend}
+                  disabled={readOnly || !slackMessage.trim() || slackSending}
+                  className="px-4 py-2.5 rounded-xl bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700 text-white text-xs font-bold transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap"
+                >
+                  {slackSending ? t('slackSending') : t('slackSend')}
+                </button>
+              </div>
             </div>
-            <p className="text-[10px] text-slate-500 mt-1.5">
-              {slackMessage.length}/{t('slackCharLimit')}
-            </p>
           </div>
 
           {slackNotice && (
