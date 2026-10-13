@@ -1,4 +1,4 @@
-/**
+﻿/**
  * API istek yonlendiricisi.
  * Hem Express sunucusu (server/index.js) hem de Vercel serverless
  * function'i (api/sheets/[[...route]].js) bu modulu kullanir.
@@ -39,7 +39,6 @@ import {
   registerFailedLogin,
   isAccountLocked,
   registerFailedAccount,
-  clearFailedAccount,
   accountRetryInfo,
   pruneSessions,
 hasSessionSecret,
@@ -51,8 +50,6 @@ import {
   getSlackError,
   clearSlackError,
   sendSlackMessage,
-  notifyMemberChange,
-  notifyTestSession,
 diagnoseSlack,
   listSlackChannels,
   notifySecurity,

@@ -308,7 +308,6 @@ export async function writeMembers({
 }) {
   const sheets = await getClient();
   const tab = await ensureMembersTab({ spreadsheetId, tabName });
-  const range = `${tab}!A1:${LAST_COL}1000`;
 
   // Once mevcut sifre ozetlerini sakla (koruma icin)
   const existing = await readRows({ spreadsheetId, tabName });

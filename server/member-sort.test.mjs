@@ -1,4 +1,4 @@
-import assert from 'node:assert/strict';
+﻿import assert from 'node:assert/strict';
 import { naturalCompare, playerIdCompare, sortMembers } from '../src/lib/member-sort.ts';
 
 let d = 0;
@@ -6,8 +6,6 @@ const t = (name, fn) => {
   try { fn(); d++; console.log('  OK   ' + name); }
   catch (e) { console.log('  FAIL ' + name + ' -> ' + e.message); process.exitCode = 1; }
 };
-
-const m = (o) => ({ participationScore: 0, username: '', fullName: '', ...o });
 
 console.log('\n== Dogal karsilastirma ==');
 t('ZULA-2 < ZULA-10 (sayisal, alfabetik degil)', () => {

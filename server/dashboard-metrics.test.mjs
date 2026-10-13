@@ -1,4 +1,4 @@
-import assert from 'node:assert/strict';
+﻿import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
@@ -135,7 +135,7 @@ t('ZULA-2, ZULA-10 dan once gelir (sayisal)', () => {
 });
 
 t('SIRA kolonu puana gore hesaplanir (satir sirasi degil)', () => {
-  const { rows, rankByMember } = buildRows([
+  const { rankByMember } = buildRows([
     mem('a', 'ZULA-001', 'aaa', 'Ali', 10),
     mem('b', 'ZULA-002', 'bbb', 'Bora', 90),
   ]);
