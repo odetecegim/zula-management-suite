@@ -41,6 +41,62 @@ export const SlackConfigView: React.FC<SlackConfigViewProps> = ({ readOnly = fal
   //  kullanıcı "kanal seçme yeri yok" diyor, nedenini göremiyordu.)
   const [channelsError, setChannelsError] = useState('');
 
+  // --- MANUEL KANAL EKLEME -------------------------------------------
+  // Bot tokeninda `channels:read` izni olmadan da (yalnizca `chat:write`
+  // ile) bir kanala mesaj ATILABILIR; eksik olan sadece kanallari
+  // LISTELEYEBilmek. Bu yuzden kullanici kanal ID'sini elle girer; kanal
+  // tarayicida saklanir ve seciciye eklenir. Boylece Slack'ta hicbir
+  // ek izin / reinstall gerektirmeden cok kanalli gonderim calisir.
+  const [manualId, setManualId] = useState('');
+  const [manualName, setManualName] = useState('');
+
+  const MANUAL_CHANNELS_KEY = 'zula_slack_manual_channels';
+
+  const loadManualChannels = (): SlackChannel[] => {
+    try {
+      const raw = localStorage.getItem(MANUAL_CHANNELS_KEY);
+      if (!raw) return [];
+      const parsed = JSON.parse(raw) as SlackChannel[];
+      if (!Array.isArray(parsed)) return [];
+      return parsed.filter((c) => c && typeof c.id === 'string' && c.id.length > 0);
+    } catch {
+      return [];
+    }
+  };
+
+  const saveManualChannels = (list: SlackChannel[]) => {
+    try {
+      localStorage.setItem(MANUAL_CHANNELS_KEY, JSON.stringify(list));
+    } catch {
+      /* depolama kapali olabilir */
+    }
+  };
+
+  const addManualChannel = () => {
+    const id = manualId.trim();
+    // Slack kanal ID'si C/G/D ile baslar. Hatali girisi erken yakala:
+    // yoksa mesaj gonderiminde "channel_not_found" alinir.
+    if (!/^[CGD][A-Z0-9]{4,}$/i.test(id)) {
+      setChannelsError(t('slackManualInvalidId'));
+      return;
+    }
+    const name = manualName.trim() || id;
+    const manual = loadManualChannels();
+    const channel: SlackChannel = {
+      id,
+      name,
+      isPrivate: /^G/i.test(id),
+      isMember: true,
+    };
+    const nextManual = [...manual.filter((c) => c.id !== id), channel];
+    saveManualChannels(nextManual);
+    setChannels((prev) => [...prev.filter((c) => c.id !== id), channel]);
+    setSelectedChannel(id);
+    setManualId('');
+    setManualName('');
+    setChannelsError('');
+  };
+
   // Hata "yeniden giriş yapın" gerektiriyor mu? (401 / oturum gerekli)
   const needsLogin = Boolean(
     slackNotice &&
@@ -111,19 +167,25 @@ export const SlackConfigView: React.FC<SlackConfigViewProps> = ({ readOnly = fal
   // sunucu bos liste doner; secici o zaman hic gorunmez.
   const loadChannels = async () => {
     setChannelsLoading(true);
+    const manual = loadManualChannels();
     const res = await listSlackChannels();
     setChannelsLoading(false);
-    if (res.ok && res.channels.length > 0) {
-      setChannels(res.channels);
+    // Otomatik liste (channels:read ile) + manuel eklenen kanallar birlestirilir.
+    // Manuel kanallar her zaman korunur; otomatik liste onlari ezmez.
+    const auto = res.ok && res.channels.length > 0 ? res.channels : [];
+    const merged: SlackChannel[] = [...auto];
+    for (const m of manual) {
+      if (!merged.some((c) => c.id === m.id)) merged.push(m);
+    }
+    if (merged.length > 0) {
+      setChannels(merged);
       setChannelsError('');
-      // Varsayilan kanali, botun uye oldugu ilk kanal sec (daha iyi UX).
-      // Kullanici isterse listeden degistirebilir; '' = sunucu varsayilani.
-      const firstMember = res.channels.find((c) => c.isMember);
-      if (firstMember) setSelectedChannel(firstMember.id);
+      const firstMember = merged.find((c) => c.isMember);
+      if (firstMember) setSelectedChannel((prev) => prev || firstMember.id);
       return;
     }
-    // Liste bos geldi ya da hata dondu. Sebebi saklamiyoruz: ekranda
-    // gosterecegiz ki kullanici neden secici olmadigini anlasin.
+    // Hic kanal yok (otomatik liste de basarisiz). Manuel ekleme formunu
+    // gostermek icin sebebi ekranda birakiyoruz.
     setChannels([]);
     setSelectedChannel('');
     setChannelsError(describeChannelError(res.message));
@@ -265,6 +327,44 @@ export const SlackConfigView: React.FC<SlackConfigViewProps> = ({ readOnly = fal
                 <RefreshCw className={`w-3 h-3 ${channelsLoading ? 'animate-spin' : ''}`} />
                 {t('slackChannelRefresh')}
               </button>
+            </div>
+          )}
+
+          {/* Manuel kanal ekleme — channels:read izni gerekmez (chat:write yeter).
+              Kullanici kanal ID'sini elle girer; kanal seciciye eklenir ve
+              tarayicida saklanir. Boylece Slack reinstall olmadan cok kanalli
+              gonderim calisir. */}
+          {!readOnly && (
+            <div className="rounded-xl border border-slate-800 bg-slate-950/40 p-3">
+              <p className="text-[11px] font-semibold text-slate-300 mb-2">
+                {t('slackManualTitle')}
+              </p>
+              <div className="flex flex-col sm:flex-row gap-2">
+                <input
+                  type="text"
+                  value={manualId}
+                  onChange={(e) => setManualId(e.target.value)}
+                  placeholder={t('slackManualIdPlaceholder')}
+                  className="flex-1 bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-sm text-white outline-none focus:border-indigo-500 placeholder:text-slate-600"
+                />
+                <input
+                  type="text"
+                  value={manualName}
+                  onChange={(e) => setManualName(e.target.value)}
+                  placeholder={t('slackManualNamePlaceholder')}
+                  className="sm:w-40 bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-sm text-white outline-none focus:border-indigo-500 placeholder:text-slate-600"
+                />
+                <button
+                  onClick={addManualChannel}
+                  disabled={!manualId.trim()}
+                  className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-100 text-xs font-bold transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap"
+                >
+                  {t('slackManualAdd')}
+                </button>
+              </div>
+              <p className="text-[10px] text-slate-500 mt-1.5 leading-relaxed">
+                {t('slackManualHint')}
+              </p>
             </div>
           )}
 

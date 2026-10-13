@@ -293,6 +293,14 @@ export const pt = {
   slackChannelNotMember: 'o bot não é membro',
   slackChannelHint: 'Somente os canais dos quais o bot é membro são listados. Para adicionar outro canal, convide o bot no Slack com /invite.',
   slackChannelError: 'Não foi possível carregar a lista de canais',
+  slackManualTitle: 'Adicionar por ID do canal (sem permissão extra)',
+  slackManualIdPlaceholder: 'ID do canal (ex. C0C5W28LU6T)',
+  slackManualNamePlaceholder: 'Nome (opcional)',
+  slackManualAdd: 'Adicionar',
+  slackManualHint:
+    'Digite o ID, não o nome: clique com o botão direito no canal no Slack → "Ver detalhes do canal" → o código C/G/D no final. Lembre-se de fazer /invite do bot no canal.',
+  slackManualInvalidId:
+    'ID de canal inválido. É um código que começa com C, G ou D (ex. C0C5W28LU6T).',
   slackChannelScopeHint:
     'O bot do Slack não tem permissões de leitura de canais. Slack → Seu App → OAuth & Permissions → Bot Token Scopes: adicione "channels:read" e "groups:read", depois clique em "Reinstall to Workspace".',
   slackChannelTokenHint:

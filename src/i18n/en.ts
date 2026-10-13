@@ -306,6 +306,14 @@ export const en = {
   slackChannelNotMember: 'bot not a member',
   slackChannelHint: 'Only channels the bot is a member of are listed. To add another channel, invite the bot to it in Slack with /invite.',
   slackChannelError: 'Could not load channel list',
+  slackManualTitle: 'Add by Channel ID (no extra permission)',
+  slackManualIdPlaceholder: 'Channel ID (e.g. C0C5W28LU6T)',
+  slackManualNamePlaceholder: 'Name (optional)',
+  slackManualAdd: 'Add',
+  slackManualHint:
+    'Enter the ID, not the name: right-click the channel in Slack → "View channel details" → the C/G/D code at the bottom. Remember to /invite the bot into the channel.',
+  slackManualInvalidId:
+    'Invalid channel ID. It is a code starting with C, G, or D (e.g. C0C5W28LU6T).',
   slackChannelScopeHint:
     'The Slack bot lacks channel-read scopes. Slack → Your App → OAuth & Permissions → Bot Token Scopes: add "channels:read" and "groups:read", then click "Reinstall to Workspace".',
   slackChannelTokenHint:

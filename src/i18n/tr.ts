@@ -306,6 +306,14 @@ export const tr = {
   slackChannelNotMember: 'bot üye değil',
   slackChannelHint: 'Botun üyesi olduğu kanallar listelenir. Başka bir kanal eklemek için Slack’ta botu o kanala /invite ile davet et.',
   slackChannelError: 'Kanal listesi alınamadı',
+  slackManualTitle: 'Kanal ID ile Ekle (ek izin gerekmez)',
+  slackManualIdPlaceholder: 'Kanal ID (örn. C0C5W28LU6T)',
+  slackManualNamePlaceholder: 'Ad (opsiyonel)',
+  slackManualAdd: 'Ekle',
+  slackManualHint:
+    "ID'yi elle gir: Slack'ta kanala sağ tık → \"Kanal bilgisini görüntüle\" → en alttaki C/G/D kodu. Botu bu kanala /invite ile eklemeyi unutma.",
+  slackManualInvalidId:
+    'Geçersiz kanal ID. ID, C, G veya D ile başlayan bir koddur (örn. C0C5W28LU6T).',
   slackChannelScopeHint:
     'Slack botunun kanal okuma izni (scope) yok. Slack → Uygulaman → OAuth & Permissions → Bot Token Scopes’a "channels:read" ve "groups:read" ekle, ardından "Reinstall to Workspace" yap.',
   slackChannelTokenHint:
