@@ -1,9 +1,11 @@
 {
-  "buildCacheBypass": true,
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "framework": "vite",
   "buildCommand": "npm run build",
   "outputDirectory": "dist",
+  "env": {
+    "ZULA_BUILD_CACHE_MARKER": "1"
+  },
   "rewrites": [
     { "source": "/((?!api/).*)", "destination": "/index.html" }
   ],
