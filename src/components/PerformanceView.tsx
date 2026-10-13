@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import {
   Search, Plus, Minus, Save, X, TestTube2, Bug, Lightbulb, Gavel, FileCheck,
   MessageSquareText, Star, StickyNote, Calculator, Ban, Timer, MessageCircleOff,
@@ -124,6 +125,7 @@ export const PerformanceView: React.FC<PerformanceProps> = ({
 }) => {
   const [period, setPeriod] = useState<string>(currentPeriod());
   const [searchTerm, setSearchTerm] = useState('');
+  const { t } = useTranslation();
   const [competency, setCompetency] = useState<'ALL' | 'ACADEMY' | 'REFEREE'>('ALL');
   const [region, setRegion] = useState<'ALL' | RegionType>('ALL');
   const [draft, setDraft] = useState<Performance | null>(null);
@@ -132,7 +134,7 @@ export const PerformanceView: React.FC<PerformanceProps> = ({
   // Hakemlik kaydi girisi
   const [refDay, setRefDay] = useState<number>(1);
   const [refCount, setRefCount] = useState<number>(1);
-  const [refType, setRefType] = useState<'EVERYONE' | 'SABOTAGE'>('EVERYONE');
+  const [refType, setRefType] = useState<'EVERYONE' | 'TEAM'>('EVERYONE');
 
   // Carpanli katilim kaydi girisi
   const [entryDay, setEntryDay] = useState<number>(1);
@@ -235,18 +237,18 @@ export const PerformanceView: React.FC<PerformanceProps> = ({
   };
 
 
-  // Hakemlik toplamlarini yeniden hesaplar (Herkes + Sabotaj + gunluk dagilim)
+  // Hakemlik toplamlarini yeniden hesaplar (Herkes Tek x2000 + Takimli x5000 + gunluk dagilim)
   const applyRefEntries = (current: Performance, entries: RefPerfEntry[]): Performance => {
     const everyone = entries.filter((e) => e.type === 'EVERYONE').reduce((s, e) => s + e.multiplier, 0);
-    const sabotage = entries.filter((e) => e.type === 'SABOTAGE').reduce((s, e) => s + e.multiplier, 0);
+    const team = entries.filter((e) => e.type === 'TEAM' || e.type === 'SABOTAGE').reduce((s, e) => s + e.multiplier, 0);
     const dayMap = new Map<number, number>();
     entries.forEach((e) => dayMap.set(e.day, (dayMap.get(e.day) ?? 0) + e.multiplier));
     return {
       ...current,
       refereeEntries: entries,
       refereeEveryoneX: everyone,
-      refereeSabotage: sabotage,
-      refereeMatches: everyone + sabotage,
+      refereeTeam: team,
+      refereeMatches: everyone + team,
       refereeDays: Array.from(dayMap.entries())
         .map(([day, count]) => ({ day, count }))
         .sort((a, b) => a.day - b.day),
@@ -301,7 +303,7 @@ export const PerformanceView: React.FC<PerformanceProps> = ({
         { key: 'bugReports', label: 'Hata Bildirimi' },
         { key: 'suggestions', label: 'Öneri' },
         { key: 'refereeEveryoneX', label: 'Hakemlik (Herkes)' },
-        { key: 'refereeSabotage', label: 'Hakemlik (Sabotaj)' },
+        { key: 'refereeTeam', label: 'Hakemlik (Takımlı)' },
         { key: 'qaReviews', label: 'QA İncelemesi' },
         { key: 'discordTimeout', label: 'Discord Uzaklaştırma' },
         { key: 'discordBan', label: 'Discord Yasaklama' },
@@ -784,12 +786,12 @@ export const PerformanceView: React.FC<PerformanceProps> = ({
               </div>
 
 
-              {/* Hakemlik (Herkes / Sabotaj) */}
+              {/* Hakemlik (Herkes Tek / Takımlı) */}
               <div className="bg-slate-950/60 border border-slate-800 rounded-xl p-4 space-y-3">
                 <div className="text-xs font-semibold text-slate-300">
                   Hakemlik Kaydı{' '}
                   <span className="text-slate-500">
-                    (Herkes {draft.refereeEveryoneX ?? 0} × 2000 · Sabotaj {draft.refereeSabotage ?? 0} × 5000 · toplam{' '}
+                    (Herkes Tek {draft.refereeEveryoneX ?? 0} × 2000 · Takımlı {draft.refereeTeam ?? 0} × 5000 · toplam{' '}
                     {draft.refereeMatches} maç)
                   </span>
                 </div>
@@ -799,11 +801,11 @@ export const PerformanceView: React.FC<PerformanceProps> = ({
                       <label className="block text-[10px] font-semibold text-slate-500 mb-1">Tür</label>
                       <select
                         value={refType}
-                        onChange={(e) => setRefType(e.target.value as 'EVERYONE' | 'SABOTAGE')}
+                        onChange={(e) => setRefType(e.target.value as 'EVERYONE' | 'TEAM')}
                         className="bg-slate-900 border border-slate-800 rounded-lg px-2 py-1.5 text-sm text-white outline-none cursor-pointer"
                       >
-                        <option value="EVERYONE">Herkes (ÖTS)</option>
-                        <option value="SABOTAGE">Sabotaj</option>
+                        <option value="EVERYONE">{t('typeEveryone')}</option>
+                        <option value="TEAM">{t('typeTeam')}</option>
                       </select>
                     </div>
                     <div>
@@ -848,13 +850,13 @@ export const PerformanceView: React.FC<PerformanceProps> = ({
                       key={entry.id}
                       className={
                         'inline-flex items-center gap-2 text-[11px] px-2.5 py-1 rounded-lg border ' +
-                        (entry.type === 'SABOTAGE'
+                        ((entry.type === 'TEAM' || entry.type === 'SABOTAGE')
                           ? 'bg-rose-500/10 text-rose-300 border-rose-500/20'
                           : 'bg-emerald-500/10 text-emerald-300 border-emerald-500/20')
                       }
                     >
                       <Gavel className="w-3 h-3" />
-                      {entry.day}. gün · {entry.multiplier} maç · {entry.type === 'SABOTAGE' ? 'Sabotaj' : 'Herkes'}
+                      {entry.day}. gün · {entry.multiplier} maç · {entry.type === 'TEAM' || entry.type === 'SABOTAGE' ? t('typeTeam') : t('typeEveryone')}
                       {canEdit && (
                         <button
                           type="button"

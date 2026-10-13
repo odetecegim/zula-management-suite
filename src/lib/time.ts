@@ -45,7 +45,8 @@ export type Scorable = Pick<Performance, 'testParticipation' | 'bugReports' | 's
   refereeMatches: number;
   discordActions: number;
   refereeEveryoneX?: number;
-  refereeSabotage?: number;
+  refereeTeam?: number;
+  refereeSabotage?: number; // eski veri; Takimli olarak okunur
   discordTimeout?: number;
   discordBan?: number;
   discordMessageDelete?: number;
@@ -57,28 +58,50 @@ export type Scorable = Pick<Performance, 'testParticipation' | 'bugReports' | 's
 // QA tablosu: Toplam = Test Katilimi + Hata Bildirimi + Oneri Bildirimi
 export const QA_BASE_MULTIPLIER = 1000;
 
+// Hakem puan carpanlari:
+//   Herkes Tek  -> x2000
+//   Takimli     -> x5000
+export const REFEREE_EVERYONE_MULTIPLIER = 2000;
+export const REFEREE_TEAM_MULTIPLIER = 5000;
+
 export function qaBaseTotal(p: Pick<Scorable, 'testParticipation' | 'bugReports' | 'suggestions'>): number {
   return (
     Number(p.testParticipation || 0) + Number(p.bugReports || 0) + Number(p.suggestions || 0)
   );
 }
 
+/**
+ * Hakem puanini hesaplar — DETAY GIRISINDEN BAGIMSIZ.
+ *
+ * Kural: Hakem Performansi artik "Herkes Tek" ve "Takimli" turlerinden
+ * bagimsiz olarak hesaplanir. Toplam hakemlik (refereeMatches) bu iki turun
+ * toplamidir; tek tek gun/kayit kirilimi PUANA ETKI ETMEZ (yalnizca bilgi).
+ *
+ *   Herkes Tek adedi x 2000  +  Takimli adedi x 5000
+ *
+ * Geriye uyumluluk: eski kayitlarda "Sabotaj" turu vardi; o deger
+ * Takimli olarak okunur.
+ */
+export function refereePointsOf(p: Scorable): { everyone: number; team: number; points: number } {
+  const everyone = Number(p.refereeEveryoneX || 0);
+  // Takimli: yeni alan refereeTeam; yoksa eski refereeSabotage degeri
+  const team = Number(p.refereeTeam || 0) + Number(p.refereeSabotage || 0);
+  const points = everyone * REFEREE_EVERYONE_MULTIPLIER + team * REFEREE_TEAM_MULTIPLIER;
+  return { everyone, team, points };
+}
+
 // Puan formulu:
 //   Toplam = Test Katilimi + Hata + Oneri
 //   QA     = Toplam x 1000
-//   + Support, Hakem, Discord, Yonetici Puani/Gorusu (hepsi SINIRSIZ)
+//   Hakem  = Herkes Tek x 2000 + Takimli x 5000   (detaydan bagimsiz)
+//   + Support, Discord, Yonetici Puani/Gorusu (hepsi SINIRSIZ)
 export function scoreBreakdown(p: Scorable): ScoreLine[] {
   const testDays = Number(p.testParticipation || 0);
   const bugs = Number(p.bugReports || 0);
   const suggestions = Number(p.suggestions || 0);
   const base = testDays + bugs + suggestions;
 
-  const everyoneX = Number(p.refereeEveryoneX || 0);
-  const sabotage = Number(p.refereeSabotage || 0);
-  const granularRef = everyoneX > 0 || sabotage > 0;
-  const refereePoints = granularRef
-    ? everyoneX * 2000 + sabotage * 5000
-    : Number(p.refereeMatches || 0) * 750;
+  const { everyone, team, points: refereePoints } = refereePointsOf(p);
 
   const timeout = Number(p.discordTimeout || 0);
   const ban = Number(p.discordBan || 0);
@@ -107,9 +130,7 @@ export function scoreBreakdown(p: Scorable): ScoreLine[] {
     { label: 'Support', detail: 'Sınırsız', points: Number(p.supportPoints || 0), kind: 'score' },
     {
       label: 'Hakem Performansı',
-      detail: granularRef
-        ? 'Herkes ' + everyoneX + ' × 2000 · Sabotaj ' + sabotage + ' × 5000'
-        : (p.refereeMatches || 0) + ' maç × 750',
+      detail: 'Herkes Tek ' + everyone + ' × ' + REFEREE_EVERYONE_MULTIPLIER + ' · Takımlı ' + team + ' × ' + REFEREE_TEAM_MULTIPLIER,
       points: refereePoints,
       kind: 'score',
     },

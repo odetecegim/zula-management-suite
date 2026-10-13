@@ -125,9 +125,9 @@ export interface PerfEntry {
   multiplier: number;
 }
 
-// Hakemlik kaydi: gun + mac adedi + tur (Herkes / Sabotaj)
+// Hakemlik kaydi: gun + mac adedi + tur (Herkes Tek / Takimli)
 export interface RefPerfEntry extends PerfEntry {
-  type: 'EVERYONE' | 'SABOTAGE';
+  type: 'EVERYONE' | 'TEAM' | 'SABOTAGE';
 }
 
 export interface Performance {
@@ -146,8 +146,9 @@ export interface Performance {
   // --- Alt kategori detaylari (opsiyonel; agirlikli puan modeli) ---
   participationEntries?: PerfEntry[]; // gun + carpan serisi
   participationDetails?: string; // "05x2, 12x1" ozeti
-  refereeEveryoneX?: number; // Herkes turnuvasi hakemlik adedi
-  refereeSabotage?: number; // Sabotaj turnuvasi hakemlik adedi
+  refereeEveryoneX?: number; // "Herkes Tek" hakemlik adedi (x2000)
+  refereeTeam?: number; // "Takimli" hakemlik adedi (x5000)
+  refereeSabotage?: number; // (eski veri uyumlulugu; Takimli olarak okunur)
   refereeEntries?: RefPerfEntry[];
   discordTimeout?: number; // Discord uzaklastirma/timeout
   discordBan?: number; // Discord yasaklama

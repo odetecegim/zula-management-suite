@@ -314,7 +314,7 @@ export const SheetsView: React.FC<SheetsViewProps> = ({ readOnly = false, member
           managerOpinion: row.managerOpinion,
           refereeEntries: existing?.refereeEntries ?? [],
           refereeEveryoneX: existing?.refereeEveryoneX ?? 0,
-          refereeSabotage: existing?.refereeSabotage ?? 0,
+          refereeTeam: existing?.refereeTeam ?? existing?.refereeSabotage ?? 0,
           discordTimeout: existing?.discordTimeout ?? 0,
           discordBan: existing?.discordBan ?? 0,
           discordMessageDelete: existing?.discordMessageDelete ?? 0,
