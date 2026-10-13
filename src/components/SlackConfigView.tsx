@@ -379,11 +379,31 @@ export const SlackConfigView: React.FC<SlackConfigViewProps> = ({ readOnly = fal
                 value={slackMessage}
                 onChange={(e) => setSlackMessage(e.target.value)}
                 onKeyDown={(e) => {
-                  // Enter = yeni satir. Gondermek icin Ctrl (veya Mac'te Cmd)+Enter.
-                  if (e.key === 'Enter' && (e.ctrlKey || e.metaKey) && !readOnly) {
+                  if (readOnly || e.key !== 'Enter') return;
+                  // Ctrl (veya Mac'te Cmd)+Enter = gonder.
+                  if (e.ctrlKey || e.metaKey) {
                     e.preventDefault();
                     handleSlackSend();
+                    return;
                   }
+                  // Alt+Enter, Shift+Enter ve sade Enter = acikca yeni satir.
+                  //
+                  // NEDEN ELLE: textarea'da sade Enter ve Shift+Enter zaten
+                  // yeni satir ekler, AMA Alt+Enter'in varsayilan davranisi
+                  // YOKTUR (tus yutulur, satir atlanmaz). Kullanici "alt+enter
+                  // yapsak" dedigi icin her turlu Enter'i (Alt/Shift/duz) elle
+                  // \n olarak ekliyoruz. Boylece hangi kombinasyonu denerse
+                  // denesin satir atlar; sadece Ctrl/Cmd+Enter gonderir.
+                  e.preventDefault();
+                  const el = e.currentTarget;
+                  const start = el.selectionStart ?? slackMessage.length;
+                  const end = el.selectionEnd ?? slackMessage.length;
+                  const next = slackMessage.slice(0, start) + '\n' + slackMessage.slice(end);
+                  setSlackMessage(next);
+                  // Imleci yeni satirin basina tasi.
+                  requestAnimationFrame(() => {
+                    el.selectionStart = el.selectionEnd = start + 1;
+                  });
                 }}
                 placeholder={t('slackPlaceholder')}
                 rows={4}
