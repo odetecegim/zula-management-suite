@@ -68,7 +68,11 @@ t('Google erisim hatasi anlamli kod donuyor', () => {
 });
 t('kayitli olmayan kullanici icin ayri kod var', () => {
   const idx = routeSrc.indexOf('auth.needsAdminRole');
-  const block = routeSrc.slice(idx, idx + 2600);
+  // Pencere GENISLETILDI: WRITE_ROLES blogu (yorum + ek roller) buyudukce
+  // ACTOR_NOT_FOUND kodu bu kapidan uzaklasti. Rol kontrolunun
+  // bulundugu bolgeden geriye dogru tam olarak ACTOR_NOT_FOUND'a kadar
+  // tarayabilmek icin yeterli pencere korunur.
+  const block = routeSrc.slice(idx, idx + 6000);
   assert.ok(
     /ACTOR_NOT_FOUND/.test(block),
     'ACTOR_NOT_FOUND kodu yok - kullanici tabloda yoksa nedeni belirtilmiyor'

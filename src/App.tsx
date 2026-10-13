@@ -510,6 +510,18 @@ export function App() {
 
   useEffect(() => {
     if (!hydrated) return; // uzaktan veri gelmeden yazma
+    // YETKİ KAPISI: üye listesi yalnızca yazma yetkisi olan rollerde
+    // sunucuya yazılabilir (sunucu ADMIN_ROLES: super_admin,
+    // company_manager, academy_lead). Bu otomatik toplu senkron liste her
+    // değiştiğinde (giriş / ilk yükleme dahil) tetiklenir. Sıradan üye
+    // veya hakem giriş yaptığında yazma denemesi sunucudan 403
+    // (ADMIN_ROLE_REQUIRED) yiyor ve kullanıcı gereksiz yere
+    // "Google Sheets'e kaydedilemedi" hatası görüyordu. Artık yetkisiz
+    // kullanıcı hiç yazma denemez; verileri tarayıcıda güvende kalır.
+    const syncRole = currentUser?.role;
+    if (!syncRole || !['super_admin', 'company_manager', 'academy_lead'].includes(syncRole)) {
+      return;
+    }
     const timer = setTimeout(async () => {
       // ---- ESZAMANLI KAYIT KORUMASI ------------------------------
       // SORUN: asagidaki fetch + write zinciri 2 ayri HTTP istegi

@@ -226,9 +226,26 @@ export async function handleApi(method, segments, body = {}, headers = {}, query
         );
       }
 
-      const ADMIN_ROLES = ['super_admin', 'company_manager'];
+      // YAZMA YETKISI — KIMLER UYE EKLEYIP DUZENLEYEBILIR?
+      //
+      // Onceki surumde yalnizca ['super_admin', 'company_manager'] yazabiliyordu.
+      // SONUC (kullanici hatasi): Akademi lideri / hakem lideri gibi KOORDINATOR
+      // roller panele girip uye ekleyemiyordu; "Bu islem icin yonetici yetkisi
+      // gerekiyor" (403 ADMIN_ROLE_REQUIRED) aliyordu ve veri yalnizca
+      // tarayicida kaliyordu — diger kisiler goremiyordu.
+      //
+      // COZUM: Lidere/koordinatore de yazma yetkisi verildi. Ama GUVENLIK KORUNUR:
+      // SAF UYE rolleri (academy_member, fedai_member, referee) YAZAMAZ; boylece
+      // siradan bir uye uye listesini bozamaz.
+      const WRITE_ROLES = [
+        'super_admin',
+        'company_manager',
+        'company_staff',
+        'academy_lead',
+        'referee_lead',
+      ];
 
-      if (!actorFound || !ADMIN_ROLES.includes(actorRole)) {
+      if (!actorFound || !WRITE_ROLES.includes(actorRole)) {
         // Kullanici Sheets'te kayitli DEGILSE engel farklidir
         // (hesap sunucu tablosunda yok) -> ayri kod donuyoruz.
         return fail(
