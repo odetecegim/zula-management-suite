@@ -21,6 +21,7 @@ import {
   listSlackChannels,
   getSlackError,
   SLACK_COLORS,
+  textToBlocks,
 } from './slack.js';
 
 test('hicbir kimlik bilgisi yoksa yapilandirilmamis sayilir', () => {
@@ -309,4 +310,43 @@ test('sendSlackMessage kanal parametresi kabul eder (imza uyumu)', async () => {
   const sentWithChannel = await sendSlackMessage('mesaj', 'C0C5W28LU6T');
   assert.equal(sentNoChannel, false);
   assert.equal(sentWithChannel, false);
+
+// ------------------------------------------------------------------
+// BOS SATIR KORUMASI — cok satirli mesajlar paragraf bloguna cevrilir.
+// Slack'in duz text alani mrkdwn yorumuyla ard arda bos satirlari yutuyordu;
+// bu testler textToBlocks'in paragraflari ayri section bloguna ayirdigini
+// (boylece Slack'ta gercek bosluk olustugunu) kilitler.
+// ------------------------------------------------------------------
+
+test('tek satir / tek paragraf metinde block URETILMEZ (duz text yeterli)', () => {
+  assert.deepEqual(textToBlocks('Merhaba dunya'), []);
+  assert.deepEqual(textToBlocks(''), []);
+  assert.deepEqual(textToBlocks('   '), []);
+});
+
+test('bos satirla ayrilmis paragraflar ayri section bloguna cevrilir', () => {
+  const blocks = textToBlocks('Ilk paragraf\n\nIkinci paragraf');
+  assert.equal(blocks.length, 2);
+  assert.equal(blocks[0].type, 'section');
+  assert.equal(blocks[0].text.type, 'plain_text');
+  assert.equal(blocks[0].text.text, 'Ilk paragraf');
+  assert.equal(blocks[1].text.text, 'Ikinci paragraf');
+});
+
+test('birden fazla bos satir tek ayirici sayilir; paragraf ici satirlar korunur', () => {
+  const blocks = textToBlocks('Satir1\nSatir2\n\n\n\nSatir3\nSatir4');
+  // Iki paragraf olmali (ic bos satirlari ayirici sayilir, paragraf ici
+  // tek satir sonlari AYNI blok icinde kalir).
+  assert.equal(blocks.length, 2);
+  assert.equal(blocks[0].text.text, 'Satir1\nSatir2');
+  assert.equal(blocks[1].text.text, 'Satir3\nSatir4');
+});
+
+test('paragraf basi/sonu bosluklari kirpilir, ici aynen kalir', () => {
+  const blocks = textToBlocks('  basta bosluk  \n\n  sondaki  ');
+  assert.equal(blocks.length, 2);
+  assert.equal(blocks[0].text.text, 'basta bosluk');
+  assert.equal(blocks[1].text.text, 'sondaki');
+});
+
 });

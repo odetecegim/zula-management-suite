@@ -229,6 +229,40 @@ function channelFormatProblem(channel) {
   return '';
 }
 /**
+ * Duz metni Slack "section" bloklarina cevirir — BOS SATIRLARI KORUMASI.
+ *
+ * SORUN (kullanici sikayeti): Panelden cok satirli mesaj (paragraflar arasi
+ * bos satirla) gonderildiginde Slack'ta bos satirlar kayboluyor, tum metin
+ * tek blok halinde bitisik cikiyordu. Sebep: chat.postMessage'in duz `text`
+ * alani "mrkdwn" olarak yorumlaniyor ve ardisik bos satirlari (\n\n) yutuyor.
+ *
+ * COZUM: Metni bos satirlardan paragraflara bol; her paragrafi ayri bir
+ * `section` bloguna koy. Slack bloglari arasina otomatik olarak GERCEK
+ * bosluk koyar. Blok icinde `plain_text` kullanilir ki mrkdwn yorumlamasi
+ * (_, *, ` gibi) metni bozmasin ve satir sonlari oldugu gibi korunsun.
+ *
+ * Tek paragraf (bos satir yok) varsa bos dizi doner: o zaman duz text yeter,
+ * gereksiz bloga gerek yok.
+ *
+ * @param {string} text
+ * @returns {Array<object>} blocks dizisi (bos olabilir)
+ */
+function textToBlocks(text) {
+  const raw = String(text || '');
+  // Bir veya daha fazla bos satirdan paragraflara bol.
+  const paragraphs = raw
+    .split(/\n\s*\n/)
+    .map((p) => p.trim())
+    .filter((p) => p.length > 0);
+  if (paragraphs.length <= 1) return [];
+  return paragraphs.map((p) => ({
+    type: 'section',
+    text: { type: 'plain_text', text: p.slice(0, 3000) },
+  }));
+}
+export { textToBlocks };
+
+/**
  * Bot yolu ile mesaj gonderir: auth.test -> chat.postMessage.
  *
  * ADIMLAR (ve nedenleri):
@@ -275,11 +309,18 @@ async function postViaBotApi(text, blocks, channelOverride) {
     return false;
   }
 
-  // 3) Asil gonderim
+  // 3) Asil gonderim.
+  //    Bos satirlari korumak icin metni paragraflara bolup section bloklarina
+  //    ceviririz. Boylece Slack'ta paragraflar arasi GERCEK bosluk olusur.
+  //    Tek paragrafsa blocks bos doner; duz text yeterli (davranis ayni kalir).
+  const effectiveBlocks =
+    blocks && blocks.length ? blocks : textToBlocks(text);
   const sent = await callSlackApi('chat.postMessage', token, {
     channel,
+    // text HER ZAMAN gonderilir: erisilebilirlik + blok yuklenemezse yedek.
+    // blocks varsa Slack onu on planda gosterir.
     text: String(text).slice(0, 40000),
-    ...(blocks && blocks.length ? { blocks } : {}),
+    ...(effectiveBlocks && effectiveBlocks.length ? { blocks: effectiveBlocks } : {}),
   });
   if (sent.ok) {
     lastError = '';
