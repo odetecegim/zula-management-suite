@@ -201,7 +201,14 @@ export const PerformanceView: React.FC<PerformanceProps> = ({
     const testDays = has
       ? draft.testDays.filter((d) => d !== day)
       : [...draft.testDays, day].sort((a, b) => a - b);
-    setDraft({ ...draft, testDays });
+    setDraft({
+      ...draft,
+      testDays,
+      testParticipation: Math.min(
+      30,
+      testDays.length + (draft.participationEntries?.reduce((a, b) => a + b.multiplier, 0) ?? 0),
+    ),
+    });
   };
 
   // --- Carpanli katilim serisi ---
@@ -221,7 +228,7 @@ export const PerformanceView: React.FC<PerformanceProps> = ({
       ...draft,
       participationEntries: entries,
       participationDetails: details,
-      testParticipation: Math.min(30, total),
+      testParticipation: Math.min(30, draft.testDays.length + total),
     });
   };
 
@@ -232,7 +239,10 @@ export const PerformanceView: React.FC<PerformanceProps> = ({
       ...draft,
       participationEntries: entries,
       participationDetails: entries.map((e) => String(e.day).padStart(2, '0') + 'x' + e.multiplier).join(', '),
-      testParticipation: Math.min(30, entries.reduce((s, e) => s + e.multiplier, 0)),
+      testParticipation: Math.min(
+        30,
+        draft.testDays.length + entries.reduce((s, e) => s + e.multiplier, 0),
+      ),
     });
   };
 

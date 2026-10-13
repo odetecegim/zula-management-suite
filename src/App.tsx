@@ -695,7 +695,7 @@ const canEditPerformance =
 
   // SISTEM KAYITLARI: yalnizca sirket kadrosu (yonetim) gorur.
   // Testci/moderator rollerinde "logs" izni olsa bile engellenir.
-  const mayViewLogs = canViewLogs(currentUser?.role);
+  const mayViewLogs = canViewLogs(currentUser?.role, currentUser?.permissions);
   const visibleTabs = mayViewLogs
     ? allowedTabs
     : allowedTabs.filter((pid) => pid !== 'logs');
@@ -767,6 +767,9 @@ const canEditPerformance =
     setSessionToken(null);
     setCurrentUserId(null);
     setCurrentTab('dashboard');
+    // Rol simülasyonu da temizlenmeli; aksi halde daha once secilmis rol
+    // simülasyonu oturumlar arası kalir ve yetkiler kısıtlı görünür.
+    try { localStorage.removeItem('zula_suite_simulate_roles'); } catch { /* yoksay */ }
   };
 
   // OTURUM KAPATMA: yonetici bir kullaniciyi "Pasif" cekerse, o

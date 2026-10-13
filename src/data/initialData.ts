@@ -65,9 +65,9 @@ export const INITIAL_ROLES: RoleDef[] = [
   { id: 'company_staff', name: 'Şirket Çalışanı', badgeColor: 'bg-slate-500/10 text-slate-300 border-slate-500/20', description: 'Yönetim kadrosu; performans listelerinde yer almaz', permissions: ['dashboard', 'members', 'logs'] },
   { id: 'academy_member', name: 'Akademi Üyesi', badgeColor: 'bg-amber-500/10 text-amber-300 border-amber-500/20', description: 'Akademi test ekibi üyesi; kendi performansını girer', permissions: ['dashboard', 'academy', 'performance', 'reports'] },
   { id: 'fedai_member', name: 'Fedai Üyesi', badgeColor: 'bg-yellow-500/10 text-yellow-400 border-yellow-500/20', description: 'Fedai eğitim ekibi üyesi', permissions: ['dashboard', 'academy'] },
-  { id: 'academy_lead', name: 'Akademi Kaptanı', badgeColor: 'bg-amber-500/10 text-amber-400 border-amber-500/20', description: 'Test ekipleri ve oyuncu akademisi lideri', permissions: ['dashboard', 'academy', 'performance', 'tests', 'reports'] },
+  { id: 'academy_lead', name: 'Akademi Kaptanı', badgeColor: 'bg-amber-500/10 text-amber-400 border-amber-500/20', description: 'Test ekipleri ve oyuncu akademisi lideri', permissions: ['dashboard', 'academy', 'performance', 'tests', 'reports', 'logs'] },
   { id: 'referee', name: 'Hakem', badgeColor: 'bg-emerald-500/10 text-emerald-300 border-emerald-500/20', description: 'Maç hakemliği yapan üye', permissions: ['dashboard', 'referees', 'performance'] },
-  { id: 'referee_lead', name: 'Baş Hakem', badgeColor: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20', description: 'Turnuva ve espor hakem heyeti başkanı', permissions: ['dashboard', 'referees', 'performance', 'tests'] },
+  { id: 'referee_lead', name: 'Baş Hakem', badgeColor: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20', description: 'Turnuva ve espor hakem heyeti başkanı', permissions: ['dashboard', 'referees', 'performance', 'tests', 'logs'] },
 ];
 
 // Uye listesinde ORNEK/TOHUM KAYIT YOKTUR.

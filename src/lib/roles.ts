@@ -1,4 +1,4 @@
-import type { RoleId, Member } from '../types';
+import type { RoleId, Member, PermissionId } from '../types';
 
 export function roleGroupFor(role: RoleId): 'academy' | 'referee' | null {
   if (role === 'academy_lead' || role === 'academy_member' || role === 'fedai_member') return 'academy';
@@ -45,13 +45,21 @@ export function isCompanyStaff(member: Pick<Member, 'role'>): boolean {
 /**
  * SİSTEM KAYITLARINI GÖREBİLİR Mİ?
  *
- * Loglar yalnızca şirket kadrosuna (yönetim) açıktır. Testçi ve
- * moderatör üyeler sistem kayıtlarını göremez — menüde görünmez,
- * doğrudan adres girilse bile ekran açılmaz.
+ * Loglar şirket kadrosuna (yönetim) VEYA 'logs' izni verilmiş
+ * herhangi bir role açıktır. Bu sayede yönetici (academy_lead /
+ * referee_lead) rollerine 'logs' izni verilmişse sistem kayıtları
+ * görülebilir; izin tabanlı esneklik sağlanır.
  */
-export function canViewLogs(role: string | undefined): boolean {
+export function canViewLogs(
+  role: string | undefined,
+  permissions?: PermissionId[]
+): boolean {
   if (!role) return false;
-  return COMPANY_STAFF_ROLES.includes(role as RoleId);
+  // Şirket kadrosu (yönetim) her zaman görebilir
+  if (COMPANY_STAFF_ROLES.includes(role as RoleId)) return true;
+  // 'logs' izni verilen herkes görebilir (izin bazlı genişletme)
+  if (permissions?.includes('logs')) return true;
+  return false;
 }
 
 /**
