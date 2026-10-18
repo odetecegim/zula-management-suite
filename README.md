@@ -32,9 +32,9 @@ npm start          # API + derlenmiş paneli birlikte sunar
 
 | Alan | Değer |
 |---|---|
-| Kullanıcı adı | `huseyin` |
+| Kullanıcı adı | `admin` |
 | Şifre | `admin123` |
-| E-posta | `admin@madbytegames.com` |
+| E-posta | `admin@admin.com` |
 
 Bu hesap `src/App.tsx` içinde her açılışta sabitlenir; tarayıcı verisi
 bozulsa bile giriş her zaman çalışır. **Canlıya almadan önce şifreyi
